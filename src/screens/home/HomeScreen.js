@@ -6,28 +6,24 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
-import { useAuth } from '../../context/AuthContext';
+import { useApp } from '../../context/AppContext';
 import { VENUES } from '../../data/venues';
 import VenueCard from '../../components/VenueCard';
 import { HomeScreenSkeleton } from '../../components/SkeletonLoader';
 import { colors, spacing, typography, radius, shadow } from '../../theme/colors';
 
 const CATEGORIES = [
-  { label: 'Tous',         value: null,                  emoji: '✨' },
-  { label: 'Mariage',      value: 'Château',             emoji: '💍' },
-  { label: 'Soirée',       value: 'Rooftop',             emoji: '🌙' },
-  { label: 'Séminaire',    value: 'Loft',                emoji: '💼' },
-  { label: 'Anniversaire', value: 'Salle de réception',  emoji: '🎂' },
-  { label: 'Photo',        value: 'Studio photo',        emoji: '📸' },
-  { label: 'Plein air',    value: 'Jardin',              emoji: '🌿' },
+  { label: 'Tous',         value: null,                 emoji: '✨' },
+  { label: 'Mariage',      value: 'Château',            emoji: '💍' },
+  { label: 'Soirée',       value: 'Rooftop',            emoji: '🌙' },
+  { label: 'Séminaire',    value: 'Loft',               emoji: '💼' },
+  { label: 'Anniversaire', value: 'Salle de réception', emoji: '🎂' },
+  { label: 'Photo',        value: 'Studio photo',       emoji: '📸' },
+  { label: 'Plein air',    value: 'Jardin',             emoji: '🌿' },
 ];
 
-// Favoris stockés en mémoire (pas AsyncStorage)
-const memFavs = {};
-
 export default function HomeScreen({ navigation }) {
-  const { user } = useAuth();
-  const [favs, setFavs] = useState([]);
+  const { user, favorites, toggleFavorite } = useApp();
   const [search, setSearch] = useState('');
   const [cat, setCat] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -37,35 +33,14 @@ export default function HomeScreen({ navigation }) {
   const [minCapacity, setMinCapacity] = useState('');
   const insets = useSafeAreaInsets();
 
-  const load = useCallback(() => {
-    setLoading(true);
-    // Charge les favoris depuis la mémoire
-    if (user?.id) {
-      setFavs(memFavs[user.id] || []);
-    }
-    // Simule un petit délai pour le skeleton
-    setTimeout(() => setLoading(false), 400);
-  }, [user]);
-
-  useFocusEffect(useCallback(() => { load(); }, [load]));
+  useFocusEffect(useCallback(() => {
+    const t = setTimeout(() => setLoading(false), 400);
+    return () => clearTimeout(t);
+  }, []));
 
   const onRefresh = () => {
     setRefreshing(true);
-    setTimeout(() => { load(); setRefreshing(false); }, 600);
-  };
-
-  const onFav = (venueId) => {
-    if (!user) {
-      // RootNavigator redirige automatiquement si user=null via logout
-      // On ne peut pas navigate('Login') depuis un tab imbriqué
-      return;
-    }
-    const uid = user.id;
-    const current = memFavs[uid] || [];
-    const idx = current.indexOf(venueId);
-    const updated = idx >= 0 ? current.filter(x => x !== venueId) : [...current, venueId];
-    memFavs[uid] = updated;
-    setFavs(updated);
+    setTimeout(() => setRefreshing(false), 600);
   };
 
   const venues = useMemo(() => (VENUES || []).filter(v => v.published !== false), []);
@@ -82,7 +57,7 @@ export default function HomeScreen({ navigation }) {
   }), [venues, search, cat, maxPrice, minCapacity]);
 
   const hasFilters = maxPrice || minCapacity;
-  const firstName = user?.name?.split(' ')[0] || user?.firstName || '';
+  const firstName = user?.name?.split(' ')[0] || '';
 
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
@@ -111,18 +86,18 @@ export default function HomeScreen({ navigation }) {
             onChangeText={setSearch}
             returnKeyType="search"
           />
-          {search ? (
+          {!!search && (
             <TouchableOpacity onPress={() => setSearch('')} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-              <Text style={{ fontSize: 14 }}>❌</Text>
+              <Ionicons name="close-circle" size={16} color={colors.mid} />
             </TouchableOpacity>
-          ) : null}
+          )}
         </View>
         <TouchableOpacity
           style={[styles.filterBtn, hasFilters && styles.filterBtnActive]}
           onPress={() => setFilterOpen(true)}
         >
-          <Text style={{ fontSize: 16 }}>🎯</Text>
-          {hasFilters && <View style={styles.filterDot} />}
+          <Ionicons name="options-outline" size={20} color={hasFilters ? colors.primary : colors.mid} />
+          {!!hasFilters && <View style={styles.filterDot} />}
         </TouchableOpacity>
       </View>
 
@@ -159,16 +134,20 @@ export default function HomeScreen({ navigation }) {
           renderItem={({ item }) => (
             <VenueCard
               venue={item}
-              isFav={favs.includes(item.id)}
+              isFav={favorites.includes(item.id)}
               onPress={() => navigation.navigate('VenueDetail', { venueId: item.id })}
-              onFav={() => onFav(item.id)}
+              onFav={() => toggleFavorite(item.id)}
             />
           )}
           contentContainerStyle={{ paddingHorizontal: spacing.lg, paddingBottom: 120 }}
           showsVerticalScrollIndicator={false}
           refreshControl={
-            <RefreshControl refreshing={refreshing} onRefresh={onRefresh}
-              tintColor={colors.primary} colors={[colors.primary]} />
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={onRefresh}
+              tintColor={colors.primary}
+              colors={[colors.primary]}
+            />
           }
           ListHeaderComponent={
             <Text style={styles.sectionTitle}>
@@ -179,7 +158,7 @@ export default function HomeScreen({ navigation }) {
             <View style={styles.empty}>
               <Text style={styles.emptyIco}>🔍</Text>
               <Text style={styles.emptyTitle}>Aucun résultat</Text>
-              <Text style={styles.emptySubtitle}>Essayez d'autres termes ou explorez la carte</Text>
+              <Text style={styles.emptySubtitle}>Essayez d’autres termes ou explorez la carte</Text>
               <TouchableOpacity style={styles.emptyMapBtn} onPress={() => navigation.navigate('MapSearch')}>
                 <Text>🗺️</Text>
                 <Text style={styles.emptyMapBtnText}>Explorer la carte</Text>
@@ -189,7 +168,7 @@ export default function HomeScreen({ navigation }) {
         />
       )}
 
-      {/* Modal filtre */}
+      {/* Modal filtres */}
       <Modal visible={filterOpen} transparent animationType="slide" onRequestClose={() => setFilterOpen(false)}>
         <TouchableOpacity style={styles.modalOverlay} activeOpacity={1} onPress={() => setFilterOpen(false)} />
         <View style={styles.modalSheet}>
@@ -201,7 +180,7 @@ export default function HomeScreen({ navigation }) {
             style={styles.filterInput}
             value={maxPrice}
             onChangeText={setMaxPrice}
-            placeholder="Ex: 2000"
+            placeholder="Ex : 2000"
             placeholderTextColor={colors.light}
             keyboardType="number-pad"
           />
@@ -211,7 +190,7 @@ export default function HomeScreen({ navigation }) {
             style={styles.filterInput}
             value={minCapacity}
             onChangeText={setMinCapacity}
-            placeholder="Ex: 50"
+            placeholder="Ex : 50"
             placeholderTextColor={colors.light}
             keyboardType="number-pad"
           />
@@ -219,8 +198,11 @@ export default function HomeScreen({ navigation }) {
           <TouchableOpacity style={styles.applyBtn} onPress={() => setFilterOpen(false)}>
             <Text style={styles.applyBtnText}>✅ Appliquer les filtres</Text>
           </TouchableOpacity>
-          {hasFilters && (
-            <TouchableOpacity style={styles.clearBtn} onPress={() => { setMaxPrice(''); setMinCapacity(''); setFilterOpen(false); }}>
+          {!!hasFilters && (
+            <TouchableOpacity
+              style={styles.clearBtn}
+              onPress={() => { setMaxPrice(''); setMinCapacity(''); setFilterOpen(false); }}
+            >
               <Text style={styles.clearBtnText}>🗑️ Réinitialiser</Text>
             </TouchableOpacity>
           )}
@@ -241,64 +223,64 @@ const styles = StyleSheet.create({
   logoAccent: { color: colors.primary },
   iconBtn: {
     width: 38, height: 38, borderRadius: 11,
-    backgroundColor: colors.primaryLight,
+    backgroundColor: colors.primaryLight || '#EEF2FF',
     alignItems: 'center', justifyContent: 'center',
   },
   iconBtnEmoji: { fontSize: 18 },
   searchRow: {
     flexDirection: 'row', alignItems: 'center',
-    paddingHorizontal: spacing.lg, marginTop: spacing.xs, marginBottom: spacing.sm, gap: spacing.sm,
+    paddingHorizontal: spacing.lg, marginTop: spacing.xs,
+    marginBottom: spacing.sm, gap: spacing.sm,
   },
   searchBar: {
     flex: 1, flexDirection: 'row', alignItems: 'center',
     backgroundColor: colors.white,
-    borderRadius: radius.xl, paddingHorizontal: spacing.md, paddingVertical: 10,
+    borderRadius: 14, paddingHorizontal: spacing.md, paddingVertical: 10,
     borderWidth: 1.5, borderColor: colors.border,
-    gap: spacing.sm, ...shadow.xs,
+    gap: spacing.sm,
   },
   searchInput: { flex: 1, fontSize: typography.body, color: colors.dark },
   filterBtn: {
-    width: 44, height: 44, borderRadius: radius.md,
+    width: 44, height: 44, borderRadius: 12,
     backgroundColor: colors.white,
     alignItems: 'center', justifyContent: 'center',
     borderWidth: 1.5, borderColor: colors.border,
     position: 'relative',
   },
-  filterBtnActive: { borderColor: colors.primary, backgroundColor: colors.primaryLight },
+  filterBtnActive: { borderColor: colors.primary, backgroundColor: colors.primaryLight || '#EEF2FF' },
   filterDot: {
     position: 'absolute', top: 6, right: 6,
     width: 8, height: 8, borderRadius: 4,
-    backgroundColor: colors.error || '#EF4444',
+    backgroundColor: '#EF4444',
   },
-  catScroll: { marginBottom: spacing.xs, flexGrow: 0 },
-  catContent: { paddingHorizontal: spacing.lg, paddingVertical: 2, gap: 6, alignItems: 'center' },
+  catScroll: { flexGrow: 0, marginBottom: spacing.xs },
+  catContent: { paddingHorizontal: spacing.lg, paddingVertical: 2, gap: 6 },
   catBtn: {
     flexDirection: 'row', alignItems: 'center', gap: 4,
-    backgroundColor: colors.white, borderRadius: radius.full,
+    backgroundColor: colors.white, borderRadius: 20,
     paddingHorizontal: 10, paddingVertical: 4,
-    borderWidth: 1, borderColor: colors.border,
+    borderWidth: 1.5, borderColor: colors.border,
   },
   catBtnActive: { backgroundColor: colors.primary, borderColor: colors.primary },
   catEmoji: { fontSize: 12, lineHeight: 16 },
   catText: { fontSize: 11, color: colors.mid, fontWeight: '500' },
-  catTextActive: { color: '#fff', fontWeight: '600' },
+  catTextActive: { color: '#fff', fontWeight: '700' },
   sectionTitle: {
     fontSize: typography.small, fontWeight: '700', color: colors.mid,
-    marginBottom: spacing.md, marginTop: spacing.xs, letterSpacing: 0.5,
-    textTransform: 'uppercase',
+    marginBottom: spacing.md, marginTop: spacing.xs,
+    letterSpacing: 0.5, textTransform: 'uppercase',
   },
   empty: { alignItems: 'center', paddingTop: 60, gap: spacing.md },
-  emptyIco: { fontSize: 44, marginBottom: spacing.sm },
+  emptyIco: { fontSize: 44 },
   emptyTitle: { fontSize: typography.h3, fontWeight: '700', color: colors.dark },
   emptySubtitle: { fontSize: typography.small, color: colors.light, textAlign: 'center', maxWidth: 240 },
   emptyMapBtn: {
     flexDirection: 'row', alignItems: 'center', gap: 6,
-    backgroundColor: colors.primary, borderRadius: radius.full,
-    paddingHorizontal: spacing.xl, paddingVertical: spacing.md,
-    marginTop: spacing.sm, ...shadow.sm, shadowColor: colors.primary,
+    backgroundColor: colors.primary, borderRadius: 20,
+    paddingHorizontal: spacing.xl, paddingVertical: spacing.md, marginTop: spacing.sm,
   },
   emptyMapBtnText: { color: '#fff', fontWeight: '700', fontSize: typography.small },
-  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)' },
+  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.45)' },
   modalSheet: {
     backgroundColor: colors.bg, borderTopLeftRadius: 24, borderTopRightRadius: 24,
     padding: spacing.lg, paddingBottom: 40,
@@ -310,18 +292,18 @@ const styles = StyleSheet.create({
   modalTitle: { fontSize: typography.h2, fontWeight: '900', color: colors.dark, marginBottom: spacing.lg },
   filterLabel: { fontSize: typography.small, fontWeight: '700', color: colors.mid, marginBottom: spacing.sm },
   filterInput: {
-    backgroundColor: colors.white, borderRadius: radius.md,
+    backgroundColor: colors.white, borderRadius: 12,
     borderWidth: 1.5, borderColor: colors.border,
     paddingHorizontal: spacing.md, paddingVertical: 12,
     fontSize: typography.body, color: colors.dark, marginBottom: spacing.lg,
   },
   applyBtn: {
-    backgroundColor: colors.primary, borderRadius: radius.xl,
+    backgroundColor: colors.primary, borderRadius: 14,
     paddingVertical: spacing.md, alignItems: 'center', marginBottom: spacing.sm,
   },
   applyBtnText: { color: '#fff', fontWeight: '700', fontSize: typography.body },
   clearBtn: {
-    borderRadius: radius.xl, paddingVertical: spacing.md,
+    borderRadius: 14, paddingVertical: spacing.md,
     alignItems: 'center', borderWidth: 1.5, borderColor: colors.border,
   },
   clearBtnText: { color: colors.mid, fontWeight: '600', fontSize: typography.body },
