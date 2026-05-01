@@ -22,7 +22,7 @@ export default function VenueDetailScreen({ route, navigation }) {
       const r = await Store.getReviews(venueId);
       const u = await Store.getCurrentUser();
       setVenue(v);
-      setReviews(r);
+      setReviews(r || []);
       setUser(u);
       if (u) setIsFav(await Store.isFavorite(u.id, venueId));
     })();
@@ -46,7 +46,7 @@ export default function VenueDetailScreen({ route, navigation }) {
     </View>
   );
 
-  const avgRating = reviews.length > 0 ? (reviews.reduce((s, r) => s + r.rating, 0) / reviews.length).toFixed(1) : venue.rating;
+  const avgRating = reviews.length > 0 ? (reviews.reduce((s, r) => s + (r.rating || 0), 0) / reviews.length).toFixed(1) : (venue.rating || '—');
 
   return (
     <View style={styles.container}>
@@ -54,7 +54,7 @@ export default function VenueDetailScreen({ route, navigation }) {
         {/* Gallery */}
         <View style={styles.gallery}>
           <ScrollView horizontal pagingEnabled showsHorizontalScrollIndicator={false} onScroll={e => setActiveImg(Math.round(e.nativeEvent.contentOffset.x / W))} scrollEventThrottle={16}>
-            {(venue.gallery || [venue.img]).map((img, i) => (
+            {(venue.gallery || [venue.img]).filter(Boolean).map((img, i) => (
               <Image key={i} source={{ uri: img }} style={[styles.mainImg, { width: W }]} />
             ))}
           </ScrollView>
@@ -65,7 +65,7 @@ export default function VenueDetailScreen({ route, navigation }) {
             <Ionicons name={isFav ? 'heart' : 'heart-outline'} size={22} color={isFav ? '#ef4444' : colors.dark} />
           </TouchableOpacity>
           <View style={styles.dots}>
-            {(venue.gallery || [venue.img]).map((_, i) => (
+            {(venue.gallery || [venue.img]).filter(Boolean).map((_, i) => (
               <View key={i} style={[styles.dot, i === activeImg && styles.dotActive]} />
             ))}
           </View>
@@ -74,31 +74,31 @@ export default function VenueDetailScreen({ route, navigation }) {
         <View style={styles.content}>
           {/* Infos principales */}
           <View style={styles.topRow}>
-            <View style={styles.typeBadge}><Text style={styles.typeTxt}>{venue.type}</Text></View>
+            <View style={styles.typeBadge}><Text style={styles.typeTxt}>{venue?.type || ''}</Text></View>
             <View style={styles.ratingRow}>
               <Ionicons name="star" size={14} color={colors.warning} />
               <Text style={styles.ratingTxt}> {avgRating} ({reviews.length} avis)</Text>
             </View>
           </View>
-          <Text style={styles.name}>{venue.name}</Text>
+          <Text style={styles.name}>{venue?.name || ''}</Text>
           <View style={styles.infoRow}>
             <Ionicons name="location-outline" size={15} color={colors.mid} />
-            <Text style={styles.infoTxt}>{venue.address}</Text>
+            <Text style={styles.infoTxt}>{venue?.address || ''}</Text>
           </View>
           <View style={styles.infoRow}>
             <Ionicons name="people-outline" size={15} color={colors.mid} />
-            <Text style={styles.infoTxt}>Jusqu\'à {venue.capacity} personnes</Text>
+            <Text style={styles.infoTxt}>Jusqu'à {venue?.capacity || ''} personnes</Text>
           </View>
 
           {/* Prix */}
           <View style={styles.priceBox}>
-            <Text style={styles.price}>{venue.price} <Text style={styles.perH}>€/heure</Text></Text>
+            <Text style={styles.price}>{venue?.price || ''} <Text style={styles.perH}>€/heure</Text></Text>
             <Text style={styles.priceNote}>Toutes charges incluses</Text>
           </View>
 
           {/* Description */}
           <Text style={styles.sectionTitle}>Description</Text>
-          <Text style={styles.description}>{venue.description}</Text>
+          <Text style={styles.description}>{venue?.description || ''}</Text>
 
           {/* Équipements */}
           <Text style={styles.sectionTitle}>Équipements inclus</Text>
@@ -114,19 +114,19 @@ export default function VenueDetailScreen({ route, navigation }) {
           {/* Avis */}
           <Text style={styles.sectionTitle}>Avis ({reviews.length})</Text>
           {reviews.length === 0 && <Text style={styles.noReview}>Aucun avis pour le moment.</Text>}
-          {reviews.map(r => (
-            <View key={r.id} style={styles.reviewCard}>
+          {reviews.map((r, idx) => (
+            <View key={r.id || idx} style={styles.reviewCard}>
               <View style={styles.reviewHeader}>
-                <View style={styles.reviewAvatar}><Text style={styles.reviewAvatarTxt}>{r.author[0]}</Text></View>
+                <View style={styles.reviewAvatar}><Text style={styles.reviewAvatarTxt}>{(r.author || '?')[0]}</Text></View>
                 <View style={{ flex: 1 }}>
-                  <Text style={styles.reviewAuthor}>{r.author}</Text>
-                  <Text style={styles.reviewDate}>{r.date}</Text>
+                  <Text style={styles.reviewAuthor}>{r.author || 'Anonyme'}</Text>
+                  <Text style={styles.reviewDate}>{r.date || ''}</Text>
                 </View>
                 <View style={styles.ratingRow}>
-                  {[1,2,3,4,5].map(i => <Ionicons key={i} name="star" size={12} color={i <= r.rating ? colors.warning : colors.border} />)}
+                  {[1,2,3,4,5].map(i => <Ionicons key={i} name="star" size={12} color={i <= (r.rating || 0) ? colors.warning : colors.border} />)}
                 </View>
               </View>
-              <Text style={styles.reviewText}>{r.text}</Text>
+              <Text style={styles.reviewText}>{r.text || ''}</Text>
             </View>
           ))}
         </View>
