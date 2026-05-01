@@ -7,41 +7,42 @@ import { COLORS } from '../../theme/colors';
 export default function VenueDetailScreen({ route, navigation }) {
   const { venue } = route.params;
   const { favorites, toggleFavorite } = useApp();
-  const isFav = favorites.includes(venue.id);
+  const isFav = (favorites || []).includes(venue.id);
   const categoryColors = { Soirée: '#6C63FF', Mariage: '#FF6584', Professionnel: '#43C6AC', Anniversaire: '#F59E0B' };
   const icons = { Loft: '🏙️', Rooftop: '🌆', Domaine: '🏰', Studio: '🎨', Bureau: '💼', Salle: '🏛️' };
+  const annonceurName = venue?.annonceurName || 'Annonceur';
 
   return (
     <View style={styles.container}>
       <ScrollView showsVerticalScrollIndicator={false}>
-        <View style={[styles.hero, { backgroundColor: categoryColors[venue.category] || COLORS.primary }]}>
+        <View style={[styles.hero, { backgroundColor: categoryColors[venue?.category] || COLORS.primary }]}>
           <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()}>
             <Ionicons name="arrow-back" size={22} color={COLORS.white} />
           </TouchableOpacity>
           <TouchableOpacity style={styles.favBtn} onPress={() => toggleFavorite(venue.id)}>
             <Ionicons name={isFav ? 'heart' : 'heart-outline'} size={22} color={isFav ? COLORS.secondary : COLORS.white} />
           </TouchableOpacity>
-          <Text style={styles.heroIcon}>{icons[venue.type] || '🏛️'}</Text>
-          <View style={styles.heroBadge}><Text style={styles.heroBadgeText}>{venue.type}</Text></View>
+          <Text style={styles.heroIcon}>{icons[venue?.type] || '🏛️'}</Text>
+          <View style={styles.heroBadge}><Text style={styles.heroBadgeText}>{venue?.type || ''}</Text></View>
         </View>
         <View style={styles.content}>
           <View style={styles.titleRow}>
-            <Text style={styles.name}>{venue.name}</Text>
+            <Text style={styles.name}>{venue?.name || ''}</Text>
             <View style={styles.ratingBadge}>
               <Ionicons name="star" size={14} color="#F59E0B" />
-              <Text style={styles.ratingText}>{venue.rating}</Text>
+              <Text style={styles.ratingText}>{venue?.rating || ''}</Text>
             </View>
           </View>
           <View style={styles.infoRow}>
-            <View style={styles.infoItem}><Ionicons name="location" size={14} color={COLORS.primary} /><Text style={styles.infoText}>{venue.location}</Text></View>
-            <View style={styles.infoItem}><Ionicons name="people" size={14} color={COLORS.primary} /><Text style={styles.infoText}>{venue.capacity} personnes</Text></View>
-            <View style={styles.infoItem}><Ionicons name="chatbubble" size={14} color={COLORS.primary} /><Text style={styles.infoText}>{venue.reviews} avis</Text></View>
+            <View style={styles.infoItem}><Ionicons name="location" size={14} color={COLORS.primary} /><Text style={styles.infoText}>{venue?.location || ''}</Text></View>
+            <View style={styles.infoItem}><Ionicons name="people" size={14} color={COLORS.primary} /><Text style={styles.infoText}>{venue?.capacity || ''} personnes</Text></View>
+            <View style={styles.infoItem}><Ionicons name="chatbubble" size={14} color={COLORS.primary} /><Text style={styles.infoText}>{venue?.reviews || 0} avis</Text></View>
           </View>
           <Text style={styles.sectionTitle}>Description</Text>
-          <Text style={styles.description}>{venue.description}</Text>
+          <Text style={styles.description}>{venue?.description || ''}</Text>
           <Text style={styles.sectionTitle}>Équipements</Text>
           <View style={styles.amenitiesGrid}>
-            {venue.amenities.map((a, i) => (
+            {(venue?.amenities || []).map((a, i) => (
               <View key={i} style={styles.amenityChip}>
                 <Ionicons name="checkmark-circle" size={14} color={COLORS.success} />
                 <Text style={styles.amenityText}>{a}</Text>
@@ -49,9 +50,11 @@ export default function VenueDetailScreen({ route, navigation }) {
             ))}
           </View>
           <View style={styles.annonceurCard}>
-            <View style={styles.annonceurAvatar}><Text style={styles.annonceurAvatarText}>{venue.annonceurName.slice(0,2).toUpperCase()}</Text></View>
+            <View style={styles.annonceurAvatar}>
+              <Text style={styles.annonceurAvatarText}>{annonceurName.slice(0, 2).toUpperCase()}</Text>
+            </View>
             <View style={styles.annonceurInfo}>
-              <Text style={styles.annonceurName}>{venue.annonceurName}</Text>
+              <Text style={styles.annonceurName}>{annonceurName}</Text>
               <Text style={styles.annonceurRole}>Annonceur vérifié ✓</Text>
             </View>
             <TouchableOpacity style={styles.chatBtn} onPress={() => navigation.navigate('Chat', { venue })}>
@@ -63,7 +66,7 @@ export default function VenueDetailScreen({ route, navigation }) {
       </ScrollView>
       <View style={styles.footer}>
         <View>
-          <Text style={styles.footerPrice}>{venue.price}€</Text>
+          <Text style={styles.footerPrice}>{venue?.price || ''}€</Text>
           <Text style={styles.footerPriceUnit}>par jour</Text>
         </View>
         <TouchableOpacity style={styles.bookBtn} onPress={() => navigation.navigate('Booking', { venue })}>
