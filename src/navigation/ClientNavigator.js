@@ -1,7 +1,7 @@
 import React from 'react';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createStackNavigator } from '@react-navigation/stack';
-import { View, Platform, StyleSheet } from 'react-native';
+import { View, Platform, Text, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { colors } from '../theme/colors';
 
@@ -40,20 +40,19 @@ function ChatStack() {
   );
 }
 
-// filled quand actif, outline quand inactif
-const TAB_ICONS = {
-  'Accueil':       { on: 'home',          off: 'home-outline' },
-  'Favoris':       { on: 'heart',         off: 'heart-outline' },
-  'R\u00e9servations': { on: 'calendar',  off: 'calendar-outline' },
-  'Messages':      { on: 'chatbubble',    off: 'chatbubble-outline' },
-  'Profil':        { on: 'person',        off: 'person-outline' },
-};
+const TABS = [
+  { name: 'Accueil',       emoji: '🏠', on: 'home',       off: 'home-outline',       label: 'Accueil' },
+  { name: 'Favoris',       emoji: '❤️',  on: 'heart',      off: 'heart-outline',      label: 'Favoris' },
+  { name: 'Reservations',  emoji: '📅', on: 'calendar',   off: 'calendar-outline',   label: 'Résas' },
+  { name: 'Messages',      emoji: '💬', on: 'chatbubble', off: 'chatbubble-outline',  label: 'Messages' },
+  { name: 'Profil',        emoji: '👤', on: 'person',     off: 'person-outline',     label: 'Profil' },
+];
 
 export default function ClientNavigator() {
   return (
     <Tab.Navigator
       screenOptions={({ route }) => {
-        const icons = TAB_ICONS[route.name] || { on: 'ellipse', off: 'ellipse-outline' };
+        const tab = TABS.find(t => t.name === route.name) || TABS[0];
         return {
           headerShown: false,
           tabBarShowLabel: true,
@@ -71,15 +70,15 @@ export default function ClientNavigator() {
             shadowRadius: 12,
             elevation: 16,
           },
-          tabBarLabelStyle: {
-            fontSize: 10,
-            fontWeight: '600',
-            letterSpacing: 0.1,
-          },
+          tabBarLabel: ({ color, focused }) => (
+            <Text style={{ fontSize: 10, fontWeight: '600', color, marginTop: 1 }}>
+              {tab.label}
+            </Text>
+          ),
           tabBarIcon: ({ color, focused }) => (
             <View style={focused ? styles.activeWrap : styles.inactiveWrap}>
               <Ionicons
-                name={focused ? icons.on : icons.off}
+                name={focused ? tab.on : tab.off}
                 size={22}
                 color={color}
               />
@@ -88,11 +87,11 @@ export default function ClientNavigator() {
         };
       }}
     >
-      <Tab.Screen name="Accueil"       component={HomeStack} />
-      <Tab.Screen name="Favoris"       component={FavoritesScreen} />
-      <Tab.Screen name="R\u00e9servations"  component={ReservationsScreen} />
-      <Tab.Screen name="Messages"      component={ChatStack} />
-      <Tab.Screen name="Profil"        component={ProfileScreen} />
+      <Tab.Screen name="Accueil"      component={HomeStack} />
+      <Tab.Screen name="Favoris"      component={FavoritesScreen} />
+      <Tab.Screen name="Reservations" component={ReservationsScreen} />
+      <Tab.Screen name="Messages"     component={ChatStack} />
+      <Tab.Screen name="Profil"       component={ProfileScreen} />
     </Tab.Navigator>
   );
 }

@@ -11,13 +11,13 @@ import VenueCard from '../../components/VenueCard';
 import { colors, spacing, typography, radius, shadow } from '../../theme/colors';
 
 const CATEGORIES = [
-  { label: 'Tous',         value: null,                    emoji: '✨' },
-  { label: 'Mariage',      value: 'Château',               emoji: '💍' },
-  { label: 'Soirée',       value: 'Rooftop',               emoji: '🌙' },
-  { label: 'Séminaire',    value: 'Loft',                  emoji: '💼' },
-  { label: 'Anniversaire', value: 'Salle de réception',    emoji: '🎂' },
-  { label: 'Photo',        value: 'Studio photo',          emoji: '📸' },
-  { label: 'Plein air',    value: 'Jardin',                emoji: '🌿' },
+  { label: 'Tous',         value: null,                  emoji: '✨' },
+  { label: 'Mariage',      value: 'Château',             emoji: '💍' },
+  { label: 'Soirée',       value: 'Rooftop',             emoji: '🌙' },
+  { label: 'Séminaire',    value: 'Loft',                emoji: '💼' },
+  { label: 'Anniversaire', value: 'Salle de réception',  emoji: '🎂' },
+  { label: 'Photo',        value: 'Studio photo',        emoji: '📸' },
+  { label: 'Plein air',    value: 'Jardin',              emoji: '🌿' },
 ];
 
 export default function HomeScreen({ navigation }) {
@@ -66,20 +66,15 @@ export default function HomeScreen({ navigation }) {
     <View style={[styles.container, { paddingTop: insets.top }]}>
       <StatusBar barStyle="dark-content" backgroundColor={colors.bg} />
 
-      {/* Header */}
+      {/* Header — sans bouton ? */}
       <View style={styles.header}>
         <View>
           <Text style={styles.greeting}>Bonjour{firstName ? `, ${firstName}` : ''} 👋</Text>
           <Text style={styles.logo}>Event<Text style={styles.logoAccent}>Space</Text></Text>
         </View>
-        <View style={styles.headerActions}>
-          <TouchableOpacity style={styles.iconBtn} onPress={() => navigation.navigate('MapSearch')}>
-            <Ionicons name="map-outline" size={19} color={colors.primary} />
-          </TouchableOpacity>
-          <TouchableOpacity onPress={() => navigation.navigate('Profil')} style={styles.avatarBtn}>
-            <Text style={styles.avatarText}>{avatarLetter}</Text>
-          </TouchableOpacity>
-        </View>
+        <TouchableOpacity style={styles.iconBtn} onPress={() => navigation.navigate('MapSearch')}>
+          <Text style={styles.iconBtnEmoji}>🗺️</Text>
+        </TouchableOpacity>
       </View>
 
       {/* Search */}
@@ -95,7 +90,7 @@ export default function HomeScreen({ navigation }) {
         />
         {search ? (
           <TouchableOpacity onPress={() => setSearch('')} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-            <Ionicons name="close-circle" size={17} color={colors.light} />
+            <Text style={{ fontSize: 16 }}>❌</Text>
           </TouchableOpacity>
         ) : (
           <TouchableOpacity style={styles.mapPill} onPress={() => navigation.navigate('MapSearch')}>
@@ -105,7 +100,7 @@ export default function HomeScreen({ navigation }) {
         )}
       </View>
 
-      {/* Catégories — pills fines */}
+      {/* Catégories */}
       <ScrollView
         horizontal
         showsHorizontalScrollIndicator={false}
@@ -153,7 +148,7 @@ export default function HomeScreen({ navigation }) {
         }
         ListEmptyComponent={
           <View style={styles.empty}>
-            <Text style={styles.emptyIcon}>🔍</Text>
+            <Text style={styles.emptyIco}>🔍</Text>
             <Text style={styles.emptyTitle}>Aucun résultat</Text>
             <Text style={styles.emptySubtitle}>Essayez d'autres termes ou explorez la carte</Text>
             <TouchableOpacity style={styles.emptyMapBtn} onPress={() => navigation.navigate('MapSearch')}>
@@ -169,7 +164,6 @@ export default function HomeScreen({ navigation }) {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.bg },
-
   header: {
     flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
     paddingHorizontal: spacing.lg, paddingTop: spacing.md, paddingBottom: spacing.sm,
@@ -177,20 +171,12 @@ const styles = StyleSheet.create({
   greeting: { fontSize: typography.small, color: colors.mid, fontWeight: '500' },
   logo: { fontSize: 26, fontWeight: '900', color: colors.dark, letterSpacing: -0.5 },
   logoAccent: { color: colors.primary },
-  headerActions: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
   iconBtn: {
     width: 38, height: 38, borderRadius: 11,
     backgroundColor: colors.primaryLight,
     alignItems: 'center', justifyContent: 'center',
   },
-  avatarBtn: {
-    width: 38, height: 38, borderRadius: 19,
-    backgroundColor: colors.primary,
-    alignItems: 'center', justifyContent: 'center',
-    ...shadow.sm, shadowColor: colors.primary,
-  },
-  avatarText: { color: '#fff', fontWeight: '800', fontSize: typography.body },
-
+  iconBtnEmoji: { fontSize: 18 },
   searchBar: {
     flexDirection: 'row', alignItems: 'center',
     backgroundColor: colors.white,
@@ -207,42 +193,25 @@ const styles = StyleSheet.create({
   },
   mapPillEmoji: { fontSize: 11 },
   mapPillText: { fontSize: 11, fontWeight: '700', color: colors.primary },
-
-  /* Catégories ultra-fines */
   catScroll: { marginBottom: spacing.xs, flexGrow: 0 },
-  catContent: {
-    paddingHorizontal: spacing.lg,
-    paddingVertical: 2,
-    gap: 6,
-    alignItems: 'center',
-  },
+  catContent: { paddingHorizontal: spacing.lg, paddingVertical: 2, gap: 6, alignItems: 'center' },
   catBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    backgroundColor: colors.white,
-    borderRadius: radius.full,
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderWidth: 1,
-    borderColor: colors.border,
+    flexDirection: 'row', alignItems: 'center', gap: 4,
+    backgroundColor: colors.white, borderRadius: radius.full,
+    paddingHorizontal: 10, paddingVertical: 4,
+    borderWidth: 1, borderColor: colors.border,
   },
-  catBtnActive: {
-    backgroundColor: colors.primary,
-    borderColor: colors.primary,
-  },
+  catBtnActive: { backgroundColor: colors.primary, borderColor: colors.primary },
   catEmoji: { fontSize: 12, lineHeight: 16 },
   catText: { fontSize: 11, color: colors.mid, fontWeight: '500' },
   catTextActive: { color: '#fff', fontWeight: '600' },
-
   sectionTitle: {
     fontSize: typography.small, fontWeight: '700', color: colors.mid,
     marginBottom: spacing.md, marginTop: spacing.xs, letterSpacing: 0.5,
     textTransform: 'uppercase',
   },
-
   empty: { alignItems: 'center', paddingTop: 60, gap: spacing.md },
-  emptyIcon: { fontSize: 44, marginBottom: spacing.sm },
+  emptyIco: { fontSize: 44, marginBottom: spacing.sm },
   emptyTitle: { fontSize: typography.h3, fontWeight: '700', color: colors.dark },
   emptySubtitle: { fontSize: typography.small, color: colors.light, textAlign: 'center', maxWidth: 240 },
   emptyMapBtn: {
