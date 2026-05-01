@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useMemo } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, StyleSheet,
   FlatList, TextInput, RefreshControl, StatusBar, Modal,
@@ -6,7 +6,8 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
-import { Store } from '../../utils/store';
+import { useAuth } from '../../context/AuthContext';
+import { VENUES } from '../../data/venues';
 import VenueCard from '../../components/VenueCard';
 import { HomeScreenSkeleton } from '../../components/SkeletonLoader';
 import { colors, spacing, typography, radius, shadow } from '../../theme/colors';
@@ -21,49 +22,55 @@ const CATEGORIES = [
   { label: 'Plein air',    value: 'Jardin',              emoji: '🌿' },
 ];
 
+// Favoris stockés en mémoire (pas AsyncStorage)
+const memFavs = {};
+
 export default function HomeScreen({ navigation }) {
-  const [venues, setVenues] = useState([]);
+  const { user } = useAuth();
   const [favs, setFavs] = useState([]);
   const [search, setSearch] = useState('');
   const [cat, setCat] = useState(null);
-  const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
   const [refreshing, setRefreshing] = useState(false);
   const [filterOpen, setFilterOpen] = useState(false);
   const [maxPrice, setMaxPrice] = useState('');
   const [minCapacity, setMinCapacity] = useState('');
   const insets = useSafeAreaInsets();
 
-  const load = useCallback(async () => {
-    try {
-      setError(null);
-      const u = await Store.getCurrentUser();
-      setUser(u);
-      const v = await Store.getVenues();
-      setVenues((v || []).filter(x => x.published));
-      if (u) {
-        const f = await Store.getFavorites(u.id);
-        setFavs(f || []);
-      }
-    } catch (e) {
-      setError('Impossible de charger les lieux. Veuillez réessayer.');
-    } finally {
-      setLoading(false);
+  const load = useCallback(() => {
+    setLoading(true);
+    // Charge les favoris depuis la mémoire
+    if (user?.id) {
+      setFavs(memFavs[user.id] || []);
     }
-  }, []);
+    // Simule un petit délai pour le skeleton
+    setTimeout(() => setLoading(false), 400);
+  }, [user]);
 
-  useFocusEffect(useCallback(() => { setLoading(true); load(); }, [load]));
+  useFocusEffect(useCallback(() => { load(); }, [load]));
 
-  const onRefresh = async () => { setRefreshing(true); await load(); setRefreshing(false); };
-
-  const onFav = async (venueId) => {
-    if (!user) return navigation.navigate('Login');
-    const added = await Store.toggleFavorite(user.id, venueId);
-    setFavs(prev => added ? [...prev, venueId] : prev.filter(x => x !== venueId));
+  const onRefresh = () => {
+    setRefreshing(true);
+    setTimeout(() => { load(); setRefreshing(false); }, 600);
   };
 
-  const filtered = venues.filter(v => {
+  const onFav = (venueId) => {
+    if (!user) {
+      // RootNavigator redirige automatiquement si user=null via logout
+      // On ne peut pas navigate('Login') depuis un tab imbriqué
+      return;
+    }
+    const uid = user.id;
+    const current = memFavs[uid] || [];
+    const idx = current.indexOf(venueId);
+    const updated = idx >= 0 ? current.filter(x => x !== venueId) : [...current, venueId];
+    memFavs[uid] = updated;
+    setFavs(updated);
+  };
+
+  const venues = useMemo(() => (VENUES || []).filter(v => v.published !== false), []);
+
+  const filtered = useMemo(() => venues.filter(v => {
     const matchSearch = !search ||
       (v.name || '').toLowerCase().includes(search.toLowerCase()) ||
       (v.city || '').toLowerCase().includes(search.toLowerCase()) ||
@@ -72,10 +79,10 @@ export default function HomeScreen({ navigation }) {
     const matchPrice = !maxPrice || (v.price || 0) <= Number(maxPrice);
     const matchCap = !minCapacity || (v.capacity || 0) >= Number(minCapacity);
     return matchSearch && matchCat && matchPrice && matchCap;
-  });
+  }), [venues, search, cat, maxPrice, minCapacity]);
 
   const hasFilters = maxPrice || minCapacity;
-  const firstName = user?.firstName || user?.name?.split(' ')[0] || '';
+  const firstName = user?.name?.split(' ')[0] || user?.firstName || '';
 
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
@@ -145,15 +152,6 @@ export default function HomeScreen({ navigation }) {
       {/* Contenu */}
       {loading ? (
         <HomeScreenSkeleton />
-      ) : error ? (
-        <View style={styles.errorBox}>
-          <Text style={styles.errorIco}>⚠️</Text>
-          <Text style={styles.errorTitle}>Oups !</Text>
-          <Text style={styles.errorMsg}>{error}</Text>
-          <TouchableOpacity style={styles.retryBtn} onPress={() => { setLoading(true); load(); }}>
-            <Text style={styles.retryTxt}>🔄 Réessayer</Text>
-          </TouchableOpacity>
-        </View>
       ) : (
         <FlatList
           data={filtered}
@@ -289,15 +287,6 @@ const styles = StyleSheet.create({
     marginBottom: spacing.md, marginTop: spacing.xs, letterSpacing: 0.5,
     textTransform: 'uppercase',
   },
-  errorBox: { alignItems: 'center', paddingTop: 80, gap: spacing.md, paddingHorizontal: spacing.xl },
-  errorIco: { fontSize: 44 },
-  errorTitle: { fontSize: typography.h3, fontWeight: '700', color: colors.dark },
-  errorMsg: { fontSize: typography.small, color: colors.mid, textAlign: 'center' },
-  retryBtn: {
-    backgroundColor: colors.primary, borderRadius: radius.full,
-    paddingHorizontal: spacing.xl, paddingVertical: spacing.md, marginTop: spacing.sm,
-  },
-  retryTxt: { color: '#fff', fontWeight: '700', fontSize: typography.small },
   empty: { alignItems: 'center', paddingTop: 60, gap: spacing.md },
   emptyIco: { fontSize: 44, marginBottom: spacing.sm },
   emptyTitle: { fontSize: typography.h3, fontWeight: '700', color: colors.dark },
