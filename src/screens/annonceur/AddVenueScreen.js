@@ -1,72 +1,89 @@
 import React, { useState } from 'react';
-import { View, Text, ScrollView, StyleSheet, Alert } from 'react-native';
-import { Store } from '../../utils/store';
-import Header from '../../components/Header';
-import Input from '../../components/Input';
-import Button from '../../components/Button';
-import { colors, spacing, typography, radius } from '../../theme/colors';
+import { View, Text, TextInput, TouchableOpacity, StyleSheet, ScrollView, Alert } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
+import { COLORS } from '../../theme/colors';
 
-const TYPES = ['Salle de réception', 'Rooftop', 'Loft', 'Château', 'Studio photo', 'Jardin', 'Autre'];
+const TYPES = ['Loft', 'Salle', 'Studio', 'Rooftop', 'Domaine', 'Bureau', 'Autre'];
+const CATEGORIES = ['Soirée', 'Mariage', 'Professionnel', 'Anniversaire'];
 
 export default function AddVenueScreen({ navigation }) {
-  const [form, setForm] = useState({ name: '', city: '', address: '', price: '', capacity: '', type: '', description: '', img: '' });
-  const [loading, setLoading] = useState(false);
-  const setF = (k, v) => setForm(f => ({ ...f, [k]: v }));
+  const [name, setName] = useState('');
+  const [location, setLocation] = useState('');
+  const [price, setPrice] = useState('');
+  const [capacity, setCapacity] = useState('');
+  const [type, setType] = useState('');
+  const [category, setCategory] = useState('');
+  const [description, setDescription] = useState('');
 
-  const save = async () => {
-    if (!form.name || !form.city || !form.price || !form.capacity || !form.type) {
-      return Alert.alert('Champs manquants', 'Remplissez tous les champs obligatoires.');
+  const handleSubmit = () => {
+    if (!name || !location || !price || !capacity || !type || !category) {
+      Alert.alert('Champs manquants', 'Remplissez tous les champs obligatoires');
+      return;
     }
-    setLoading(true);
-    const user = await Store.getCurrentUser();
-    await Store.addVenue({
-      ...form,
-      price: Number(form.price),
-      capacity: Number(form.capacity),
-      ownerId: user.id,
-      img: form.img || 'https://images.unsplash.com/photo-1519167758481-83f550bb49b3?w=600',
-    });
-    Alert.alert('✅ Lieu ajouté !', 'Votre lieu est maintenant visible sur la plateforme.', [
+    Alert.alert('🎉 Lieu ajouté !', `"${name}" a été publié avec succès sur EventSpace !`, [
       { text: 'OK', onPress: () => navigation.goBack() }
     ]);
-    setLoading(false);
   };
 
   return (
-    <View style={{ flex: 1, backgroundColor: colors.bg }}>
-      <Header title="Ajouter un lieu" onBack={() => navigation.goBack()} />
-      <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
-        <Input label="Nom du lieu *" value={form.name} onChangeText={v => setF('name', v)} placeholder="Ex: Salle des Roses" icon="business-outline" />
-        <Input label="Ville *" value={form.city} onChangeText={v => setF('city', v)} placeholder="Paris, Lyon..." icon="location-outline" />
-        <Input label="Adresse complète *" value={form.address} onChangeText={v => setF('address', v)} placeholder="12 rue de la Paix, 75001 Paris" icon="map-outline" />
-        <Input label="Prix / heure (€) *" value={form.price} onChangeText={v => setF('price', v)} placeholder="Ex: 150" keyboardType="number-pad" icon="cash-outline" />
-        <Input label="Capacité max (personnes) *" value={form.capacity} onChangeText={v => setF('capacity', v)} placeholder="Ex: 80" keyboardType="number-pad" icon="people-outline" />
-
+    <View style={styles.container}>
+      <View style={styles.headerBar}>
+        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
+          <Ionicons name="arrow-back" size={22} color={COLORS.text} />
+        </TouchableOpacity>
+        <Text style={styles.headerTitle}>Ajouter un lieu</Text>
+        <View style={{ width: 42 }} />
+      </View>
+      <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
+        <Text style={styles.label}>Nom du lieu *</Text>
+        <TextInput style={styles.input} placeholder="Ex: Le Loft des Arts" value={name} onChangeText={setName} placeholderTextColor={COLORS.textLight} />
+        <Text style={styles.label}>Ville / Adresse *</Text>
+        <TextInput style={styles.input} placeholder="Ex: Paris 11e" value={location} onChangeText={setLocation} placeholderTextColor={COLORS.textLight} />
+        <Text style={styles.label}>Prix par jour (€) *</Text>
+        <TextInput style={styles.input} placeholder="Ex: 500" value={price} onChangeText={setPrice} keyboardType="number-pad" placeholderTextColor={COLORS.textLight} />
+        <Text style={styles.label}>Capacité maximale *</Text>
+        <TextInput style={styles.input} placeholder="Ex: 100" value={capacity} onChangeText={setCapacity} keyboardType="number-pad" placeholderTextColor={COLORS.textLight} />
         <Text style={styles.label}>Type de lieu *</Text>
-        <View style={styles.typeGrid}>
+        <View style={styles.grid}>
           {TYPES.map(t => (
-            <Button
-              key={t}
-              title={t}
-              variant={form.type === t ? 'primary' : 'outline'}
-              onPress={() => setF('type', t)}
-              style={styles.typeBtn}
-            />
+            <TouchableOpacity key={t} style={[styles.chip, type === t && styles.chipActive]} onPress={() => setType(t)}>
+              <Text style={[styles.chipText, type === t && styles.chipTextActive]}>{t}</Text>
+            </TouchableOpacity>
           ))}
         </View>
-
-        <Input label="Description" value={form.description} onChangeText={v => setF('description', v)} placeholder="Décrivez votre lieu..." multiline numberOfLines={4} icon="document-text-outline" />
-        <Input label="URL photo principale" value={form.img} onChangeText={v => setF('img', v)} placeholder="https://..." icon="image-outline" />
-
-        <Button title="Publier le lieu" onPress={save} loading={loading} style={{ marginTop: spacing.md }} />
+        <Text style={styles.label}>Catégorie *</Text>
+        <View style={styles.grid}>
+          {CATEGORIES.map(c => (
+            <TouchableOpacity key={c} style={[styles.chip, category === c && styles.chipActive]} onPress={() => setCategory(c)}>
+              <Text style={[styles.chipText, category === c && styles.chipTextActive]}>{c}</Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+        <Text style={styles.label}>Description</Text>
+        <TextInput style={[styles.input, styles.textarea]} placeholder="Décrivez votre lieu..." value={description} onChangeText={setDescription} multiline numberOfLines={4} placeholderTextColor={COLORS.textLight} />
+        <TouchableOpacity style={styles.submitBtn} onPress={handleSubmit}>
+          <Ionicons name="add-circle" size={20} color={COLORS.white} />
+          <Text style={styles.submitText}>Publier le lieu</Text>
+        </TouchableOpacity>
       </ScrollView>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  content: { padding: spacing.lg },
-  label: { fontSize: typography.small, fontWeight: '700', color: colors.mid, marginBottom: 8 },
-  typeGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm, marginBottom: spacing.md },
-  typeBtn: { paddingHorizontal: spacing.sm, paddingVertical: spacing.xs + 2 },
+  container: { flex: 1, backgroundColor: COLORS.background },
+  headerBar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, paddingTop: 56, paddingBottom: 16, backgroundColor: COLORS.surface, borderBottomWidth: 1, borderBottomColor: COLORS.border },
+  backBtn: { width: 42, height: 42, borderRadius: 21, backgroundColor: COLORS.background, justifyContent: 'center', alignItems: 'center' },
+  headerTitle: { fontSize: 18, fontWeight: '700', color: COLORS.text },
+  scroll: { padding: 20, gap: 10, paddingBottom: 40 },
+  label: { fontSize: 14, fontWeight: '600', color: COLORS.text, marginTop: 4 },
+  input: { backgroundColor: COLORS.surface, borderWidth: 1.5, borderColor: COLORS.border, borderRadius: 12, padding: 16, fontSize: 15, color: COLORS.text },
+  textarea: { height: 100, textAlignVertical: 'top' },
+  grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  chip: { paddingHorizontal: 16, paddingVertical: 10, borderRadius: 10, borderWidth: 1.5, borderColor: COLORS.border, backgroundColor: COLORS.surface },
+  chipActive: { backgroundColor: COLORS.primary, borderColor: COLORS.primary },
+  chipText: { fontSize: 13, fontWeight: '600', color: COLORS.textSecondary },
+  chipTextActive: { color: COLORS.white },
+  submitBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10, backgroundColor: COLORS.primary, borderRadius: 16, padding: 20, marginTop: 8, shadowColor: COLORS.primary, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 8, elevation: 4 },
+  submitText: { fontSize: 17, fontWeight: '700', color: COLORS.white },
 });
