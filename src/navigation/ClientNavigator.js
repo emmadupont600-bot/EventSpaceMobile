@@ -1,8 +1,8 @@
 import React from 'react';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createStackNavigator } from '@react-navigation/stack';
-import { View, Platform } from 'react-native';
-import { Feather } from '@expo/vector-icons';
+import { View, Platform, StyleSheet } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { colors, shadow } from '../theme/colors';
 
 import HomeScreen from '../screens/home/HomeScreen';
@@ -40,6 +40,15 @@ function ChatStack() {
   );
 }
 
+/* Icônes Ionicons : filled quand actif, outline quand inactif */
+const TAB_ICONS = {
+  Accueil:       { active: 'home',             inactive: 'home-outline' },
+  Favoris:       { active: 'heart',            inactive: 'heart-outline' },
+  Réservations:  { active: 'calendar',         inactive: 'calendar-outline' },
+  Messages:      { active: 'chatbubble',       inactive: 'chatbubble-outline' },
+  Profil:        { active: 'person',           inactive: 'person-outline' },
+};
+
 export default function ClientNavigator() {
   return (
     <Tab.Navigator
@@ -47,46 +56,62 @@ export default function ClientNavigator() {
         headerShown: false,
         tabBarShowLabel: true,
         tabBarActiveTintColor: colors.primary,
-        tabBarInactiveTintColor: colors.light,
+        tabBarInactiveTintColor: '#B0B0BE',
         tabBarStyle: {
-          backgroundColor: colors.white,
+          backgroundColor: '#FFFFFF',
           borderTopWidth: 0,
-          height: Platform.OS === 'ios' ? 84 : 68,
-          paddingBottom: Platform.OS === 'ios' ? 28 : 12,
+          height: Platform.OS === 'ios' ? 88 : 68,
+          paddingBottom: Platform.OS === 'ios' ? 28 : 10,
           paddingTop: 10,
-          ...shadow.md,
           shadowColor: '#000',
+          shadowOffset: { width: 0, height: -4 },
+          shadowOpacity: 0.06,
+          shadowRadius: 16,
+          elevation: 16,
         },
         tabBarLabelStyle: {
-          fontSize: 11,
+          fontSize: 10,
           fontWeight: '600',
+          letterSpacing: 0.2,
           marginTop: 2,
         },
-        tabBarIcon: ({ color, focused }) => {
-          const icons = {
-            Accueil: focused ? 'home' : 'home',
-            Favoris: focused ? 'heart' : 'heart',
-            Réservations: focused ? 'calendar' : 'calendar',
-            Messages: focused ? 'message-circle' : 'message-circle',
-            Profil: focused ? 'user' : 'user',
-          };
+        tabBarIcon: ({ color, focused, size }) => {
+          const cfg = TAB_ICONS[route.name];
+          const iconName = focused ? cfg?.active : cfg?.inactive;
           return (
-            <View style={focused ? {
-              backgroundColor: colors.primaryLight,
-              borderRadius: 10,
-              padding: 6,
-            } : { padding: 6 }}>
-              <Feather name={icons[route.name] || 'circle'} size={22} color={color} />
+            <View style={focused ? styles.activeIconWrap : styles.iconWrap}>
+              <Ionicons
+                name={iconName || 'ellipse-outline'}
+                size={23}
+                color={color}
+              />
             </View>
           );
         },
       })}
     >
-      <Tab.Screen name="Accueil" component={HomeStack} />
-      <Tab.Screen name="Favoris" component={FavoritesScreen} />
+      <Tab.Screen name="Accueil"      component={HomeStack} />
+      <Tab.Screen name="Favoris"      component={FavoritesScreen} />
       <Tab.Screen name="Réservations" component={ReservationsScreen} />
-      <Tab.Screen name="Messages" component={ChatStack} />
-      <Tab.Screen name="Profil" component={ProfileScreen} />
+      <Tab.Screen name="Messages"     component={ChatStack} />
+      <Tab.Screen name="Profil"       component={ProfileScreen} />
     </Tab.Navigator>
   );
 }
+
+const styles = StyleSheet.create({
+  iconWrap: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    width: 44,
+    height: 32,
+  },
+  activeIconWrap: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    width: 44,
+    height: 32,
+    backgroundColor: colors.primaryLight || '#EEF2FF',
+    borderRadius: 16,
+  },
+});
