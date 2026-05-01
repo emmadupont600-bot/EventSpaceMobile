@@ -9,7 +9,9 @@ import RegisterScreen from '../screens/auth/RegisterScreen';
 import HomeScreen from '../screens/home/HomeScreen';
 import VenueDetailScreen from '../screens/home/VenueDetailScreen';
 import BookingScreen from '../screens/home/BookingScreen';
+import BookingConfirmationScreen from '../screens/home/BookingConfirmationScreen';
 import ChatScreen from '../screens/chat/ChatScreen';
+import ConversationsScreen from '../screens/chat/ConversationsScreen';
 import ReservationsScreen from '../screens/reservations/ReservationsScreen';
 import ProfileScreen from '../screens/profile/ProfileScreen';
 import AddVenueScreen from '../screens/annonceur/AddVenueScreen';
@@ -37,7 +39,7 @@ function MainTabs() {
         tabBarIcon: ({ color, size, focused }) => {
           const icons = {
             Accueil: focused ? 'home' : 'home-outline',
-            Favoris: focused ? 'heart' : 'heart-outline',
+            Messages: focused ? 'chatbubbles' : 'chatbubbles-outline',
             Réservations: focused ? 'calendar' : 'calendar-outline',
             Profil: focused ? 'person' : 'person-outline',
           };
@@ -46,7 +48,7 @@ function MainTabs() {
       })}
     >
       <Tab.Screen name="Accueil" component={HomeScreen} />
-      <Tab.Screen name="Favoris" component={FavoritesScreen} />
+      <Tab.Screen name="Messages" component={ConversationsScreen} />
       <Tab.Screen name="Réservations" component={ReservationsScreen} />
       <Tab.Screen name="Profil" component={ProfileScreen} />
     </Tab.Navigator>
@@ -61,13 +63,13 @@ export default function AppNavigator() {
       <Stack.Screen name="MainTabs" component={MainTabs} />
       <Stack.Screen name="VenueDetail" component={VenueDetailScreen} />
       <Stack.Screen name="Booking" component={BookingScreen} />
+      <Stack.Screen name="BookingConfirmation" component={BookingConfirmationScreen} />
       <Stack.Screen name="Chat" component={ChatScreen} />
+      <Stack.Screen name="Conversations" component={ConversationsScreen} />
       <Stack.Screen name="AddVenue" component={AddVenueScreen} />
-      <Stack.Screen name="MyVenues" component={HomeScreen} />
-      <Stack.Screen name="Profile" component={ProfileScreen} />
-      <Stack.Screen name="Reservations" component={ReservationsScreen} />
-      <Stack.Screen name="Conversations" component={ChatScreen} options={{ title: 'Messages' }} />
       <Stack.Screen name="Favorites" component={FavoritesScreen} />
+      <Stack.Screen name="Reservations" component={ReservationsScreen} />
+      <Stack.Screen name="Profile" component={ProfileScreen} />
     </Stack.Navigator>
   );
 }

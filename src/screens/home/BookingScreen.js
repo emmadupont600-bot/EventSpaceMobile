@@ -44,15 +44,14 @@ export default function BookingScreen({ route, navigation }) {
         {
           text: 'Confirmer', onPress: async () => {
             setLoading(true);
-            await Store.addReservation({
+            const reservation = await Store.addReservation({
               venueId: venue.id, venueName: venue.name, userId: user.id,
               ownerId: venue.ownerId, date, start, end,
               guests: Number(guests), eventType, status: 'pending', total
             });
-            Alert.alert('✅ Réservation envoyée !', 'L\'annonceur va confirmer votre demande sous 24h.', [
-              { text: 'Voir mes réservations', onPress: () => navigation.navigate('Reservations') }
-            ]);
             setLoading(false);
+            // Redirige vers la page de confirmation
+            navigation.replace('BookingConfirmation', { reservation, venue });
           }
         }
       ]
@@ -64,11 +63,9 @@ export default function BookingScreen({ route, navigation }) {
       <Header title="Réserver" subtitle={venue.name} onBack={() => navigation.goBack()} />
       <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
 
-        {/* Date */}
         <Text style={styles.label}>Date de l'événement</Text>
         <Input value={date} onChangeText={setDate} placeholder="2026-06-15" icon="calendar-outline" />
 
-        {/* Horaire début */}
         <Text style={styles.label}>Heure de début</Text>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: spacing.md }}>
           {HOURS.map(h => (
@@ -78,7 +75,6 @@ export default function BookingScreen({ route, navigation }) {
           ))}
         </ScrollView>
 
-        {/* Horaire fin */}
         <Text style={styles.label}>Heure de fin</Text>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: spacing.md }}>
           {hours.map(h => (
@@ -88,10 +84,8 @@ export default function BookingScreen({ route, navigation }) {
           ))}
         </ScrollView>
 
-        {/* Invités */}
         <Input label="Nombre d'invités" value={guests} onChangeText={setGuests} placeholder={`Max. ${venue.capacity}`} keyboardType="number-pad" icon="people-outline" />
 
-        {/* Type événement */}
         <Text style={styles.label}>Type d'événement</Text>
         <View style={styles.eventGrid}>
           {EVENTS.map(e => (
@@ -101,7 +95,6 @@ export default function BookingScreen({ route, navigation }) {
           ))}
         </View>
 
-        {/* Récapitulatif */}
         {start && end && (
           <View style={styles.summary}>
             <Ionicons name="receipt-outline" size={20} color={colors.primary} />
