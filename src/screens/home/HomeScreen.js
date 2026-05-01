@@ -8,7 +8,7 @@ import VenueCard from '../../components/VenueCard';
 import { colors, spacing, typography, radius } from '../../theme/colors';
 
 const CATEGORIES = [
-  { label: 'Tout', value: null },
+  { label: 'Tous', value: null },
   { label: '💍 Mariage', value: 'Château' },
   { label: '🎂 Anniversaire', value: 'Salle de réception' },
   { label: '💼 Séminaire', value: 'Loft' },
@@ -30,10 +30,10 @@ export default function HomeScreen({ navigation, route }) {
     const u = await Store.getCurrentUser();
     setUser(u);
     const v = await Store.getVenues();
-    setVenues(v.filter(x => x.published));
+    setVenues((v || []).filter(x => x.published));
     if (u) {
       const f = await Store.getFavorites(u.id);
-      setFavs(f);
+      setFavs(f || []);
     }
   }, []);
 
@@ -48,21 +48,24 @@ export default function HomeScreen({ navigation, route }) {
   };
 
   const filtered = venues.filter(v => {
-    const matchSearch = !search || v.name.toLowerCase().includes(search.toLowerCase()) || v.city.toLowerCase().includes(search.toLowerCase());
+    const matchSearch = !search || (v.name || '').toLowerCase().includes(search.toLowerCase()) || (v.city || '').toLowerCase().includes(search.toLowerCase());
     const matchCat = !cat || v.type === cat;
     return matchSearch && matchCat;
   });
+
+  const firstName = user?.firstName || '';
+  const avatarLetter = firstName ? firstName[0].toUpperCase() : '?';
 
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
       {/* Header */}
       <View style={styles.header}>
         <View>
-          <Text style={styles.welcome}>Bonjour{user ? `, ${user.firstName}` : ''} 👋</Text>
-          <Text style={styles.logo}>Event<Text style={styles.logoBlue}>Space</Text></Text>
+          <Text style={styles.welcome}>Bonjour{firstName ? `, ${firstName}` : ''} 👋</Text>
+          <Text style={styles.logo}>Event<Text style={styles.logoAccent}>Space</Text></Text>
         </View>
         <TouchableOpacity onPress={() => navigation.navigate('Profile')} style={styles.avatarBtn}>
-          <Text style={styles.avatarText}>{user ? user.firstName[0].toUpperCase() : '?'}</Text>
+          <Text style={styles.avatarText}>{avatarLetter}</Text>
         </TouchableOpacity>
       </View>
 
@@ -84,7 +87,12 @@ export default function HomeScreen({ navigation, route }) {
       </View>
 
       {/* Catégories */}
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.catScroll} contentContainerStyle={{ paddingHorizontal: spacing.lg }}>
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        style={styles.catScroll}
+        contentContainerStyle={{ paddingHorizontal: spacing.lg, paddingVertical: 4 }}
+      >
         {CATEGORIES.map(c => (
           <TouchableOpacity
             key={c.label}
@@ -108,9 +116,16 @@ export default function HomeScreen({ navigation, route }) {
             onFav={() => onFav(item.id)}
           />
         )}
-        contentContainerStyle={{ paddingHorizontal: spacing.lg, paddingBottom: 100 }}
+        contentContainerStyle={{ paddingHorizontal: spacing.lg, paddingBottom: 120 }}
         showsVerticalScrollIndicator={false}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary} />}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            tintColor={colors.primary}
+            colors={[colors.primary]}
+          />
+        }
         ListHeaderComponent={
           <Text style={styles.sectionTitle}>
             {filtered.length} lieu{filtered.length > 1 ? 'x' : ''} disponible{filtered.length > 1 ? 's' : ''}
@@ -118,9 +133,11 @@ export default function HomeScreen({ navigation, route }) {
         }
         ListEmptyComponent={
           <View style={styles.empty}>
-            <Ionicons name="search-outline" size={48} color={colors.light} />
+            <View style={styles.emptyIconWrap}>
+              <Ionicons name="search-outline" size={32} color={colors.primary} />
+            </View>
             <Text style={styles.emptyText}>Aucun lieu trouvé</Text>
-            <Text style={styles.emptySubText}>Essayez d'autres termes de recherche</Text>
+            <Text style={styles.emptySubText}>Essayez d\'autres termes de recherche</Text>
           </View>
         }
       />
@@ -130,21 +147,72 @@ export default function HomeScreen({ navigation, route }) {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.bg },
-  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: spacing.lg, paddingVertical: spacing.md },
-  welcome: { fontSize: typography.small, color: colors.mid },
-  logo: { fontSize: 26, fontWeight: '900', color: colors.dark },
-  logoBlue: { color: colors.primary },
-  avatarBtn: { width: 42, height: 42, borderRadius: 21, backgroundColor: colors.primary, alignItems: 'center', justifyContent: 'center' },
+  header: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: spacing.lg,
+    paddingTop: spacing.md,
+    paddingBottom: spacing.sm,
+  },
+  welcome: { fontSize: typography.small, color: colors.mid, fontWeight: '500' },
+  logo: { fontSize: 26, fontWeight: '900', color: colors.dark, letterSpacing: -0.5 },
+  logoAccent: { color: colors.primary },
+  avatarBtn: {
+    width: 42, height: 42, borderRadius: 21,
+    backgroundColor: colors.primary,
+    alignItems: 'center', justifyContent: 'center',
+    shadowColor: colors.primary,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3, shadowRadius: 6,
+  },
   avatarText: { color: '#fff', fontWeight: '800', fontSize: typography.body },
-  searchBar: { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.white, marginHorizontal: spacing.lg, borderRadius: radius.md, padding: spacing.md, borderWidth: 1.5, borderColor: colors.border, marginBottom: spacing.md, gap: spacing.sm },
+  searchBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.white,
+    marginHorizontal: spacing.lg,
+    marginTop: spacing.sm,
+    marginBottom: spacing.sm,
+    borderRadius: radius.lg,
+    paddingHorizontal: spacing.md,
+    paddingVertical: 10,
+    borderWidth: 1,
+    borderColor: colors.border,
+    gap: spacing.sm,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.04, shadowRadius: 4,
+  },
   searchInput: { flex: 1, fontSize: typography.body, color: colors.dark },
-  catScroll: { marginBottom: spacing.md },
-  catBtn: { backgroundColor: colors.white, borderRadius: radius.full, paddingHorizontal: spacing.md, paddingVertical: spacing.xs + 2, marginRight: spacing.sm, borderWidth: 1.5, borderColor: colors.border },
-  catBtnActive: { backgroundColor: colors.primaryLight, borderColor: colors.primary },
+  catScroll: { marginBottom: spacing.sm },
+  catBtn: {
+    backgroundColor: colors.white,
+    borderRadius: radius.full,
+    paddingHorizontal: spacing.md,
+    paddingVertical: 7,
+    marginRight: spacing.sm,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  catBtnActive: { backgroundColor: colors.primary, borderColor: colors.primary },
   catText: { fontSize: typography.small, color: colors.mid, fontWeight: '600' },
-  catTextActive: { color: colors.primary },
-  sectionTitle: { fontSize: typography.small, fontWeight: '700', color: colors.mid, marginBottom: spacing.md, marginTop: spacing.xs },
-  empty: { alignItems: 'center', paddingTop: 60, gap: spacing.sm },
-  emptyText: { fontSize: typography.h3, fontWeight: '700', color: colors.mid },
-  emptySubText: { fontSize: typography.small, color: colors.light },
+  catTextActive: { color: '#fff' },
+  sectionTitle: {
+    fontSize: typography.small,
+    fontWeight: '700',
+    color: colors.mid,
+    marginBottom: spacing.md,
+    marginTop: spacing.xs,
+    letterSpacing: 0.3,
+  },
+  empty: { alignItems: 'center', paddingTop: 60, gap: spacing.md },
+  emptyIconWrap: {
+    width: 72, height: 72, borderRadius: 36,
+    backgroundColor: colors.primaryLight,
+    justifyContent: 'center', alignItems: 'center',
+    marginBottom: spacing.sm,
+  },
+  emptyText: { fontSize: typography.h3, fontWeight: '700', color: colors.dark },
+  emptySubText: { fontSize: typography.small, color: colors.light, textAlign: 'center' },
 });
