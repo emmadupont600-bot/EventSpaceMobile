@@ -1,5 +1,26 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { VENUES, DEMO_USERS, DEMO_REVIEWS, DEMO_RESERVATIONS } from '../data/venues';
+import { VENUES, DEMO_USERS, DEMO_REVIEWS, DEMO_RESERVATIONS, DEMO_CONVERSATIONS, DEMO_MESSAGES } from '../data/venues';
+
+// --- Helper : initialise les données de démo au premier lancement ---
+async function initDemoData() {
+  const initialized = await AsyncStorage.getItem('es_initialized');
+  if (initialized) return;
+
+  // Conversations de démo
+  for (const conv of DEMO_CONVERSATIONS) {
+    const key = 'es_conv_' + conv.userId + '_' + conv.venueId;
+    const existing = await AsyncStorage.getItem(key);
+    if (!existing) await AsyncStorage.setItem(key, JSON.stringify(conv));
+  }
+
+  // Messages de démo
+  for (const [convId, msgs] of Object.entries(DEMO_MESSAGES)) {
+    const existing = await AsyncStorage.getItem('es_msgs_' + convId);
+    if (!existing) await AsyncStorage.setItem('es_msgs_' + convId, JSON.stringify(msgs));
+  }
+
+  await AsyncStorage.setItem('es_initialized', '1');
+}
 
 export const Store = {
 
@@ -20,6 +41,28 @@ export const Store = {
   },
   async logout() {
     await AsyncStorage.removeItem('es_user');
+  },
+
+  // --- LOGIN DEMO (email + password) ---
+  async login(email, password) {
+    const users = await this.getUsers();
+    const user = users.find(u => u.email === email && u.password === password);
+    if (!user) throw new Error('Email ou mot de passe incorrect');
+    await this.setCurrentUser(user);
+    await initDemoData();
+    return user;
+  },
+
+  // --- REGISTER ---
+  async register(data) {
+    const users = await this.getUsers();
+    if (users.find(u => u.email === data.email)) throw new Error('Email déjà utilisé');
+    const user = { ...data, id: Date.now() };
+    users.push(user);
+    await this.saveUsers(users);
+    await this.setCurrentUser(user);
+    await initDemoData();
+    return user;
   },
 
   // --- VENUES ---
@@ -85,9 +128,20 @@ export const Store = {
     const key = 'es_conv_' + userId + '_' + venueId;
     const saved = await AsyncStorage.getItem(key);
     if (saved) return JSON.parse(saved);
-    const conv = { id: Date.now(), userId, ownerId, venueId, venueName };
+    const conv = { id: 'conv_' + userId + '_' + venueId + '_' + Date.now(), userId, ownerId, venueId, venueName };
     await AsyncStorage.setItem(key, JSON.stringify(conv));
     return conv;
+  },
+  async getAllConversations(userId) {
+    const keys = await AsyncStorage.getAllKeys();
+    const convKeys = keys.filter(k => k.startsWith('es_conv_' + userId + '_'));
+    const results = await Promise.all(
+      convKeys.map(async key => {
+        const raw = await AsyncStorage.getItem(key);
+        return JSON.parse(raw);
+      })
+    );
+    return results.filter(Boolean);
   },
 
   // --- REVIEWS ---
@@ -122,5 +176,12 @@ export const Store = {
   async isFavorite(userId, venueId) {
     const favs = await this.getFavorites(userId);
     return favs.includes(Number(venueId));
-  }
+  },
+
+  // --- RESET (pour re-tester depuis zéro) ---
+  async resetDemo() {
+    const keys = await AsyncStorage.getAllKeys();
+    const esKeys = keys.filter(k => k.startsWith('es_'));
+    await AsyncStorage.multiRemove(esKeys);
+  },
 };
