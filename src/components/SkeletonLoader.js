@@ -38,6 +38,16 @@ export function VenueCardSkeleton() {
   );
 }
 
+export function HomeScreenSkeleton() {
+  return (
+    <View style={{ paddingHorizontal: 16, paddingTop: 8 }}>
+      {[1, 2, 3].map(i => (
+        <VenueCardSkeleton key={i} />
+      ))}
+    </View>
+  );
+}
+
 export function ChatItemSkeleton() {
   return (
     <View style={styles.chatItem}>
