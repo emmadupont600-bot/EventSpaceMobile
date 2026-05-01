@@ -3,7 +3,7 @@ import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createStackNavigator } from '@react-navigation/stack';
 import { View, Platform, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { colors, shadow } from '../theme/colors';
+import { colors } from '../theme/colors';
 
 import HomeScreen from '../screens/home/HomeScreen';
 import MapSearchScreen from '../screens/home/MapSearchScreen';
@@ -40,78 +40,72 @@ function ChatStack() {
   );
 }
 
-/* Icônes Ionicons : filled quand actif, outline quand inactif */
+// filled quand actif, outline quand inactif
 const TAB_ICONS = {
-  Accueil:       { active: 'home',             inactive: 'home-outline' },
-  Favoris:       { active: 'heart',            inactive: 'heart-outline' },
-  Réservations:  { active: 'calendar',         inactive: 'calendar-outline' },
-  Messages:      { active: 'chatbubble',       inactive: 'chatbubble-outline' },
-  Profil:        { active: 'person',           inactive: 'person-outline' },
+  'Accueil':       { on: 'home',          off: 'home-outline' },
+  'Favoris':       { on: 'heart',         off: 'heart-outline' },
+  'R\u00e9servations': { on: 'calendar',  off: 'calendar-outline' },
+  'Messages':      { on: 'chatbubble',    off: 'chatbubble-outline' },
+  'Profil':        { on: 'person',        off: 'person-outline' },
 };
 
 export default function ClientNavigator() {
   return (
     <Tab.Navigator
-      screenOptions={({ route }) => ({
-        headerShown: false,
-        tabBarShowLabel: true,
-        tabBarActiveTintColor: colors.primary,
-        tabBarInactiveTintColor: '#B0B0BE',
-        tabBarStyle: {
-          backgroundColor: '#FFFFFF',
-          borderTopWidth: 0,
-          height: Platform.OS === 'ios' ? 88 : 68,
-          paddingBottom: Platform.OS === 'ios' ? 28 : 10,
-          paddingTop: 10,
-          shadowColor: '#000',
-          shadowOffset: { width: 0, height: -4 },
-          shadowOpacity: 0.06,
-          shadowRadius: 16,
-          elevation: 16,
-        },
-        tabBarLabelStyle: {
-          fontSize: 10,
-          fontWeight: '600',
-          letterSpacing: 0.2,
-          marginTop: 2,
-        },
-        tabBarIcon: ({ color, focused, size }) => {
-          const cfg = TAB_ICONS[route.name];
-          const iconName = focused ? cfg?.active : cfg?.inactive;
-          return (
-            <View style={focused ? styles.activeIconWrap : styles.iconWrap}>
+      screenOptions={({ route }) => {
+        const icons = TAB_ICONS[route.name] || { on: 'ellipse', off: 'ellipse-outline' };
+        return {
+          headerShown: false,
+          tabBarShowLabel: true,
+          tabBarActiveTintColor: colors.primary,
+          tabBarInactiveTintColor: '#AAAAB5',
+          tabBarStyle: {
+            backgroundColor: '#FFFFFF',
+            borderTopWidth: 0,
+            height: Platform.OS === 'ios' ? 88 : 68,
+            paddingBottom: Platform.OS === 'ios' ? 28 : 10,
+            paddingTop: 8,
+            shadowColor: '#000',
+            shadowOffset: { width: 0, height: -3 },
+            shadowOpacity: 0.07,
+            shadowRadius: 12,
+            elevation: 16,
+          },
+          tabBarLabelStyle: {
+            fontSize: 10,
+            fontWeight: '600',
+            letterSpacing: 0.1,
+          },
+          tabBarIcon: ({ color, focused }) => (
+            <View style={focused ? styles.activeWrap : styles.inactiveWrap}>
               <Ionicons
-                name={iconName || 'ellipse-outline'}
-                size={23}
+                name={focused ? icons.on : icons.off}
+                size={22}
                 color={color}
               />
             </View>
-          );
-        },
-      })}
+          ),
+        };
+      }}
     >
-      <Tab.Screen name="Accueil"      component={HomeStack} />
-      <Tab.Screen name="Favoris"      component={FavoritesScreen} />
-      <Tab.Screen name="Réservations" component={ReservationsScreen} />
-      <Tab.Screen name="Messages"     component={ChatStack} />
-      <Tab.Screen name="Profil"       component={ProfileScreen} />
+      <Tab.Screen name="Accueil"       component={HomeStack} />
+      <Tab.Screen name="Favoris"       component={FavoritesScreen} />
+      <Tab.Screen name="R\u00e9servations"  component={ReservationsScreen} />
+      <Tab.Screen name="Messages"      component={ChatStack} />
+      <Tab.Screen name="Profil"        component={ProfileScreen} />
     </Tab.Navigator>
   );
 }
 
 const styles = StyleSheet.create({
-  iconWrap: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    width: 44,
-    height: 32,
+  inactiveWrap: {
+    width: 40, height: 28,
+    alignItems: 'center', justifyContent: 'center',
   },
-  activeIconWrap: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    width: 44,
-    height: 32,
+  activeWrap: {
+    width: 48, height: 28,
+    alignItems: 'center', justifyContent: 'center',
     backgroundColor: colors.primaryLight || '#EEF2FF',
-    borderRadius: 16,
+    borderRadius: 14,
   },
 });

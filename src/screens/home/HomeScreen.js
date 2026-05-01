@@ -1,9 +1,9 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useState, useCallback } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, StyleSheet,
   FlatList, TextInput, RefreshControl, StatusBar,
 } from 'react-native';
-import { Ionicons, Feather } from '@expo/vector-icons';
+import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
 import { Store } from '../../utils/store';
@@ -11,13 +11,13 @@ import VenueCard from '../../components/VenueCard';
 import { colors, spacing, typography, radius, shadow } from '../../theme/colors';
 
 const CATEGORIES = [
-  { label: 'Tous',        value: null,                emoji: '✨' },
-  { label: 'Mariage',     value: 'Château',           emoji: '💍' },
-  { label: 'Soirée',      value: 'Rooftop',           emoji: '🌙' },
-  { label: 'Séminaire',   value: 'Loft',              emoji: '💼' },
-  { label: 'Anniversaire',value: 'Salle de réception', emoji: '🎂' },
-  { label: 'Photo',       value: 'Studio photo',      emoji: '📸' },
-  { label: 'Plein air',   value: 'Jardin',            emoji: '🌿' },
+  { label: 'Tous',         value: null,                  icon: 'apps-outline' },
+  { label: 'Mariage',      value: 'Ch\u00e2teau',        icon: 'heart-outline' },
+  { label: 'Soir\u00e9e', value: 'Rooftop',              icon: 'moon-outline' },
+  { label: 'S\u00e9minaire', value: 'Loft',              icon: 'briefcase-outline' },
+  { label: 'Anniversaire', value: 'Salle de r\u00e9ception', icon: 'gift-outline' },
+  { label: 'Photo',        value: 'Studio photo',        icon: 'camera-outline' },
+  { label: 'Plein air',    value: 'Jardin',              icon: 'leaf-outline' },
 ];
 
 export default function HomeScreen({ navigation }) {
@@ -66,28 +66,23 @@ export default function HomeScreen({ navigation }) {
     <View style={[styles.container, { paddingTop: insets.top }]}>
       <StatusBar barStyle="dark-content" backgroundColor={colors.bg} />
 
-      {/* ─── Header ─── */}
       <View style={styles.header}>
         <View>
-          <Text style={styles.greeting}>Bonjour{firstName ? `, ${firstName}` : ''} 👋</Text>
+          <Text style={styles.greeting}>Bonjour{firstName ? `, ${firstName}` : ''} \uD83D\uDC4B</Text>
           <Text style={styles.logo}>Event<Text style={styles.logoAccent}>Space</Text></Text>
         </View>
         <View style={styles.headerActions}>
           <TouchableOpacity style={styles.iconBtn} onPress={() => navigation.navigate('MapSearch')}>
             <Ionicons name="map-outline" size={20} color={colors.primary} />
           </TouchableOpacity>
-          <TouchableOpacity
-            onPress={() => navigation.navigate('Profil')}
-            style={styles.avatarBtn}
-          >
+          <TouchableOpacity onPress={() => navigation.navigate('Profil')} style={styles.avatarBtn}>
             <Text style={styles.avatarText}>{avatarLetter}</Text>
           </TouchableOpacity>
         </View>
       </View>
 
-      {/* ─── Search bar ─── */}
       <View style={styles.searchBar}>
-        <Ionicons name="search-outline" size={17} color={colors.mid} />
+        <Ionicons name="search-outline" size={16} color={colors.mid} />
         <TextInput
           style={styles.searchInput}
           placeholder="Ville, nom, type d'espace..."
@@ -98,20 +93,17 @@ export default function HomeScreen({ navigation }) {
         />
         {search ? (
           <TouchableOpacity onPress={() => setSearch('')} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-            <Ionicons name="close-circle" size={18} color={colors.light} />
+            <Ionicons name="close-circle" size={17} color={colors.light} />
           </TouchableOpacity>
         ) : (
-          <TouchableOpacity
-            style={styles.mapPill}
-            onPress={() => navigation.navigate('MapSearch')}
-          >
-            <Ionicons name="map" size={12} color={colors.primary} />
+          <TouchableOpacity style={styles.mapPill} onPress={() => navigation.navigate('MapSearch')}>
+            <Ionicons name="map" size={11} color={colors.primary} />
             <Text style={styles.mapPillText}>Carte</Text>
           </TouchableOpacity>
         )}
       </View>
 
-      {/* ─── Catégories ─── */}
+      {/* Cat\u00e9gories fines */}
       <ScrollView
         horizontal
         showsHorizontalScrollIndicator={false}
@@ -127,14 +119,17 @@ export default function HomeScreen({ navigation }) {
               onPress={() => setCat(active ? null : c.value)}
               activeOpacity={0.7}
             >
-              <Text style={styles.catEmoji}>{c.emoji}</Text>
+              <Ionicons
+                name={active ? c.icon.replace('-outline', '') : c.icon}
+                size={11}
+                color={active ? '#fff' : colors.mid}
+              />
               <Text style={[styles.catText, active && styles.catTextActive]}>{c.label}</Text>
             </TouchableOpacity>
           );
         })}
       </ScrollView>
 
-      {/* ─── Liste ─── */}
       <FlatList
         data={filtered}
         keyExtractor={v => String(v.id)}
@@ -160,12 +155,12 @@ export default function HomeScreen({ navigation }) {
         ListEmptyComponent={
           <View style={styles.empty}>
             <View style={styles.emptyIconWrap}>
-              <Ionicons name="search-outline" size={30} color={colors.primary} />
+              <Ionicons name="search-outline" size={28} color={colors.primary} />
             </View>
-            <Text style={styles.emptyTitle}>Aucun résultat</Text>
+            <Text style={styles.emptyTitle}>Aucun r\u00e9sultat</Text>
             <Text style={styles.emptySubtitle}>Essayez d'autres termes ou explorez la carte</Text>
             <TouchableOpacity style={styles.emptyMapBtn} onPress={() => navigation.navigate('MapSearch')}>
-              <Ionicons name="map-outline" size={14} color="#fff" />
+              <Ionicons name="map-outline" size={13} color="#fff" />
               <Text style={styles.emptyMapBtnText}>Explorer la carte</Text>
             </TouchableOpacity>
           </View>
@@ -186,24 +181,22 @@ const styles = StyleSheet.create({
   logoAccent: { color: colors.primary },
   headerActions: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
   iconBtn: {
-    width: 40, height: 40, borderRadius: 12,
+    width: 38, height: 38, borderRadius: 11,
     backgroundColor: colors.primaryLight,
     alignItems: 'center', justifyContent: 'center',
   },
   avatarBtn: {
-    width: 40, height: 40, borderRadius: 20,
+    width: 38, height: 38, borderRadius: 19,
     backgroundColor: colors.primary,
     alignItems: 'center', justifyContent: 'center',
     ...shadow.sm, shadowColor: colors.primary,
   },
   avatarText: { color: '#fff', fontWeight: '800', fontSize: typography.body },
-
-  /* Search */
   searchBar: {
     flexDirection: 'row', alignItems: 'center',
     backgroundColor: colors.white,
     marginHorizontal: spacing.lg, marginTop: spacing.xs, marginBottom: spacing.sm,
-    borderRadius: radius.xl, paddingHorizontal: spacing.md, paddingVertical: 11,
+    borderRadius: radius.xl, paddingHorizontal: spacing.md, paddingVertical: 10,
     borderWidth: 1.5, borderColor: colors.border,
     gap: spacing.sm, ...shadow.xs,
   },
@@ -211,29 +204,42 @@ const styles = StyleSheet.create({
   mapPill: {
     flexDirection: 'row', alignItems: 'center', gap: 4,
     backgroundColor: colors.primaryLight, borderRadius: radius.full,
-    paddingHorizontal: 10, paddingVertical: 4,
+    paddingHorizontal: 9, paddingVertical: 3,
   },
-  mapPillText: { fontSize: 12, fontWeight: '700', color: colors.primary },
+  mapPillText: { fontSize: 11, fontWeight: '700', color: colors.primary },
 
-  /* Categories — fines et légères */
+  /* === CATEGORIES FINES === */
   catScroll: { marginBottom: spacing.xs },
-  catContent: { paddingHorizontal: spacing.lg, paddingVertical: 4, gap: spacing.sm },
+  catContent: {
+    paddingHorizontal: spacing.lg,
+    paddingVertical: 3,
+    gap: 7,
+  },
   catBtn: {
-    flexDirection: 'row', alignItems: 'center', gap: 5,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
     backgroundColor: colors.white,
     borderRadius: radius.full,
-    paddingHorizontal: 13, paddingVertical: 6,
-    borderWidth: 1, borderColor: colors.border,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderWidth: 1,
+    borderColor: colors.border,
   },
   catBtnActive: {
     backgroundColor: colors.primary,
     borderColor: colors.primary,
   },
-  catEmoji: { fontSize: 13 },
-  catText: { fontSize: 12, color: colors.mid, fontWeight: '500', letterSpacing: 0.1 },
-  catTextActive: { color: '#fff', fontWeight: '600' },
+  catText: {
+    fontSize: 11,
+    color: colors.mid,
+    fontWeight: '500',
+  },
+  catTextActive: {
+    color: '#fff',
+    fontWeight: '600',
+  },
 
-  /* List */
   sectionTitle: {
     fontSize: typography.small, fontWeight: '700', color: colors.mid,
     marginBottom: spacing.md, marginTop: spacing.xs, letterSpacing: 0.5,
@@ -241,7 +247,7 @@ const styles = StyleSheet.create({
   },
   empty: { alignItems: 'center', paddingTop: 60, gap: spacing.md },
   emptyIconWrap: {
-    width: 72, height: 72, borderRadius: 36,
+    width: 68, height: 68, borderRadius: 34,
     backgroundColor: colors.primaryLight,
     justifyContent: 'center', alignItems: 'center', marginBottom: spacing.sm,
   },
