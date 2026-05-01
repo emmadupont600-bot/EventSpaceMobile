@@ -22,11 +22,6 @@
       },
       "package": "com.eventspace.app"
     },
-    "plugins": [
-      [
-        "@react-native-async-storage/async-storage",
-        { "excludeSessionStorage": true }
-      ]
-    ]
+    "plugins": []
   }
 }
