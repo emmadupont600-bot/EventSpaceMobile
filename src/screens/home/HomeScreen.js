@@ -6,7 +6,6 @@ import {
 import { Feather } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
-import { Image } from 'expo-image';
 import { Store } from '../../utils/store';
 import VenueCard from '../../components/VenueCard';
 import { colors, spacing, typography, radius, shadow } from '../../theme/colors';
@@ -21,8 +20,6 @@ const CATEGORIES = [
   { label: 'Plein air', value: 'Jardin', icon: 'sun' },
 ];
 
-const FEATURED_IMG = 'https://images.unsplash.com/photo-1519167758481-83f550bb49b3?w=900&q=80';
-
 export default function HomeScreen({ navigation }) {
   const [venues, setVenues] = useState([]);
   const [favs, setFavs] = useState([]);
@@ -30,6 +27,7 @@ export default function HomeScreen({ navigation }) {
   const [cat, setCat] = useState(null);
   const [user, setUser] = useState(null);
   const [refreshing, setRefreshing] = useState(false);
+  const [searchFocused, setSearchFocused] = useState(false);
   const insets = useSafeAreaInsets();
 
   const load = useCallback(async () => {
@@ -62,6 +60,7 @@ export default function HomeScreen({ navigation }) {
     return matchSearch && matchCat;
   });
 
+  // Sécurisé : pas de crash si firstName est undefined/null
   const firstName = user?.firstName || user?.name?.split(' ')[0] || '';
   const avatarLetter = firstName ? firstName[0].toUpperCase() : '?';
 
@@ -71,17 +70,22 @@ export default function HomeScreen({ navigation }) {
 
       {/* ─── Header ─── */}
       <View style={styles.header}>
-        <View>
+        <View style={styles.headerLeft}>
           <Text style={styles.greeting}>Bonjour{firstName ? `, ${firstName}` : ''} 👋</Text>
           <Text style={styles.logo}>Event<Text style={styles.logoAccent}>Space</Text></Text>
         </View>
         <View style={styles.headerActions}>
-          <TouchableOpacity style={styles.iconBtn} onPress={() => navigation.navigate('MapSearch')}>
-            <Feather name="map-pin" size={20} color={colors.primary} />
+          <TouchableOpacity
+            style={styles.iconBtn}
+            onPress={() => navigation.navigate('MapSearch')}
+            activeOpacity={0.75}
+          >
+            <Feather name="map-pin" size={18} color={colors.primary} />
           </TouchableOpacity>
           <TouchableOpacity
             onPress={() => navigation.navigate('Profil')}
             style={styles.avatarBtn}
+            activeOpacity={0.85}
           >
             <Text style={styles.avatarText}>{avatarLetter}</Text>
           </TouchableOpacity>
@@ -89,12 +93,8 @@ export default function HomeScreen({ navigation }) {
       </View>
 
       {/* ─── Search bar ─── */}
-      <TouchableOpacity
-        style={styles.searchBar}
-        activeOpacity={0.85}
-        onPress={() => {}}
-      >
-        <Feather name="search" size={18} color={colors.mid} />
+      <View style={[styles.searchBar, searchFocused && styles.searchBarFocused]}>
+        <Feather name="search" size={17} color={searchFocused ? colors.primary : colors.mid} />
         <TextInput
           style={styles.searchInput}
           placeholder="Ville, nom, type d'espace..."
@@ -102,28 +102,31 @@ export default function HomeScreen({ navigation }) {
           value={search}
           onChangeText={setSearch}
           returnKeyType="search"
+          onFocus={() => setSearchFocused(true)}
+          onBlur={() => setSearchFocused(false)}
         />
         {search ? (
-          <TouchableOpacity onPress={() => setSearch('')}>
-            <Feather name="x" size={18} color={colors.mid} />
+          <TouchableOpacity onPress={() => setSearch('')} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+            <Feather name="x" size={17} color={colors.mid} />
           </TouchableOpacity>
         ) : (
           <TouchableOpacity
             style={styles.mapPill}
             onPress={() => navigation.navigate('MapSearch')}
+            activeOpacity={0.75}
           >
-            <Feather name="map" size={13} color={colors.primary} />
+            <Feather name="map" size={12} color={colors.primary} />
             <Text style={styles.mapPillText}>Carte</Text>
           </TouchableOpacity>
         )}
-      </TouchableOpacity>
+      </View>
 
       {/* ─── Catégories ─── */}
       <ScrollView
         horizontal
         showsHorizontalScrollIndicator={false}
         style={styles.catScroll}
-        contentContainerStyle={{ paddingHorizontal: spacing.lg, paddingVertical: 4 }}
+        contentContainerStyle={styles.catScrollContent}
       >
         {CATEGORIES.map(c => {
           const active = cat === c.value;
@@ -134,7 +137,11 @@ export default function HomeScreen({ navigation }) {
               onPress={() => setCat(active ? null : c.value)}
               activeOpacity={0.75}
             >
-              <Feather name={c.icon} size={13} color={active ? '#fff' : colors.mid} style={{ marginRight: 5 }} />
+              <Feather
+                name={c.icon}
+                size={12}
+                color={active ? '#fff' : colors.mid}
+              />
               <Text style={[styles.catText, active && styles.catTextActive]}>{c.label}</Text>
             </TouchableOpacity>
           );
@@ -153,26 +160,36 @@ export default function HomeScreen({ navigation }) {
             onFav={() => onFav(item.id)}
           />
         )}
-        contentContainerStyle={{ paddingHorizontal: spacing.lg, paddingBottom: 120 }}
+        contentContainerStyle={[styles.listContent, { paddingBottom: insets.bottom + 100 }]}
         showsVerticalScrollIndicator={false}
         refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={onRefresh}
-            tintColor={colors.primary} colors={[colors.primary]} />
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            tintColor={colors.primary}
+            colors={[colors.primary]}
+          />
         }
         ListHeaderComponent={
-          <Text style={styles.sectionTitle}>
-            {filtered.length} lieu{filtered.length > 1 ? 'x' : ''} disponible{filtered.length > 1 ? 's' : ''}
-          </Text>
+          filtered.length > 0 ? (
+            <Text style={styles.sectionTitle}>
+              {filtered.length} lieu{filtered.length > 1 ? 'x' : ''} disponible{filtered.length > 1 ? 's' : ''}
+            </Text>
+          ) : null
         }
         ListEmptyComponent={
           <View style={styles.empty}>
             <View style={styles.emptyIconWrap}>
-              <Feather name="search" size={28} color={colors.primary} />
+              <Feather name="search" size={26} color={colors.primary} />
             </View>
             <Text style={styles.emptyTitle}>Aucun résultat</Text>
             <Text style={styles.emptySubtitle}>Essayez d'autres termes ou explorez la carte</Text>
-            <TouchableOpacity style={styles.emptyMapBtn} onPress={() => navigation.navigate('MapSearch')}>
-              <Feather name="map-pin" size={14} color="#fff" />
+            <TouchableOpacity
+              style={styles.emptyMapBtn}
+              onPress={() => navigation.navigate('MapSearch')}
+              activeOpacity={0.85}
+            >
+              <Feather name="map-pin" size={13} color="#fff" />
               <Text style={styles.emptyMapBtnText}>Explorer la carte</Text>
             </TouchableOpacity>
           </View>
@@ -184,70 +201,170 @@ export default function HomeScreen({ navigation }) {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.bg },
+
   header: {
-    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
-    paddingHorizontal: spacing.lg, paddingTop: spacing.md, paddingBottom: spacing.sm,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: spacing.lg,
+    paddingTop: spacing.md,
+    paddingBottom: spacing.sm,
   },
-  greeting: { fontSize: typography.small, color: colors.mid, fontWeight: '500' },
-  logo: { fontSize: 26, fontWeight: '900', color: colors.dark, letterSpacing: -0.5 },
+  headerLeft: { flex: 1 },
+  greeting: {
+    fontSize: typography.small,
+    color: colors.mid,
+    fontWeight: '500',
+    marginBottom: 1,
+  },
+  logo: {
+    fontSize: 26,
+    fontWeight: '900',
+    color: colors.dark,
+    letterSpacing: -0.5,
+    lineHeight: 30,
+  },
   logoAccent: { color: colors.primary },
-  headerActions: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
+  headerActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    marginLeft: spacing.md,
+  },
   iconBtn: {
-    width: 40, height: 40, borderRadius: 12,
+    width: 40,
+    height: 40,
+    borderRadius: radius.md,
     backgroundColor: colors.primaryLight,
-    alignItems: 'center', justifyContent: 'center',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   avatarBtn: {
-    width: 40, height: 40, borderRadius: 20,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
     backgroundColor: colors.primary,
-    alignItems: 'center', justifyContent: 'center',
+    alignItems: 'center',
+    justifyContent: 'center',
     ...shadow.sm,
     shadowColor: colors.primary,
   },
   avatarText: { color: '#fff', fontWeight: '800', fontSize: typography.body },
+
   searchBar: {
-    flexDirection: 'row', alignItems: 'center',
+    flexDirection: 'row',
+    alignItems: 'center',
     backgroundColor: colors.white,
-    marginHorizontal: spacing.lg, marginTop: spacing.xs, marginBottom: spacing.sm,
-    borderRadius: radius.xl, paddingHorizontal: spacing.md, paddingVertical: 11,
-    borderWidth: 1.5, borderColor: colors.border,
-    gap: spacing.sm, ...shadow.xs,
+    marginHorizontal: spacing.lg,
+    marginTop: spacing.xs,
+    marginBottom: spacing.sm,
+    borderRadius: radius.xl,
+    paddingHorizontal: spacing.md,
+    paddingVertical: 10,
+    borderWidth: 1.5,
+    borderColor: colors.border,
+    gap: spacing.sm,
+    ...shadow.xs,
   },
-  searchInput: { flex: 1, fontSize: typography.body, color: colors.dark },
+  searchBarFocused: {
+    borderColor: colors.primary,
+    borderWidth: 2,
+  },
+  searchInput: {
+    flex: 1,
+    fontSize: typography.body,
+    color: colors.dark,
+    paddingVertical: 0,
+  },
   mapPill: {
-    flexDirection: 'row', alignItems: 'center', gap: 4,
-    backgroundColor: colors.primaryLight, borderRadius: radius.full,
-    paddingHorizontal: 10, paddingVertical: 4,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: colors.primaryLight,
+    borderRadius: radius.full,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
   },
   mapPillText: { fontSize: 12, fontWeight: '700', color: colors.primary },
+
   catScroll: { marginBottom: spacing.xs },
-  catBtn: {
-    flexDirection: 'row', alignItems: 'center',
-    backgroundColor: colors.white, borderRadius: radius.full,
-    paddingHorizontal: spacing.md, paddingVertical: 8, marginRight: spacing.sm,
-    borderWidth: 1.5, borderColor: colors.border,
+  catScrollContent: {
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.xs,
+    gap: spacing.sm,
   },
-  catBtnActive: { backgroundColor: colors.primary, borderColor: colors.primary },
-  catText: { fontSize: typography.small, color: colors.mid, fontWeight: '600' },
+  catBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    backgroundColor: colors.white,
+    borderRadius: radius.full,
+    paddingHorizontal: spacing.md,
+    paddingVertical: 7,
+    borderWidth: 1.5,
+    borderColor: colors.border,
+  },
+  catBtnActive: {
+    backgroundColor: colors.primary,
+    borderColor: colors.primary,
+  },
+  catText: {
+    fontSize: typography.small,
+    color: colors.mid,
+    fontWeight: '600',
+  },
   catTextActive: { color: '#fff' },
+
+  listContent: {
+    paddingHorizontal: spacing.lg,
+  },
   sectionTitle: {
-    fontSize: typography.small, fontWeight: '700', color: colors.mid,
-    marginBottom: spacing.md, marginTop: spacing.xs, letterSpacing: 0.5,
+    fontSize: typography.small,
+    fontWeight: '700',
+    color: colors.mid,
+    marginBottom: spacing.md,
+    marginTop: spacing.xs,
+    letterSpacing: 0.5,
     textTransform: 'uppercase',
   },
+
   empty: { alignItems: 'center', paddingTop: 60, gap: spacing.md },
   emptyIconWrap: {
-    width: 72, height: 72, borderRadius: 36,
+    width: 68,
+    height: 68,
+    borderRadius: 34,
     backgroundColor: colors.primaryLight,
-    justifyContent: 'center', alignItems: 'center', marginBottom: spacing.sm,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: spacing.sm,
   },
-  emptyTitle: { fontSize: typography.h3, fontWeight: '700', color: colors.dark },
-  emptySubtitle: { fontSize: typography.small, color: colors.light, textAlign: 'center', maxWidth: 240 },
+  emptyTitle: {
+    fontSize: typography.h3,
+    fontWeight: '700',
+    color: colors.dark,
+  },
+  emptySubtitle: {
+    fontSize: typography.small,
+    color: colors.light,
+    textAlign: 'center',
+    maxWidth: 240,
+    lineHeight: 20,
+  },
   emptyMapBtn: {
-    flexDirection: 'row', alignItems: 'center', gap: 6,
-    backgroundColor: colors.primary, borderRadius: radius.full,
-    paddingHorizontal: spacing.xl, paddingVertical: spacing.md,
-    marginTop: spacing.sm, ...shadow.sm, shadowColor: colors.primary,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: colors.primary,
+    borderRadius: radius.full,
+    paddingHorizontal: spacing.xl,
+    paddingVertical: spacing.md,
+    marginTop: spacing.sm,
+    ...shadow.sm,
+    shadowColor: colors.primary,
   },
-  emptyMapBtnText: { color: '#fff', fontWeight: '700', fontSize: typography.small },
+  emptyMapBtnText: {
+    color: '#fff',
+    fontWeight: '700',
+    fontSize: typography.small,
+  },
 });

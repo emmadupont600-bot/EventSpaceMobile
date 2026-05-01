@@ -33,25 +33,26 @@ export default function ChatScreen({ route, navigation }) {
 
   const load = async () => {
     const msgs = await Store.getMessages(conv.id);
-    setMessages(msgs);
+    setMessages(msgs || []);
     setTimeout(() => flatRef.current?.scrollToEnd({ animated: false }), 50);
   };
 
   const send = async () => {
     const trimmed = text.trim();
     if (!trimmed) return;
+    // Sécurisé : user.firstName peut être undefined
+    const senderName = user?.firstName || user?.name || 'Moi';
     const msg = {
       text: trimmed,
-      senderId: user.id,
-      senderName: user.firstName || user.name,
+      senderId: user?.id,
+      senderName,
       ts: new Date().toISOString(),
     };
     await Store.addMessage(conv.id, msg);
     setText('');
     await load();
 
-    // Simulation réponse automatique côté annonceur
-    if (user.role === 'client' || user.role === 'particulier') {
+    if (user?.role === 'client' || user?.role === 'particulier') {
       setTimeout(async () => {
         const reply = BOT_REPLIES[Math.floor(Math.random() * BOT_REPLIES.length)];
         await Store.addMessage(conv.id, {
@@ -67,31 +68,38 @@ export default function ChatScreen({ route, navigation }) {
 
   const formatTime = (ts) => {
     if (!ts) return '';
-    return new Date(ts).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+    try {
+      return new Date(ts).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+    } catch { return ''; }
   };
 
+  // Sécurisé : name peut être undefined/null
   const getInitials = (name) => {
-    if (!name) return '?';
-    return name.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2);
+    if (!name || typeof name !== 'string') return '?';
+    const parts = name.trim().split(' ');
+    return parts.map(w => w[0] || '').join('').toUpperCase().slice(0, 2) || '?';
   };
 
-  const isMe = (msg) => msg.senderId === user?.id || msg.senderId === String(user?.id);
+  const isMe = (msg) =>
+    msg.senderId === user?.id || msg.senderId === String(user?.id);
 
   const renderItem = ({ item, index }) => {
     const me = isMe(item);
     const prev = index > 0 ? messages[index - 1] : null;
-    const showAvatar = !me && (!prev || prev.senderId !== item.senderId);
+    const showName = !me && (!prev || prev.senderId !== item.senderId);
+    // Sécurisé : item.senderName peut être null
+    const senderName = item.senderName || 'Annonceur';
 
     return (
       <View style={[styles.msgRow, me ? styles.msgRowMe : styles.msgRowOther]}>
         {!me && (
-          <View style={[styles.msgAvatar, !showAvatar && { opacity: 0 }]}>
-            <Text style={styles.msgAvatarText}>{getInitials(item.senderName)}</Text>
+          <View style={[styles.msgAvatar, !showName && styles.msgAvatarHidden]}>
+            <Text style={styles.msgAvatarText}>{getInitials(senderName)}</Text>
           </View>
         )}
         <View style={[styles.bubble, me ? styles.bubbleMe : styles.bubbleOther]}>
-          {!me && showAvatar && (
-            <Text style={styles.senderName}>{item.senderName || 'Annonceur'}</Text>
+          {!me && showName && (
+            <Text style={styles.senderName}>{senderName}</Text>
           )}
           <Text style={[styles.bubbleText, me && styles.bubbleTextMe]}>{item.text}</Text>
           <Text style={[styles.bubbleTime, me && styles.bubbleTimeMe]}>{formatTime(item.ts)}</Text>
@@ -100,38 +108,50 @@ export default function ChatScreen({ route, navigation }) {
     );
   };
 
+  // Initiales pour le header — sécurisées
+  const headerTitle = venueName || conv?.venueName || 'Conversation';
+  const headerInitials = getInitials(conv?.otherName || venueName || 'A');
+
   return (
     <KeyboardAvoidingView
       style={{ flex: 1 }}
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-      keyboardVerticalOffset={0}
+      keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
     >
       <View style={[styles.container, { paddingTop: insets.top }]}>
         <StatusBar barStyle="dark-content" />
 
-        {/* Header */}
+        {/* ─── Header ─── */}
         <View style={styles.header}>
-          <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()}>
+          <TouchableOpacity
+            style={styles.backBtn}
+            onPress={() => navigation.goBack()}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          >
             <Feather name="arrow-left" size={20} color={colors.dark} />
           </TouchableOpacity>
+
           <View style={styles.headerAvatar}>
-            <Text style={styles.headerAvatarText}>
-              {getInitials(conv.otherName || venueName || 'A')}
-            </Text>
+            <Text style={styles.headerAvatarText}>{headerInitials}</Text>
           </View>
+
           <View style={styles.headerInfo}>
-            <Text style={styles.headerName} numberOfLines={1}>{venueName || conv.venueName || 'Conversation'}</Text>
+            <Text style={styles.headerName} numberOfLines={1}>{headerTitle}</Text>
             <View style={styles.onlineRow}>
               <View style={styles.onlineDot} />
               <Text style={styles.onlineText}>En ligne</Text>
             </View>
           </View>
-          <TouchableOpacity style={styles.headerAction}>
+
+          <TouchableOpacity
+            style={styles.headerAction}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          >
             <Feather name="more-vertical" size={20} color={colors.mid} />
           </TouchableOpacity>
         </View>
 
-        {/* Messages */}
+        {/* ─── Messages ─── */}
         <FlatList
           ref={flatRef}
           data={messages}
@@ -151,8 +171,8 @@ export default function ChatScreen({ route, navigation }) {
           }
         />
 
-        {/* Barre d'envoi */}
-        <View style={[styles.inputBar, { paddingBottom: insets.bottom + 8 }]}>
+        {/* ─── Barre d'envoi ─── */}
+        <View style={[styles.inputBar, { paddingBottom: insets.bottom + spacing.sm }]}>
           <TextInput
             style={styles.input}
             placeholder="Votre message..."
@@ -161,7 +181,6 @@ export default function ChatScreen({ route, navigation }) {
             onChangeText={setText}
             multiline
             maxLength={500}
-            onSubmitEditing={send}
           />
           <TouchableOpacity
             style={[styles.sendBtn, !text.trim() && styles.sendBtnDisabled]}
@@ -169,7 +188,7 @@ export default function ChatScreen({ route, navigation }) {
             disabled={!text.trim()}
             activeOpacity={0.8}
           >
-            <Feather name="send" size={18} color="#fff" />
+            <Feather name="send" size={17} color="#fff" />
           </TouchableOpacity>
         </View>
       </View>
@@ -178,81 +197,162 @@ export default function ChatScreen({ route, navigation }) {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#F8F9FF' },
+  container: { flex: 1, backgroundColor: '#F5F7FF' },
+
   header: {
-    flexDirection: 'row', alignItems: 'center',
-    paddingHorizontal: spacing.lg, paddingVertical: spacing.md,
-    backgroundColor: colors.white, borderBottomWidth: 1, borderBottomColor: colors.borderLight,
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.md,
+    backgroundColor: colors.white,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.borderLight,
+    gap: spacing.sm,
     ...shadow.xs,
   },
   backBtn: {
-    width: 40, height: 40, borderRadius: radius.md,
-    alignItems: 'center', justifyContent: 'center', marginRight: spacing.sm,
+    width: 38, height: 38,
+    borderRadius: radius.md,
+    alignItems: 'center', justifyContent: 'center',
+    backgroundColor: colors.borderLight,
+    flexShrink: 0,
   },
   headerAvatar: {
-    width: 40, height: 40, borderRadius: 20,
-    backgroundColor: colors.primary, alignItems: 'center', justifyContent: 'center',
-    marginRight: spacing.sm,
+    width: 40, height: 40,
+    borderRadius: 20,
+    backgroundColor: colors.primary,
+    alignItems: 'center', justifyContent: 'center',
+    flexShrink: 0,
   },
   headerAvatarText: { color: '#fff', fontWeight: '800', fontSize: typography.small },
-  headerInfo: { flex: 1 },
-  headerName: { fontSize: typography.body, fontWeight: '800', color: colors.dark },
-  onlineRow: { flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 1 },
-  onlineDot: { width: 7, height: 7, borderRadius: 4, backgroundColor: colors.success },
+  headerInfo: { flex: 1, minWidth: 0 },
+  headerName: {
+    fontSize: typography.body,
+    fontWeight: '800',
+    color: colors.dark,
+    letterSpacing: -0.2,
+  },
+  onlineRow: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 1 },
+  onlineDot: {
+    width: 6, height: 6,
+    borderRadius: 3,
+    backgroundColor: colors.success,
+  },
   onlineText: { fontSize: typography.tiny, color: colors.success, fontWeight: '600' },
-  headerAction: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center' },
-  msgList: { paddingHorizontal: spacing.lg, paddingVertical: spacing.lg, gap: 4 },
-  msgRow: { flexDirection: 'row', marginBottom: 4, alignItems: 'flex-end' },
+  headerAction: {
+    width: 38, height: 38,
+    alignItems: 'center', justifyContent: 'center',
+    flexShrink: 0,
+  },
+
+  msgList: {
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.lg,
+    gap: 6,
+  },
+  msgRow: {
+    flexDirection: 'row',
+    marginBottom: 2,
+    alignItems: 'flex-end',
+    gap: 6,
+  },
   msgRowMe: { justifyContent: 'flex-end' },
   msgRowOther: { justifyContent: 'flex-start' },
   msgAvatar: {
-    width: 30, height: 30, borderRadius: 15,
-    backgroundColor: colors.secondary, alignItems: 'center', justifyContent: 'center',
-    marginRight: 8, marginBottom: 2,
+    width: 28, height: 28,
+    borderRadius: 14,
+    backgroundColor: colors.secondary,
+    alignItems: 'center', justifyContent: 'center',
+    flexShrink: 0,
   },
-  msgAvatarText: { color: '#fff', fontWeight: '800', fontSize: 11 },
+  msgAvatarHidden: { opacity: 0 },
+  msgAvatarText: { color: '#fff', fontWeight: '800', fontSize: 10 },
+
   bubble: {
-    maxWidth: '75%', borderRadius: 18, paddingHorizontal: spacing.md, paddingVertical: spacing.sm,
+    maxWidth: '74%',
+    borderRadius: 18,
+    paddingHorizontal: spacing.md,
+    paddingVertical: 9,
   },
   bubbleMe: {
     backgroundColor: colors.primary,
-    borderBottomRightRadius: 4,
-    ...shadow.sm, shadowColor: colors.primary,
+    borderBottomRightRadius: 5,
+    ...shadow.xs,
+    shadowColor: colors.primary,
   },
   bubbleOther: {
     backgroundColor: colors.white,
-    borderBottomLeftRadius: 4,
-    borderWidth: 1, borderColor: colors.borderLight,
+    borderBottomLeftRadius: 5,
+    borderWidth: 1,
+    borderColor: colors.borderLight,
     ...shadow.xs,
   },
-  senderName: { fontSize: typography.tiny, fontWeight: '700', color: colors.mid, marginBottom: 2 },
-  bubbleText: { fontSize: typography.body, color: colors.dark, lineHeight: 20 },
+  senderName: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: colors.primary,
+    marginBottom: 3,
+    letterSpacing: 0.2,
+  },
+  bubbleText: { fontSize: typography.body, color: colors.dark, lineHeight: 21 },
   bubbleTextMe: { color: '#fff' },
-  bubbleTime: { fontSize: 10, color: colors.light, marginTop: 2, textAlign: 'right' },
-  bubbleTimeMe: { color: 'rgba(255,255,255,0.65)' },
+  bubbleTime: { fontSize: 10, color: colors.light, marginTop: 3, textAlign: 'right' },
+  bubbleTimeMe: { color: 'rgba(255,255,255,0.6)' },
+
   inputBar: {
-    flexDirection: 'row', alignItems: 'flex-end',
-    paddingHorizontal: spacing.lg, paddingTop: spacing.sm,
-    backgroundColor: colors.white, borderTopWidth: 1, borderTopColor: colors.borderLight,
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    paddingHorizontal: spacing.lg,
+    paddingTop: spacing.sm,
+    backgroundColor: colors.white,
+    borderTopWidth: 1,
+    borderTopColor: colors.borderLight,
     gap: spacing.sm,
   },
   input: {
-    flex: 1, backgroundColor: colors.borderLight,
-    borderRadius: radius.xl, paddingHorizontal: spacing.md, paddingVertical: 10,
-    fontSize: typography.body, color: colors.dark, maxHeight: 100,
+    flex: 1,
+    backgroundColor: colors.borderLight,
+    borderRadius: radius.xl,
+    paddingHorizontal: spacing.md,
+    paddingVertical: 10,
+    fontSize: typography.body,
+    color: colors.dark,
+    maxHeight: 110,
+    lineHeight: 20,
   },
   sendBtn: {
-    width: 44, height: 44, borderRadius: 22,
-    backgroundColor: colors.primary, alignItems: 'center', justifyContent: 'center',
-    ...shadow.sm, shadowColor: colors.primary,
+    width: 44, height: 44,
+    borderRadius: 22,
+    backgroundColor: colors.primary,
+    alignItems: 'center', justifyContent: 'center',
+    ...shadow.sm,
+    shadowColor: colors.primary,
+    flexShrink: 0,
   },
-  sendBtnDisabled: { backgroundColor: colors.borderLight, shadowOpacity: 0 },
-  emptyChat: { alignItems: 'center', paddingTop: 80, gap: spacing.md },
+  sendBtnDisabled: { backgroundColor: colors.border, shadowOpacity: 0 },
+
+  emptyChat: {
+    alignItems: 'center',
+    paddingTop: 80,
+    gap: spacing.md,
+  },
   emptyChatIcon: {
-    width: 64, height: 64, borderRadius: 32,
-    backgroundColor: colors.primaryLight, justifyContent: 'center', alignItems: 'center',
+    width: 64, height: 64,
+    borderRadius: 32,
+    backgroundColor: colors.primaryLight,
+    justifyContent: 'center', alignItems: 'center',
     marginBottom: spacing.sm,
   },
-  emptyChatText: { fontSize: typography.h3, fontWeight: '700', color: colors.dark },
-  emptyChatSub: { fontSize: typography.small, color: colors.light, textAlign: 'center', maxWidth: 220 },
+  emptyChatText: {
+    fontSize: typography.h3,
+    fontWeight: '700',
+    color: colors.dark,
+  },
+  emptyChatSub: {
+    fontSize: typography.small,
+    color: colors.light,
+    textAlign: 'center',
+    maxWidth: 220,
+    lineHeight: 20,
+  },
 });
