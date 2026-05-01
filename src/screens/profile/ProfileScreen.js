@@ -61,9 +61,9 @@ export default function ProfileScreen({ navigation }) {
     {
       title: 'Aide',
       items: [
-        { icon: 'help-circle', label: 'Centre d'aide', action: () => {} },
+        { icon: 'help-circle', label: "Centre d'aide", action: () => {} },
         { icon: 'message-square', label: 'Nous contacter', action: () => {} },
-        { icon: 'star', label: 'Évaluer l'application', action: () => {} },
+        { icon: 'star', label: "Évaluer l'application", action: () => {} },
       ],
     },
   ];
