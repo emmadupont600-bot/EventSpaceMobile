@@ -1,0 +1,32 @@
+{
+  "expo": {
+    "name": "EventSpace",
+    "slug": "eventspacemobile",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "splash": {
+      "image": "./assets/splash.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#2d5be3"
+    },
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "com.eventspace.app"
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#2d5be3"
+      },
+      "package": "com.eventspace.app"
+    },
+    "plugins": [
+      [
+        "@react-native-async-storage/async-storage",
+        { "excludeSessionStorage": true }
+      ]
+    ]
+  }
+}
