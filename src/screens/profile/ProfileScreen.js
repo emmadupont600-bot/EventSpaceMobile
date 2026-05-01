@@ -1,14 +1,16 @@
 import React, { useCallback, useState } from 'react';
-import { View, Text, ScrollView, StyleSheet, TouchableOpacity, Alert } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+import {
+  View, Text, ScrollView, StyleSheet, TouchableOpacity, Alert, StatusBar,
+} from 'react-native';
+import { Feather } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Store } from '../../utils/store';
-import Header from '../../components/Header';
-import Button from '../../components/Button';
 import { colors, spacing, typography, radius, shadow } from '../../theme/colors';
 
 export default function ProfileScreen({ navigation }) {
   const [user, setUser] = useState(null);
+  const insets = useSafeAreaInsets();
 
   useFocusEffect(useCallback(() => {
     (async () => setUser(await Store.getCurrentUser()))();
@@ -17,81 +19,112 @@ export default function ProfileScreen({ navigation }) {
   const logout = () => {
     Alert.alert('Déconnexion', 'Voulez-vous vous déconnecter ?', [
       { text: 'Annuler', style: 'cancel' },
-      { text: 'Oui', style: 'destructive', onPress: async () => {
+      { text: 'Déconnecter', style: 'destructive', onPress: async () => {
         await Store.logout();
         navigation.replace('Login');
-      }}
+      }},
     ]);
   };
 
   if (!user) return (
-    <View style={styles.container}>
-      <Header title="Mon profil" />
-      <View style={styles.center}>
-        <Ionicons name="person-outline" size={48} color={colors.light} />
-        <Text style={styles.emptyTxt}>Non connecté</Text>
-        <Button title="Se connecter" onPress={() => navigation.navigate('Login')} style={{ marginTop: spacing.lg }} />
-      </View>
+    <View style={[styles.container, { paddingTop: insets.top, alignItems: 'center', justifyContent: 'center' }]}>
+      <Feather name="user" size={48} color={colors.light} />
+      <Text style={styles.emptyText}>Non connecté</Text>
+      <TouchableOpacity style={styles.loginBtn} onPress={() => navigation.navigate('Login')}>
+        <Text style={styles.loginBtnText}>Se connecter</Text>
+      </TouchableOpacity>
     </View>
   );
 
-  const menuItems = [
-    ...(user.role === 'annonceur' ? [
-      { icon: 'add-circle-outline', label: 'Ajouter un lieu', screen: 'AddVenue', color: colors.primary },
-      { icon: 'business-outline', label: 'Mes lieux', screen: 'MyVenues', color: colors.primary },
-    ] : []),
-    { icon: 'heart-outline', label: 'Mes favoris', screen: 'Favorites', color: '#ef4444' },
-    { icon: 'calendar-outline', label: 'Mes réservations', screen: 'Reservations', color: colors.secondary },
-    { icon: 'chatbubbles-outline', label: 'Messages', screen: 'Conversations', color: colors.warning },
-    { icon: 'help-circle-outline', label: 'Aide & Support', screen: null, color: colors.mid },
+  const firstName = user.firstName || user.name?.split(' ')[0] || '';
+  const lastName  = user.lastName  || user.name?.split(' ').slice(1).join(' ') || '';
+  const initials  = (firstName[0] || '?').toUpperCase();
+  const isAnnonceur = user.role === 'annonceur';
+
+  const sections = [
+    {
+      title: 'Mon compte',
+      items: [
+        { icon: 'user', label: 'Mes informations', action: () => {} },
+        { icon: 'bell', label: 'Notifications', action: () => {} },
+        { icon: 'shield', label: 'Sécurité & confidentialité', action: () => {} },
+      ],
+    },
+    ...(isAnnonceur ? [{
+      title: 'Espace annonceur',
+      items: [
+        { icon: 'home', label: 'Mes lieux', action: () => navigation.navigate('Dashboard') },
+        { icon: 'plus-circle', label: 'Ajouter un lieu', action: () => navigation.navigate('Ajouter') },
+        { icon: 'bar-chart-2', label: 'Statistiques', action: () => {} },
+      ],
+    }] : []),
+    {
+      title: 'Aide',
+      items: [
+        { icon: 'help-circle', label: 'Centre d'aide', action: () => {} },
+        { icon: 'message-square', label: 'Nous contacter', action: () => {} },
+        { icon: 'star', label: 'Évaluer l'application', action: () => {} },
+      ],
+    },
   ];
 
   return (
-    <View style={styles.container}>
-      <Header title="Mon profil" />
-      <ScrollView contentContainerStyle={styles.content}>
-        {/* Avatar */}
-        <View style={styles.avatarSection}>
-          <View style={styles.avatarCircle}>
-            <Text style={styles.avatarTxt}>{user.firstName[0]}{user.lastName?.[0] || ''}</Text>
+    <View style={[styles.container, { paddingTop: insets.top }]}>
+      <StatusBar barStyle="dark-content" />
+      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 120 }}>
+
+        {/* Hero profil */}
+        <View style={styles.hero}>
+          <View style={styles.avatarWrap}>
+            <View style={[styles.avatar, { backgroundColor: isAnnonceur ? colors.secondary : colors.primary }]}>
+              <Text style={styles.avatarText}>{initials}</Text>
+            </View>
+            <View style={styles.roleBadge}>
+              <Feather name={isAnnonceur ? 'briefcase' : 'user'} size={10} color="#fff" />
+            </View>
           </View>
-          <Text style={styles.userName}>{user.firstName} {user.lastName}</Text>
-          <View style={styles.roleBadge}>
-            <Text style={styles.roleTxt}>
-              {user.role === 'annonceur' ? '🏢 Annonceur' : '👤 Particulier'}
+          <Text style={styles.name}>{user.name || `${firstName} ${lastName}`}</Text>
+          <Text style={styles.email}>{user.email}</Text>
+          <View style={[styles.roleTag, { backgroundColor: isAnnonceur ? colors.secondaryLight : colors.primaryLight }]}>
+            <Text style={[styles.roleTagText, { color: isAnnonceur ? colors.secondary : colors.primary }]}>
+              {isAnnonceur ? '🏢 Annonceur' : '👤 Client'}
             </Text>
           </View>
-          <Text style={styles.email}>{user.email}</Text>
         </View>
 
-        {/* Stats */}
-        <View style={styles.statsRow}>
-          {[{ label: 'Réservations', val: 2 }, { label: 'Favoris', val: 3 }, { label: 'Avis', val: 1 }].map(s => (
-            <View key={s.label} style={styles.statItem}>
-              <Text style={styles.statVal}>{s.val}</Text>
-              <Text style={styles.statLabel}>{s.label}</Text>
+        {/* Sections */}
+        {sections.map((section, si) => (
+          <View key={si} style={styles.section}>
+            <Text style={styles.sectionTitle}>{section.title}</Text>
+            <View style={styles.sectionCard}>
+              {section.items.map((item, ii) => (
+                <TouchableOpacity
+                  key={ii}
+                  style={[
+                    styles.menuItem,
+                    ii < section.items.length - 1 && styles.menuItemBorder,
+                  ]}
+                  onPress={item.action}
+                  activeOpacity={0.7}
+                >
+                  <View style={styles.menuIconWrap}>
+                    <Feather name={item.icon} size={17} color={colors.primary} />
+                  </View>
+                  <Text style={styles.menuLabel}>{item.label}</Text>
+                  <Feather name="chevron-right" size={16} color={colors.light} />
+                </TouchableOpacity>
+              ))}
             </View>
-          ))}
-        </View>
+          </View>
+        ))}
 
-        {/* Menu */}
-        <View style={styles.menu}>
-          {menuItems.map(item => (
-            <TouchableOpacity
-              key={item.label}
-              style={styles.menuItem}
-              onPress={() => item.screen ? navigation.navigate(item.screen) : Alert.alert('Bientôt disponible', 'Cette fonctionnalité arrive prochainement.')}
-            >
-              <View style={[styles.menuIcon, { backgroundColor: item.color + '20' }]}>
-                <Ionicons name={item.icon} size={20} color={item.color} />
-              </View>
-              <Text style={styles.menuLabel}>{item.label}</Text>
-              <Ionicons name="chevron-forward" size={16} color={colors.light} />
-            </TouchableOpacity>
-          ))}
-        </View>
+        {/* Déconnexion */}
+        <TouchableOpacity style={styles.logoutBtn} onPress={logout}>
+          <Feather name="log-out" size={18} color={colors.error} />
+          <Text style={styles.logoutText}>Se déconnecter</Text>
+        </TouchableOpacity>
 
-        <Button title="Se déconnecter" variant="outline" onPress={logout} style={{ marginTop: spacing.lg }} />
+        <Text style={styles.version}>EventSpace v2.0 — Made with ♥ in Paris</Text>
       </ScrollView>
     </View>
   );
@@ -99,22 +132,63 @@ export default function ProfileScreen({ navigation }) {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.bg },
-  content: { padding: spacing.lg, paddingBottom: 100 },
-  center: { flex: 1, alignItems: 'center', paddingTop: 80, gap: spacing.sm },
-  emptyTxt: { fontSize: typography.h3, fontWeight: '700', color: colors.mid },
-  avatarSection: { alignItems: 'center', marginBottom: spacing.xl },
-  avatarCircle: { width: 80, height: 80, borderRadius: 40, backgroundColor: colors.primary, alignItems: 'center', justifyContent: 'center', marginBottom: spacing.md },
-  avatarTxt: { color: '#fff', fontSize: 28, fontWeight: '900' },
-  userName: { fontSize: typography.h2, fontWeight: '800', color: colors.dark },
-  roleBadge: { backgroundColor: colors.primaryLight, borderRadius: radius.full, paddingHorizontal: 12, paddingVertical: 4, marginTop: 6, marginBottom: 4 },
-  roleTxt: { fontSize: typography.small, color: colors.primary, fontWeight: '700' },
-  email: { fontSize: typography.small, color: colors.mid },
-  statsRow: { flexDirection: 'row', backgroundColor: colors.white, borderRadius: radius.lg, padding: spacing.lg, marginBottom: spacing.lg, ...shadow.sm },
-  statItem: { flex: 1, alignItems: 'center' },
-  statVal: { fontSize: typography.h2, fontWeight: '900', color: colors.primary },
-  statLabel: { fontSize: typography.tiny, color: colors.mid, marginTop: 2 },
-  menu: { backgroundColor: colors.white, borderRadius: radius.lg, overflow: 'hidden', ...shadow.sm },
-  menuItem: { flexDirection: 'row', alignItems: 'center', padding: spacing.md, borderBottomWidth: 1, borderBottomColor: colors.border, gap: spacing.md },
-  menuIcon: { width: 38, height: 38, borderRadius: radius.sm, alignItems: 'center', justifyContent: 'center' },
+  hero: {
+    alignItems: 'center', paddingVertical: spacing.xl,
+    paddingHorizontal: spacing.lg,
+  },
+  avatarWrap: { position: 'relative', marginBottom: spacing.md },
+  avatar: {
+    width: 88, height: 88, borderRadius: 44,
+    alignItems: 'center', justifyContent: 'center',
+    ...shadow.lg,
+  },
+  avatarText: { color: '#fff', fontSize: typography.h1, fontWeight: '900' },
+  roleBadge: {
+    position: 'absolute', bottom: 0, right: 0,
+    width: 26, height: 26, borderRadius: 13,
+    backgroundColor: colors.success,
+    alignItems: 'center', justifyContent: 'center',
+    borderWidth: 3, borderColor: colors.bg,
+  },
+  name: { fontSize: typography.h2, fontWeight: '900', color: colors.dark, letterSpacing: -0.3 },
+  email: { fontSize: typography.small, color: colors.mid, marginTop: 4, marginBottom: spacing.sm },
+  roleTag: {
+    borderRadius: radius.full, paddingHorizontal: spacing.md, paddingVertical: 5,
+  },
+  roleTagText: { fontSize: typography.small, fontWeight: '700' },
+  section: { marginHorizontal: spacing.lg, marginBottom: spacing.lg },
+  sectionTitle: {
+    fontSize: typography.tiny, fontWeight: '700', color: colors.mid,
+    textTransform: 'uppercase', letterSpacing: 1, marginBottom: spacing.sm,
+  },
+  sectionCard: {
+    backgroundColor: colors.white, borderRadius: radius.xl,
+    borderWidth: 1, borderColor: colors.borderLight, overflow: 'hidden', ...shadow.xs,
+  },
+  menuItem: {
+    flexDirection: 'row', alignItems: 'center',
+    paddingHorizontal: spacing.lg, paddingVertical: spacing.md,
+  },
+  menuItemBorder: { borderBottomWidth: 1, borderBottomColor: colors.borderLight },
+  menuIconWrap: {
+    width: 34, height: 34, borderRadius: radius.sm,
+    backgroundColor: colors.primaryLight,
+    alignItems: 'center', justifyContent: 'center', marginRight: spacing.md,
+  },
   menuLabel: { flex: 1, fontSize: typography.body, fontWeight: '600', color: colors.dark },
+  logoutBtn: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+    gap: spacing.sm, marginHorizontal: spacing.lg,
+    backgroundColor: '#FFF0F0', borderRadius: radius.xl,
+    paddingVertical: spacing.md, marginBottom: spacing.md,
+    borderWidth: 1.5, borderColor: '#FECACA',
+  },
+  logoutText: { fontSize: typography.body, fontWeight: '700', color: colors.error },
+  version: { textAlign: 'center', fontSize: typography.tiny, color: colors.light, paddingBottom: spacing.lg },
+  emptyText: { fontSize: typography.h3, fontWeight: '700', color: colors.dark, marginTop: spacing.md },
+  loginBtn: {
+    backgroundColor: colors.primary, borderRadius: radius.xl,
+    paddingHorizontal: spacing.xxl, paddingVertical: spacing.md, marginTop: spacing.md,
+  },
+  loginBtnText: { color: '#fff', fontWeight: '700', fontSize: typography.body },
 });
