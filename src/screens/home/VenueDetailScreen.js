@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { View, Text, Image, ScrollView, TouchableOpacity, StyleSheet, ActivityIndicator, Dimensions } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Store } from '../../utils/store';
-import { useAuth } from '../../context/AuthContext';
+import { useApp } from '../../context/AppContext';
 import Button from '../../components/Button';
 import { colors, spacing, typography, radius, shadow } from '../../theme/colors';
 
@@ -11,7 +11,7 @@ const W = Dimensions.get('window').width;
 export default function VenueDetailScreen({ route, navigation }) {
   const { venue: initialVenue = null, venueId: routeVenueId } = route.params || {};
   const effectiveVenueId = routeVenueId || initialVenue?.id;
-  const { user } = useAuth();
+  const { user } = useApp();
 
   const [venue, setVenue] = useState(initialVenue || null);
   const [reviews, setReviews] = useState([]);
