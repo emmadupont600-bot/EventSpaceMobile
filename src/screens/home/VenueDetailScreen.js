@@ -1,78 +1,129 @@
-import React, { useEffect, useState, useCallback } from 'react';
-import { View, Text, Image, ScrollView, TouchableOpacity, StyleSheet, FlatList, Alert, Dimensions } from 'react-native';
+import React, { useEffect, useState } from 'react';
+import { View, Text, Image, ScrollView, TouchableOpacity, StyleSheet, ActivityIndicator, Dimensions } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Store } from '../../utils/store';
 import Button from '../../components/Button';
-import StatusBadge from '../../components/StatusBadge';
 import { colors, spacing, typography, radius, shadow } from '../../theme/colors';
 
 const W = Dimensions.get('window').width;
 
 export default function VenueDetailScreen({ route, navigation }) {
-  const { venueId } = route.params;
-  const [venue, setVenue] = useState(null);
+  const { venue: initialVenue = null, venueId: routeVenueId } = route.params || {};
+  const effectiveVenueId = routeVenueId || initialVenue?.id;
+
+  const [venue, setVenue] = useState(initialVenue || null);
   const [reviews, setReviews] = useState([]);
   const [user, setUser] = useState(null);
   const [isFav, setIsFav] = useState(false);
   const [activeImg, setActiveImg] = useState(0);
+  const [loading, setLoading] = useState(!initialVenue);
 
   useEffect(() => {
+    let mounted = true;
+
     (async () => {
-      const v = await Store.getVenue(venueId);
-      const r = await Store.getReviews(venueId);
-      const u = await Store.getCurrentUser();
-      setVenue(v);
-      setReviews(r || []);
-      setUser(u);
-      if (u) setIsFav(await Store.isFavorite(u.id, venueId));
+      try {
+        const [v, r, u] = await Promise.all([
+          initialVenue ? Promise.resolve(initialVenue) : Store.getVenue(effectiveVenueId),
+          effectiveVenueId ? Store.getReviews(effectiveVenueId) : Promise.resolve([]),
+          Store.getCurrentUser(),
+        ]);
+
+        if (!mounted) return;
+
+        setVenue(v || initialVenue || null);
+        setReviews(r || []);
+        setUser(u || null);
+
+        if (u?.id && effectiveVenueId) {
+          const fav = await Store.isFavorite(u.id, effectiveVenueId);
+          if (mounted) setIsFav(!!fav);
+        }
+      } catch (e) {
+        console.warn('VenueDetailScreen load error:', e);
+      } finally {
+        if (mounted) setLoading(false);
+      }
     })();
-  }, []);
+
+    return () => {
+      mounted = false;
+    };
+  }, [initialVenue, effectiveVenueId]);
 
   const toggleFav = async () => {
     if (!user) return navigation.navigate('Login');
-    await Store.toggleFavorite(user.id, venueId);
+    await Store.toggleFavorite(user.id, effectiveVenueId);
     setIsFav(f => !f);
   };
 
   const startChat = async () => {
     if (!user) return navigation.navigate('Login');
+    if (!venue) return;
     const conv = await Store.getOrCreateConv(user.id, venue.ownerId, venue.id, venue.name);
     navigation.navigate('Chat', { conv, venueName: venue.name, user });
   };
 
-  if (!venue) return (
-    <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
-      <Text style={{ color: colors.mid }}>Chargement...</Text>
-    </View>
-  );
+  if (loading && !venue) {
+    return (
+      <View style={styles.loaderWrap}>
+        <ActivityIndicator size="large" color={colors.primary} />
+        <Text style={styles.loaderText}>Ouverture de l'annonce...</Text>
+      </View>
+    );
+  }
 
-  const avgRating = reviews.length > 0 ? (reviews.reduce((s, r) => s + (r.rating || 0), 0) / reviews.length).toFixed(1) : (venue.rating || '—');
+  if (!venue) {
+    return (
+      <View style={styles.loaderWrap}>
+        <Ionicons name="alert-circle-outline" size={28} color={colors.warning} />
+        <Text style={styles.loaderText}>Impossible de charger cette annonce.</Text>
+        <TouchableOpacity style={styles.retryBtn} onPress={() => navigation.goBack()}>
+          <Text style={styles.retryBtnText}>Retour</Text>
+        </TouchableOpacity>
+      </View>
+    );
+  }
+
+  const images = (venue.gallery || [venue.img]).filter(Boolean);
+  const avgRating = reviews.length > 0
+    ? (reviews.reduce((s, r) => s + (r.rating || 0), 0) / reviews.length).toFixed(1)
+    : (venue.rating || '—');
 
   return (
     <View style={styles.container}>
       <ScrollView showsVerticalScrollIndicator={false}>
-        {/* Gallery */}
         <View style={styles.gallery}>
-          <ScrollView horizontal pagingEnabled showsHorizontalScrollIndicator={false} onScroll={e => setActiveImg(Math.round(e.nativeEvent.contentOffset.x / W))} scrollEventThrottle={16}>
-            {(venue.gallery || [venue.img]).filter(Boolean).map((img, i) => (
+          <ScrollView
+            horizontal
+            pagingEnabled
+            showsHorizontalScrollIndicator={false}
+            onScroll={e => setActiveImg(Math.round(e.nativeEvent.contentOffset.x / W))}
+            scrollEventThrottle={16}
+          >
+            {images.map((img, i) => (
               <Image key={i} source={{ uri: img }} style={[styles.mainImg, { width: W }]} />
             ))}
           </ScrollView>
+
           <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()}>
             <Ionicons name="arrow-back" size={22} color={colors.dark} />
           </TouchableOpacity>
+
           <TouchableOpacity style={styles.favBtn} onPress={toggleFav}>
             <Ionicons name={isFav ? 'heart' : 'heart-outline'} size={22} color={isFav ? '#ef4444' : colors.dark} />
           </TouchableOpacity>
-          <View style={styles.dots}>
-            {(venue.gallery || [venue.img]).filter(Boolean).map((_, i) => (
-              <View key={i} style={[styles.dot, i === activeImg && styles.dotActive]} />
-            ))}
-          </View>
+
+          {images.length > 1 && (
+            <View style={styles.dots}>
+              {images.map((_, i) => (
+                <View key={i} style={[styles.dot, i === activeImg && styles.dotActive]} />
+              ))}
+            </View>
+          )}
         </View>
 
         <View style={styles.content}>
-          {/* Infos principales */}
           <View style={styles.topRow}>
             <View style={styles.typeBadge}><Text style={styles.typeTxt}>{venue?.type || ''}</Text></View>
             <View style={styles.ratingRow}>
@@ -80,27 +131,27 @@ export default function VenueDetailScreen({ route, navigation }) {
               <Text style={styles.ratingTxt}> {avgRating} ({reviews.length} avis)</Text>
             </View>
           </View>
+
           <Text style={styles.name}>{venue?.name || ''}</Text>
+
           <View style={styles.infoRow}>
             <Ionicons name="location-outline" size={15} color={colors.mid} />
-            <Text style={styles.infoTxt}>{venue?.address || ''}</Text>
+            <Text style={styles.infoTxt}>{venue?.address || venue?.location || ''}</Text>
           </View>
+
           <View style={styles.infoRow}>
             <Ionicons name="people-outline" size={15} color={colors.mid} />
             <Text style={styles.infoTxt}>Jusqu'à {venue?.capacity || ''} personnes</Text>
           </View>
 
-          {/* Prix */}
           <View style={styles.priceBox}>
             <Text style={styles.price}>{venue?.price || ''} <Text style={styles.perH}>€/heure</Text></Text>
             <Text style={styles.priceNote}>Toutes charges incluses</Text>
           </View>
 
-          {/* Description */}
           <Text style={styles.sectionTitle}>Description</Text>
           <Text style={styles.description}>{venue?.description || ''}</Text>
 
-          {/* Équipements */}
           <Text style={styles.sectionTitle}>Équipements inclus</Text>
           <View style={styles.amenities}>
             {(venue.amenities || []).map(a => (
@@ -111,7 +162,6 @@ export default function VenueDetailScreen({ route, navigation }) {
             ))}
           </View>
 
-          {/* Avis */}
           <Text style={styles.sectionTitle}>Avis ({reviews.length})</Text>
           {reviews.length === 0 && <Text style={styles.noReview}>Aucun avis pour le moment.</Text>}
           {reviews.map((r, idx) => (
@@ -123,7 +173,9 @@ export default function VenueDetailScreen({ route, navigation }) {
                   <Text style={styles.reviewDate}>{r.date || ''}</Text>
                 </View>
                 <View style={styles.ratingRow}>
-                  {[1,2,3,4,5].map(i => <Ionicons key={i} name="star" size={12} color={i <= (r.rating || 0) ? colors.warning : colors.border} />)}
+                  {[1, 2, 3, 4, 5].map(i => (
+                    <Ionicons key={i} name="star" size={12} color={i <= (r.rating || 0) ? colors.warning : colors.border} />
+                  ))}
                 </View>
               </View>
               <Text style={styles.reviewText}>{r.text || ''}</Text>
@@ -132,7 +184,6 @@ export default function VenueDetailScreen({ route, navigation }) {
         </View>
       </ScrollView>
 
-      {/* Bottom bar */}
       <View style={styles.bottomBar}>
         <TouchableOpacity style={styles.chatBtn} onPress={startChat}>
           <Ionicons name="chatbubble-outline" size={20} color={colors.primary} />
@@ -153,6 +204,10 @@ export default function VenueDetailScreen({ route, navigation }) {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.bg },
+  loaderWrap: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: spacing.md, backgroundColor: colors.bg, padding: spacing.lg },
+  loaderText: { color: colors.mid, fontSize: typography.body, textAlign: 'center' },
+  retryBtn: { marginTop: spacing.sm, backgroundColor: colors.primaryLight, paddingHorizontal: spacing.lg, paddingVertical: spacing.sm, borderRadius: radius.full },
+  retryBtnText: { color: colors.primary, fontWeight: '700' },
   gallery: { position: 'relative' },
   mainImg: { height: 280, resizeMode: 'cover' },
   backBtn: { position: 'absolute', top: 50, left: 16, backgroundColor: 'rgba(255,255,255,0.9)', borderRadius: 20, width: 38, height: 38, alignItems: 'center', justifyContent: 'center' },
