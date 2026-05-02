@@ -101,7 +101,6 @@ export default function HomeScreen({ navigation }) {
     <View style={[styles.container, { paddingTop: insets.top }]}>
       <StatusBar barStyle="dark-content" backgroundColor={colors.bg} />
 
-      {/* Header */}
       <View style={styles.header}>
         <View>
           <Text style={styles.greeting}>Bonjour{firstName ? `, ${firstName}` : ''} 👋</Text>
@@ -112,7 +111,6 @@ export default function HomeScreen({ navigation }) {
         </TouchableOpacity>
       </View>
 
-      {/* Bouton IA */}
       <TouchableOpacity
         style={[styles.aiBtn, aiResults && styles.aiBtnActive]}
         onPress={aiResults ? clearAi : () => setAiOpen(true)}
@@ -127,7 +125,6 @@ export default function HomeScreen({ navigation }) {
           : <Ionicons name="arrow-forward-circle" size={18} color={colors.primary} />}
       </TouchableOpacity>
 
-      {/* Search + Filter */}
       {!aiResults && (
         <View style={styles.searchRow}>
           <View style={styles.searchBar}>
@@ -156,7 +153,6 @@ export default function HomeScreen({ navigation }) {
         </View>
       )}
 
-      {/* Catégories — pill slim horizontal, 1 ligne, ~30px de hauteur */}
       {!aiResults && (
         <ScrollView
           horizontal
@@ -181,7 +177,6 @@ export default function HomeScreen({ navigation }) {
         </ScrollView>
       )}
 
-      {/* Contenu */}
       {loading ? (
         <HomeScreenSkeleton />
       ) : (
@@ -192,7 +187,7 @@ export default function HomeScreen({ navigation }) {
             <VenueCard
               venue={item}
               isFav={favorites.includes(item.id)}
-              onPress={() => navigation.navigate('VenueDetail', { venueId: item.id })}
+              onPress={() => navigation.navigate('VenueDetail', { venue: item, venueId: item.id })}
               onFav={() => toggleFavorite(item.id)}
             />
           )}
@@ -236,7 +231,6 @@ export default function HomeScreen({ navigation }) {
         />
       )}
 
-      {/* Modal IA */}
       <Modal visible={aiOpen} transparent animationType="slide" onRequestClose={() => setAiOpen(false)}>
         <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
           <TouchableOpacity style={styles.modalOverlay} activeOpacity={1} onPress={() => setAiOpen(false)} />
@@ -283,7 +277,6 @@ export default function HomeScreen({ navigation }) {
         </KeyboardAvoidingView>
       </Modal>
 
-      {/* Modal filtres */}
       <Modal visible={filterOpen} transparent animationType="slide" onRequestClose={() => setFilterOpen(false)}>
         <TouchableOpacity style={styles.modalOverlay} activeOpacity={1} onPress={() => setFilterOpen(false)} />
         <View style={styles.modalSheet}>
@@ -323,7 +316,6 @@ const styles = StyleSheet.create({
     alignItems: 'center', justifyContent: 'center',
   },
   iconBtnEmoji: { fontSize: 18 },
-
   aiBtn: {
     marginHorizontal: spacing.lg, marginBottom: spacing.sm,
     flexDirection: 'row', alignItems: 'center', gap: 8,
@@ -335,7 +327,6 @@ const styles = StyleSheet.create({
   aiBtnActive: { borderStyle: 'solid', borderColor: C.primary, backgroundColor: C.primaryLight || '#EEF2FF' },
   aiBtnEmoji: { fontSize: 16 },
   aiBtnText: { flex: 1, fontSize: 13, color: C.mid, fontWeight: '500' },
-
   searchRow: {
     flexDirection: 'row', alignItems: 'center',
     paddingHorizontal: spacing.lg, marginBottom: spacing.sm, gap: spacing.sm,
@@ -357,8 +348,6 @@ const styles = StyleSheet.create({
     position: 'absolute', top: 6, right: 6,
     width: 8, height: 8, borderRadius: 4, backgroundColor: '#EF4444',
   },
-
-  // Pill slim — tout sur une ligne, hauteur fixe 30px
   catScroll: { flexGrow: 0, marginBottom: spacing.sm },
   catContent: {
     paddingHorizontal: spacing.lg,
@@ -389,7 +378,6 @@ const styles = StyleSheet.create({
     lineHeight: 16,
   },
   catTextActive: { color: '#fff' },
-
   sectionTitle: {
     fontSize: typography.small, fontWeight: '700', color: C.mid,
     marginBottom: spacing.md, marginTop: spacing.xs,
@@ -399,7 +387,6 @@ const styles = StyleSheet.create({
     color: C.primary, textTransform: 'none', fontSize: 13,
     fontWeight: '700', letterSpacing: 0,
   },
-
   empty: { alignItems: 'center', paddingTop: 60, gap: spacing.md },
   emptyIco: { fontSize: 44 },
   emptyTitle: { fontSize: typography.h3, fontWeight: '700', color: C.dark },
@@ -410,7 +397,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.xl, paddingVertical: spacing.md, marginTop: spacing.sm,
   },
   emptyMapBtnText: { color: '#fff', fontWeight: '700', fontSize: typography.small },
-
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.45)' },
   aiSheet: {
     backgroundColor: C.bg, borderTopLeftRadius: 28, borderTopRightRadius: 28,
@@ -439,7 +425,6 @@ const styles = StyleSheet.create({
   },
   aiSearchBtnDisabled: { opacity: 0.5 },
   aiSearchBtnText: { color: '#fff', fontWeight: '700', fontSize: typography.body },
-
   modalSheet: {
     backgroundColor: C.bg, borderTopLeftRadius: 24, borderTopRightRadius: 24,
     padding: spacing.lg, paddingBottom: 40,
