@@ -1,10 +1,17 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { VENUES, DEMO_USERS, DEMO_REVIEWS, DEMO_RESERVATIONS, DEMO_CONVERSATIONS, DEMO_MESSAGES } from '../data/venues';
+import { DEMO_RESERVATIONS_DATA } from '../data/demoReservations';
 
 // --- Helper : initialise les données de démo au premier lancement ---
 async function initDemoData() {
   const initialized = await AsyncStorage.getItem('es_initialized');
   if (initialized) return;
+
+  // Réservations de démo
+  const existingRes = await AsyncStorage.getItem('es_reservations');
+  if (!existingRes) {
+    await AsyncStorage.setItem('es_reservations', JSON.stringify(DEMO_RESERVATIONS_DATA));
+  }
 
   // Conversations de démo
   for (const conv of DEMO_CONVERSATIONS) {
@@ -92,7 +99,9 @@ export const Store = {
   // --- RESERVATIONS ---
   async getReservations() {
     const saved = await AsyncStorage.getItem('es_reservations');
-    return saved ? JSON.parse(saved) : [...DEMO_RESERVATIONS];
+    if (saved) return JSON.parse(saved);
+    // Fallback : demo reservations si pas encore initialisé
+    return [...DEMO_RESERVATIONS_DATA];
   },
   async addReservation(res) {
     const list = await this.getReservations();
@@ -179,9 +188,11 @@ export const Store = {
   },
 
   // --- RESET (pour re-tester depuis zéro) ---
+  // Appelle Store.resetDemo() dans la console Expo ou dans le ProfilScreen pour tout effacer
   async resetDemo() {
     const keys = await AsyncStorage.getAllKeys();
     const esKeys = keys.filter(k => k.startsWith('es_'));
     await AsyncStorage.multiRemove(esKeys);
+    console.log('[Store] Données effacées. Redémarre l\'app pour recharger les démos.');
   },
 };
