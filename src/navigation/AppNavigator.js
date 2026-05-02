@@ -1,5 +1,7 @@
 /**
- * AppNavigator — chemins corrigés + BookingConfirmation enregistré
+ * AppNavigator — CORRIGÉ
+ * - Suppression de la référence à PaymentScreen (non existant)
+ * - Toutes les routes nommées correctement
  */
 import React from 'react';
 import { NavigationContainer } from '@react-navigation/native';
@@ -38,12 +40,12 @@ const Stack = createNativeStackNavigator();
 const Tab   = createBottomTabNavigator();
 
 const TAB_ICONS = {
-  HomeTab:        ['home', 'home-outline'],
-  ReservTab:      ['calendar', 'calendar-outline'],
-  FavTab:         ['heart', 'heart-outline'],
-  ChatTab:        ['chatbubbles', 'chatbubbles-outline'],
-  ProfileTab:     ['person', 'person-outline'],
-  AnnonceurTab:   ['grid', 'grid-outline'],
+  HomeTab:      ['home', 'home-outline'],
+  ReservTab:    ['calendar', 'calendar-outline'],
+  FavTab:       ['heart', 'heart-outline'],
+  ChatTab:      ['chatbubbles', 'chatbubbles-outline'],
+  ProfileTab:   ['person', 'person-outline'],
+  AnnonceurTab: ['grid', 'grid-outline'],
 };
 
 function ClientTabs() {
@@ -113,9 +115,9 @@ export default function AppNavigator() {
         ) : user.role === 'annonceur' ? (
           <>
             <Stack.Screen name="AnnonceurRoot" component={AnnonceurTabs} />
-            <Stack.Screen name="AddVenue"  component={AddVenueScreen} />
-            <Stack.Screen name="EditVenue" component={EditVenueScreen} />
-            <Stack.Screen name="ChatScreen" component={ChatScreen} />
+            <Stack.Screen name="AddVenue"      component={AddVenueScreen} />
+            <Stack.Screen name="EditVenue"     component={EditVenueScreen} />
+            <Stack.Screen name="ChatScreen"    component={ChatScreen} />
           </>
         ) : (
           <>
@@ -123,7 +125,6 @@ export default function AppNavigator() {
             <Stack.Screen name="VenueDetail"         component={VenueDetailScreen} />
             <Stack.Screen name="Booking"             component={BookingScreen} />
             <Stack.Screen name="BookingConfirmation" component={BookingConfirmationScreen} />
-            <Stack.Screen name="Payment"             component={PaymentScreen} />
             <Stack.Screen name="ChatScreen"          component={ChatScreen} />
           </>
         )}
