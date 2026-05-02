@@ -1,22 +1,42 @@
 /**
  * notifications.js — Gestion des push notifications avec expo-notifications.
- * Demande la permission au premier appel, puis expose schedulePushNotification.
+ *
+ * ⚠️  Requires: npx expo install expo-notifications expo-device
+ *
+ * Toutes les fonctions sont défensives : elles échouent silencieusement
+ * si les packages ne sont pas encore installés ou si on est sur simulateur.
  */
-import * as Notifications from 'expo-notifications';
-import * as Device from 'expo-device';
-import { Platform } from 'react-native';
 
-// Config du handler de notification (affiche l'alerte même en foreground)
-Notifications.setNotificationHandler({
-  handleNotification: async () => ({
-    shouldShowAlert: true,
-    shouldPlaySound: true,
-    shouldSetBadge: true,
-  }),
-});
+let Notifications = null;
+let Device = null;
 
-// Demande la permission et retourne le token Expo Push
+try {
+  Notifications = require('expo-notifications');
+  Device = require('expo-device');
+} catch {
+  // expo-notifications pas encore installé → toutes les fonctions seront des no-ops
+}
+
+// Config du handler (affiche l'alerte même en foreground)
+if (Notifications) {
+  Notifications.setNotificationHandler({
+    handleNotification: async () => ({
+      shouldShowAlert: true,
+      shouldPlaySound: true,
+      shouldSetBadge: true,
+    }),
+  });
+}
+
+/**
+ * Demande la permission push et retourne le token Expo.
+ * Retourne null si permission refusée ou packages absents.
+ */
 export async function registerForPushNotificationsAsync() {
+  if (!Notifications || !Device) {
+    console.warn('[Notifications] expo-notifications non installé. Lance : npx expo install expo-notifications expo-device');
+    return null;
+  }
   if (!Device.isDevice) {
     console.warn('[Notifications] Push non disponible sur simulateur');
     return null;
@@ -31,11 +51,11 @@ export async function registerForPushNotificationsAsync() {
   }
 
   if (finalStatus !== 'granted') {
-    console.warn('[Notifications] Permission refusée');
+    console.warn('[Notifications] Permission refusée par l\'utilisateur');
     return null;
   }
 
-  if (Platform.OS === 'android') {
+  if (require('react-native').Platform.OS === 'android') {
     await Notifications.setNotificationChannelAsync('default', {
       name: 'EventSpace',
       importance: Notifications.AndroidImportance.MAX,
@@ -48,25 +68,27 @@ export async function registerForPushNotificationsAsync() {
     const token = await Notifications.getExpoPushTokenAsync();
     return token.data;
   } catch (e) {
-    console.warn('[Notifications] Impossible d\'obtenir le token:', e.message);
+    console.warn('[Notifications] Token indisponible:', e.message);
     return null;
   }
 }
 
 /**
  * Planifie une notification locale après `delaySeconds` secondes.
+ * No-op silencieux si expo-notifications n'est pas installé.
+ *
  * @param {string} title
  * @param {string} body
  * @param {number} delaySeconds
  */
 export async function schedulePushNotification(title, body, delaySeconds = 1) {
+  if (!Notifications) return;
   try {
     await Notifications.scheduleNotificationAsync({
       content: { title, body, sound: true },
       trigger: delaySeconds > 0 ? { seconds: delaySeconds } : null,
     });
   } catch (e) {
-    // Silencieux sur simulateur
     console.warn('[Notifications] scheduleNotificationAsync:', e.message);
   }
 }
