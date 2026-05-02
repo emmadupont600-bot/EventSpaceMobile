@@ -8,7 +8,7 @@ export default function BookingConfirmationScreen({ route, navigation }) {
   const { reservation, venue } = route.params || {};
   const insets = useSafeAreaInsets();
   const scaleAnim = useRef(new Animated.Value(0)).current;
-  const fadeAnim = useRef(new Animated.Value(0)).current;
+  const fadeAnim  = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
     Animated.sequence([
@@ -21,7 +21,7 @@ export default function BookingConfirmationScreen({ route, navigation }) {
     return (
       <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.bg }}>
         <Text style={{ color: colors.text }}>Réservation introuvable.</Text>
-        <TouchableOpacity onPress={() => navigation.navigate('Accueil')} style={{ marginTop: 16 }}>
+        <TouchableOpacity onPress={() => navigation.navigate('ClientRoot')} style={{ marginTop: 16 }}>
           <Text style={{ color: colors.primary }}>Retour à l'accueil</Text>
         </TouchableOpacity>
       </View>
@@ -29,19 +29,18 @@ export default function BookingConfirmationScreen({ route, navigation }) {
   }
 
   const rows = [
-    { icon: 'business-outline', label: 'Lieu', value: reservation.venueName },
-    { icon: 'calendar-outline', label: 'Date', value: reservation.date },
-    { icon: 'time-outline', label: 'Horaire', value: `${reservation.start} → ${reservation.end}` },
-    { icon: 'people-outline', label: 'Invités', value: `${reservation.guests} personne${reservation.guests > 1 ? 's' : ''}` },
-    { icon: 'ribbon-outline', label: "Type d'événement", value: reservation.eventType },
-    { icon: 'card-outline', label: 'Total estimé', value: `${(reservation.total || 0).toLocaleString('fr-FR')} €` },
+    { icon: 'business-outline',  label: 'Lieu',              value: reservation.venueName },
+    { icon: 'calendar-outline',  label: 'Date',              value: reservation.date },
+    { icon: 'time-outline',      label: 'Horaire',           value: `${reservation.start} → ${reservation.end}` },
+    { icon: 'people-outline',    label: 'Invités',           value: `${reservation.guests} personne${reservation.guests > 1 ? 's' : ''}` },
+    { icon: 'ribbon-outline',    label: "Type d'événement",  value: reservation.eventType },
+    { icon: 'card-outline',      label: 'Total estimé',      value: `${(reservation.total || 0).toLocaleString('fr-FR')} €` },
   ];
 
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
       <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
 
-        {/* Cercle succès animé */}
         <Animated.View style={[styles.successCircle, { transform: [{ scale: scaleAnim }] }]}>
           <Ionicons name="checkmark" size={52} color="#fff" />
         </Animated.View>
@@ -52,7 +51,6 @@ export default function BookingConfirmationScreen({ route, navigation }) {
             L'annonceur va confirmer votre réservation sous 24h. Vous serez notifié dès que c'est accepté.
           </Text>
 
-          {/* Récapitulatif */}
           <View style={styles.card}>
             <Text style={styles.cardTitle}>📋 Récapitulatif</Text>
             {rows.map((r, i) => (
@@ -68,19 +66,16 @@ export default function BookingConfirmationScreen({ route, navigation }) {
             ))}
           </View>
 
-          {/* Badge statut */}
           <View style={styles.statusBadge}>
             <Ionicons name="hourglass-outline" size={16} color="#D97706" />
             <Text style={styles.statusTxt}>En attente de confirmation</Text>
           </View>
 
-          {/* Note ID */}
           <Text style={styles.refTxt}>Réf. #{String(reservation.id).slice(-6).toUpperCase()}</Text>
 
-          {/* Boutons */}
           <TouchableOpacity
             style={styles.btnPrimary}
-            onPress={() => navigation.navigate('Reservations')}
+            onPress={() => navigation.navigate('ClientRoot', { screen: 'ReservTab' })}
           >
             <Ionicons name="calendar-outline" size={20} color="#fff" />
             <Text style={styles.btnPrimaryTxt}>Voir mes réservations</Text>
@@ -88,7 +83,7 @@ export default function BookingConfirmationScreen({ route, navigation }) {
 
           <TouchableOpacity
             style={styles.btnSecondary}
-            onPress={() => navigation.navigate('Accueil')}
+            onPress={() => navigation.navigate('ClientRoot', { screen: 'HomeTab' })}
           >
             <Text style={styles.btnSecondaryTxt}>Retour à l'accueil</Text>
           </TouchableOpacity>
@@ -102,7 +97,6 @@ export default function BookingConfirmationScreen({ route, navigation }) {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.bg || '#F8FAFC' },
   scroll: { alignItems: 'center', padding: spacing.lg, paddingBottom: spacing.xxl || 48 },
-
   successCircle: {
     width: 100, height: 100, borderRadius: 50,
     backgroundColor: '#10B981',
@@ -111,15 +105,12 @@ const styles = StyleSheet.create({
     shadowColor: '#10B981', shadowOffset: { width: 0, height: 8 },
     shadowOpacity: 0.4, shadowRadius: 16, elevation: 8,
   },
-
   title: { fontSize: typography.xl || 24, fontWeight: '800', color: colors.text, textAlign: 'center', marginBottom: spacing.xs },
   subtitle: { fontSize: typography.sm || 14, color: colors.muted || '#64748B', textAlign: 'center', lineHeight: 20, marginBottom: spacing.lg, maxWidth: 300 },
-
   card: {
     width: '100%', backgroundColor: colors.white || '#fff',
     borderRadius: radius.lg || 16, padding: spacing.md,
-    marginBottom: spacing.md,
-    ...shadow?.md,
+    marginBottom: spacing.md, ...shadow?.md,
   },
   cardTitle: { fontSize: typography.base, fontWeight: '700', color: colors.text, marginBottom: spacing.sm },
   row: { flexDirection: 'row', alignItems: 'center', paddingVertical: 10 },
@@ -133,7 +124,6 @@ const styles = StyleSheet.create({
   rowContent: { flex: 1 },
   rowLabel: { fontSize: 12, color: colors.muted, marginBottom: 1 },
   rowValue: { fontSize: typography.sm, fontWeight: '600', color: colors.text },
-
   statusBadge: {
     flexDirection: 'row', alignItems: 'center', gap: 6,
     backgroundColor: '#FEF3C7', borderRadius: radius.full || 999,
@@ -141,7 +131,6 @@ const styles = StyleSheet.create({
   },
   statusTxt: { fontSize: 13, fontWeight: '600', color: '#D97706' },
   refTxt: { fontSize: 12, color: colors.muted, marginBottom: spacing.lg },
-
   btnPrimary: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
     backgroundColor: colors.primary, borderRadius: radius.md || 12,

@@ -27,7 +27,6 @@ export const Store = {
       password: (password || '').trim(),
     });
     if (error || !data?.user) throw new Error(error?.message || 'Email ou mot de passe incorrect');
-    // Récupère le profil
     const { data: profile } = await supabase.from('users').select('*').eq('id', data.user.id).maybeSingle();
     _currentUser = profile || { id: data.user.id, email: data.user.email, role: data.user.user_metadata?.role || 'client', name: data.user.user_metadata?.name };
     return _currentUser;
@@ -41,7 +40,6 @@ export const Store = {
       options: { data: { name: userData.name, role: userData.role || 'client' } },
     });
     if (error || !data?.user) throw new Error(error?.message || 'Erreur lors de l\'inscription');
-    // Crée le profil dans la table users
     const profile = { id: data.user.id, email: emailNorm, name: userData.name, role: userData.role || 'client', phone: userData.phone || null };
     await supabase.from('users').insert(profile);
     _currentUser = profile;
@@ -117,11 +115,20 @@ export const Store = {
 
   async addReservation(res) {
     const row = {
-      venue_id: res.venueId, user_id: res.userId, owner_id: res.ownerId,
-      venue_name: res.venueName, user_name: res.userName, date: res.date,
-      start_time: res.start, end_time: res.end, guests: res.guests,
-      event_type: res.eventType, message: res.message, total: res.total,
-      status: 'pending', payment_status: 'unpaid',
+      venue_id:      res.venueId,
+      user_id:       res.userId,
+      owner_id:      res.ownerId,
+      venue_name:    res.venueName,
+      user_name:     res.userName,
+      date:          res.date,
+      start_time:    res.start,
+      end_time:      res.end,
+      guests:        res.guests,
+      event_type:    res.eventType,
+      message:       res.notes || res.message || null,   // fix: accepte les deux champs
+      total:         res.total,
+      status:        'pending',
+      payment_status: 'unpaid',
     };
     const { data, error } = await supabase.from('reservations').insert(row).select().single();
     if (error) throw new Error(error.message);
@@ -130,9 +137,9 @@ export const Store = {
 
   async updateReservation(id, changes) {
     const row = {};
-    if (changes.status !== undefined) row.status = changes.status;
-    if (changes.payment_status !== undefined) row.payment_status = changes.payment_status;
-    if (changes.payment_intent_id !== undefined) row.payment_intent_id = changes.payment_intent_id;
+    if (changes.status !== undefined)             row.status = changes.status;
+    if (changes.payment_status !== undefined)     row.payment_status = changes.payment_status;
+    if (changes.payment_intent_id !== undefined)  row.payment_intent_id = changes.payment_intent_id;
     const { error } = await supabase.from('reservations').update(row).eq('id', id);
     if (error) throw new Error(error.message);
   },
@@ -230,21 +237,21 @@ function normalizeVenue(v) {
 
 function denormalizeVenue(v) {
   const row = {};
-  if (v.id !== undefined) row.id = v.id;
-  if (v.ownerId !== undefined) row.owner_id = v.ownerId;
-  if (v.name !== undefined) row.name = v.name;
-  if (v.type !== undefined) row.type = v.type;
-  if (v.city !== undefined) row.city = v.city;
-  if (v.address !== undefined) row.address = v.address;
-  if (v.price !== undefined) row.price = v.price;
-  if (v.capacity !== undefined) row.capacity = v.capacity;
+  if (v.id !== undefined)          row.id = v.id;
+  if (v.ownerId !== undefined)     row.owner_id = v.ownerId;
+  if (v.name !== undefined)        row.name = v.name;
+  if (v.type !== undefined)        row.type = v.type;
+  if (v.city !== undefined)        row.city = v.city;
+  if (v.address !== undefined)     row.address = v.address;
+  if (v.price !== undefined)       row.price = v.price;
+  if (v.capacity !== undefined)    row.capacity = v.capacity;
   if (v.description !== undefined) row.description = v.description;
-  if (v.img !== undefined) row.img = v.img;
-  if (v.cover_url !== undefined) row.cover_url = v.cover_url;
-  if (v.gallery !== undefined) row.gallery = v.gallery;
+  if (v.img !== undefined)         row.img = v.img;
+  if (v.cover_url !== undefined)   row.cover_url = v.cover_url;
+  if (v.gallery !== undefined)     row.gallery = v.gallery;
   if (v.gallery_urls !== undefined) row.gallery_urls = v.gallery_urls;
-  if (v.tags !== undefined) row.tags = v.tags;
-  if (v.published !== undefined) row.published = v.published;
+  if (v.tags !== undefined)        row.tags = v.tags;
+  if (v.published !== undefined)   row.published = v.published;
   return row;
 }
 
@@ -253,7 +260,7 @@ function normalizeReservation(r) {
     id: r.id, venueId: r.venue_id, userId: r.user_id, ownerId: r.owner_id,
     venueName: r.venue_name, userName: r.user_name, date: r.date,
     start: r.start_time, end: r.end_time, guests: r.guests,
-    eventType: r.event_type, message: r.message, total: r.total,
+    eventType: r.event_type, message: r.message, notes: r.message, total: r.total,
     status: r.status, paymentStatus: r.payment_status,
     paymentIntentId: r.payment_intent_id,
     commissionAmount: r.commission_amount,

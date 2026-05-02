@@ -4,6 +4,7 @@ import {
 } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useApp } from '../../context/AppContext';
 import { Store } from '../../utils/store';
 import VenueCard from '../../components/VenueCard';
 import { VenueCardSkeleton } from '../../components/SkeletonLoader';
@@ -11,25 +12,22 @@ import { colors, spacing, typography, radius, shadow } from '../../theme/colors'
 
 export default function FavoritesScreen({ navigation }) {
   const [venues, setVenues] = useState([]);
-  const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
+  const { user, favorites, toggleFavorite } = useApp();
   const insets = useSafeAreaInsets();
 
   useFocusEffect(useCallback(() => {
     (async () => {
       setLoading(true);
       try {
-        const u = await Store.getCurrentUser();
-        setUser(u);
-        if (!u) { setVenues([]); return; }
+        if (!user) { setVenues([]); return; }
         const all = await Store.getVenues();
-        const favIds = await Store.getFavorites(u.id);
-        setVenues((all || []).filter(v => favIds.includes(v.id)));
+        setVenues((all || []).filter(v => favorites.includes(v.id)));
       } finally {
         setLoading(false);
       }
     })();
-  }, []));
+  }, [user, favorites]));
 
   const EmptyState = () => (
     <View style={styles.empty}>
@@ -38,7 +36,7 @@ export default function FavoritesScreen({ navigation }) {
       <Text style={styles.emptySub}>Appuyez sur ♥ sur un lieu pour le sauvegarder ici</Text>
       <TouchableOpacity
         style={styles.exploreBtn}
-        onPress={() => navigation.navigate('Accueil')}
+        onPress={() => navigation.navigate('HomeTab')}
       >
         <Text style={styles.exploreBtnText}>🔍 Explorer des lieux</Text>
       </TouchableOpacity>
@@ -71,14 +69,8 @@ export default function FavoritesScreen({ navigation }) {
             <VenueCard
               venue={item}
               isFav={true}
-              onPress={() => navigation.navigate('Accueil', {
-                screen: 'VenueDetail',
-                params: { venueId: item.id },
-              })}
-              onFav={async () => {
-                await Store.toggleFavorite(user.id, item.id);
-                setVenues(v => v.filter(x => x.id !== item.id));
-              }}
+              onPress={() => navigation.navigate('VenueDetail', { venueId: item.id })}
+              onFav={() => toggleFavorite(item.id)}
             />
           )}
           ListEmptyComponent={<EmptyState />}

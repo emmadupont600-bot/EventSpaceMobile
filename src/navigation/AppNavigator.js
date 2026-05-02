@@ -1,6 +1,5 @@
 /**
- * AppNavigator — ajoute la route 'Payment' dans le stack shared
- * et active Realtime dans l'initialisation.
+ * AppNavigator — chemins corrigés + BookingConfirmation enregistré
  */
 import React from 'react';
 import { NavigationContainer } from '@react-navigation/native';
@@ -17,15 +16,15 @@ import RegisterScreen from '../screens/auth/RegisterScreen';
 
 // Client
 import HomeScreen from '../screens/home/HomeScreen';
-import VenueDetailScreen from '../screens/shared/VenueDetailScreen';
-import BookingScreen from '../screens/shared/BookingScreen';
-import PaymentScreen from '../screens/shared/PaymentScreen';
+import VenueDetailScreen from '../screens/home/VenueDetailScreen';
+import BookingScreen from '../screens/home/BookingScreen';
+import BookingConfirmationScreen from '../screens/home/BookingConfirmationScreen';
 import ReservationsScreen from '../screens/reservations/ReservationsScreen';
 import FavoritesScreen from '../screens/favorites/FavoritesScreen';
 
 // Chat
 import ConversationsScreen from '../screens/chat/ConversationsScreen';
-import ChatScreen from '../screens/chat/ChatScreen';
+import ChatScreen from '../screens/shared/ChatScreen';
 
 // Annonceur
 import AnnonceurDashboard from '../screens/annonceur/AnnonceurDashboard';
@@ -85,6 +84,7 @@ function AnnonceurTabs() {
       })}
     >
       <Tab.Screen name="AnnonceurTab" component={AnnonceurDashboard} options={{ title: 'Dashboard' }} />
+      <Tab.Screen name="ReservTab"    component={ReservationsScreen}  options={{ title: 'Réservations' }} />
       <Tab.Screen name="ChatTab"      component={ConversationsScreen} options={{ title: 'Messages' }} />
       <Tab.Screen name="ProfileTab"   component={ProfileScreen}       options={{ title: 'Profil' }} />
     </Tab.Navigator>
@@ -106,13 +106,11 @@ export default function AppNavigator() {
     <NavigationContainer>
       <Stack.Navigator screenOptions={{ headerShown: false }}>
         {!user ? (
-          // Auth
           <>
             <Stack.Screen name="Login"    component={LoginScreen} />
             <Stack.Screen name="Register" component={RegisterScreen} />
           </>
         ) : user.role === 'annonceur' ? (
-          // Annonceur
           <>
             <Stack.Screen name="AnnonceurRoot" component={AnnonceurTabs} />
             <Stack.Screen name="AddVenue"  component={AddVenueScreen} />
@@ -120,13 +118,13 @@ export default function AppNavigator() {
             <Stack.Screen name="ChatScreen" component={ChatScreen} />
           </>
         ) : (
-          // Client
           <>
-            <Stack.Screen name="ClientRoot"   component={ClientTabs} />
-            <Stack.Screen name="VenueDetail"  component={VenueDetailScreen} />
-            <Stack.Screen name="Booking"      component={BookingScreen} />
-            <Stack.Screen name="Payment"      component={PaymentScreen} />
-            <Stack.Screen name="ChatScreen"   component={ChatScreen} />
+            <Stack.Screen name="ClientRoot"          component={ClientTabs} />
+            <Stack.Screen name="VenueDetail"         component={VenueDetailScreen} />
+            <Stack.Screen name="Booking"             component={BookingScreen} />
+            <Stack.Screen name="BookingConfirmation" component={BookingConfirmationScreen} />
+            <Stack.Screen name="Payment"             component={PaymentScreen} />
+            <Stack.Screen name="ChatScreen"          component={ChatScreen} />
           </>
         )}
       </Stack.Navigator>

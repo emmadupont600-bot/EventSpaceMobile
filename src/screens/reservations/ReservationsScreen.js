@@ -16,10 +16,10 @@ const STATUS_MAP = {
 };
 
 const TABS = [
-  { key: 'all',       label: 'Toutes',   icon: 'list-outline' },
-  { key: 'pending',   label: 'Attente',  icon: 'hourglass-outline' },
+  { key: 'all',       label: 'Toutes',     icon: 'list-outline' },
+  { key: 'pending',   label: 'Attente',    icon: 'hourglass-outline' },
   { key: 'confirmed', label: 'Confirmées', icon: 'checkmark-circle-outline' },
-  { key: 'cancelled', label: 'Annulées', icon: 'close-circle-outline' },
+  { key: 'cancelled', label: 'Annulées',  icon: 'close-circle-outline' },
 ];
 
 export default function ReservationsScreen({ navigation }) {
@@ -74,7 +74,7 @@ export default function ReservationsScreen({ navigation }) {
       {tab === 'all' && (
         <TouchableOpacity
           style={styles.emptyBtn}
-          onPress={() => navigation.navigate('Accueil')}
+          onPress={() => navigation.navigate('HomeTab')}
         >
           <Ionicons name="search-outline" size={16} color="#fff" />
           <Text style={styles.emptyBtnTxt}>Explorer les espaces</Text>
@@ -88,7 +88,6 @@ export default function ReservationsScreen({ navigation }) {
     const isAnnonceur = user?.role === 'annonceur';
     return (
       <View style={styles.card}>
-        {/* Top */}
         <View style={styles.cardHeader}>
           <View style={{ flex: 1 }}>
             <Text style={styles.cardVenue} numberOfLines={1}>{item.venueName}</Text>
@@ -102,7 +101,6 @@ export default function ReservationsScreen({ navigation }) {
           </View>
         </View>
 
-        {/* Infos */}
         <View style={styles.metaRow}>
           <View style={styles.metaItem}>
             <Ionicons name="calendar-outline" size={13} color={colors.muted} />
@@ -125,33 +123,22 @@ export default function ReservationsScreen({ navigation }) {
           <Text style={styles.totalTxt}>💶 {(item.total || item.price || 0).toLocaleString('fr-FR')} €</Text>
         </View>
 
-        {/* Actions annonceur */}
         {isAnnonceur && item.status === 'pending' && (
           <View style={styles.actions}>
-            <TouchableOpacity
-              style={styles.btnConfirm}
-              onPress={() => updateStatus(item.id, 'confirmed')}
-            >
+            <TouchableOpacity style={styles.btnConfirm} onPress={() => updateStatus(item.id, 'confirmed')}>
               <Ionicons name="checkmark" size={16} color="#fff" />
               <Text style={styles.btnConfirmTxt}>Confirmer</Text>
             </TouchableOpacity>
-            <TouchableOpacity
-              style={styles.btnCancel}
-              onPress={() => updateStatus(item.id, 'cancelled')}
-            >
+            <TouchableOpacity style={styles.btnCancel} onPress={() => updateStatus(item.id, 'cancelled')}>
               <Ionicons name="close" size={16} color="#DC2626" />
               <Text style={styles.btnCancelTxt}>Refuser</Text>
             </TouchableOpacity>
           </View>
         )}
 
-        {/* Actions client */}
         {!isAnnonceur && item.status === 'pending' && (
           <View style={styles.actions}>
-            <TouchableOpacity
-              style={styles.btnCancel}
-              onPress={() => updateStatus(item.id, 'cancelled')}
-            >
+            <TouchableOpacity style={styles.btnCancel} onPress={() => updateStatus(item.id, 'cancelled')}>
               <Ionicons name="close" size={14} color="#DC2626" />
               <Text style={styles.btnCancelTxt}>Annuler la demande</Text>
             </TouchableOpacity>
@@ -165,7 +152,6 @@ export default function ReservationsScreen({ navigation }) {
     <View style={[styles.container, { paddingTop: insets.top }]}>
       <StatusBar barStyle="dark-content" />
 
-      {/* Header */}
       <View style={styles.header}>
         <Text style={styles.headerTitle}>Réservations</Text>
         <View style={styles.countBadge}>
@@ -173,7 +159,6 @@ export default function ReservationsScreen({ navigation }) {
         </View>
       </View>
 
-      {/* Tabs */}
       <View style={styles.tabs}>
         {TABS.map(t => (
           <TouchableOpacity
@@ -203,7 +188,6 @@ export default function ReservationsScreen({ navigation }) {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.bg || '#F8FAFC' },
-
   header: {
     flexDirection: 'row', alignItems: 'center', gap: 8,
     paddingHorizontal: spacing.md, paddingVertical: spacing.sm,
@@ -211,80 +195,44 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1, borderBottomColor: colors.border || '#E2E8F0',
   },
   headerTitle: { fontSize: typography.xl || 22, fontWeight: '800', color: colors.text },
-  countBadge: {
-    backgroundColor: colors.primary, borderRadius: 12,
-    paddingHorizontal: 8, paddingVertical: 2,
-  },
+  countBadge: { backgroundColor: colors.primary, borderRadius: 12, paddingHorizontal: 8, paddingVertical: 2 },
   countTxt: { fontSize: 12, fontWeight: '700', color: '#fff' },
-
   tabs: {
     flexDirection: 'row',
     backgroundColor: colors.white || '#fff',
     borderBottomWidth: 1, borderBottomColor: colors.border || '#E2E8F0',
     paddingHorizontal: spacing.sm,
   },
-  tab: {
-    flex: 1, paddingVertical: 12, alignItems: 'center',
-    borderBottomWidth: 2, borderBottomColor: 'transparent',
-  },
+  tab: { flex: 1, paddingVertical: 12, alignItems: 'center', borderBottomWidth: 2, borderBottomColor: 'transparent' },
   tabActive: { borderBottomColor: colors.primary },
   tabTxt: { fontSize: 12, fontWeight: '500', color: colors.muted, textAlign: 'center' },
   tabTxtActive: { color: colors.primary, fontWeight: '700' },
-
   list: { padding: spacing.sm, gap: spacing.sm, paddingBottom: spacing.xl },
-
   card: {
     backgroundColor: colors.white || '#fff',
-    borderRadius: radius.lg || 14, padding: spacing.md,
-    ...shadow?.sm,
+    borderRadius: radius.lg || 14, padding: spacing.md, ...shadow?.sm,
   },
   cardHeader: { flexDirection: 'row', alignItems: 'flex-start', marginBottom: 8 },
   cardVenue: { fontSize: typography.base, fontWeight: '700', color: colors.text },
   cardLocation: { fontSize: 12, color: colors.muted, marginTop: 1 },
-  statusBadge: {
-    flexDirection: 'row', alignItems: 'center', gap: 4,
-    borderRadius: radius.full, paddingHorizontal: 8, paddingVertical: 3,
-  },
+  statusBadge: { flexDirection: 'row', alignItems: 'center', gap: 4, borderRadius: radius.full, paddingHorizontal: 8, paddingVertical: 3 },
   statusEmoji: { fontSize: 12 },
   statusLabel: { fontSize: 11, fontWeight: '700' },
-
   metaRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 10 },
   metaItem: { flexDirection: 'row', alignItems: 'center', gap: 3 },
   metaTxt: { fontSize: 12, color: colors.muted },
-
   cardFooter: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  eventChip: {
-    backgroundColor: colors.border || '#E2E8F0',
-    borderRadius: radius.full, paddingHorizontal: 10, paddingVertical: 4,
-  },
+  eventChip: { backgroundColor: colors.border || '#E2E8F0', borderRadius: radius.full, paddingHorizontal: 10, paddingVertical: 4 },
   eventChipTxt: { fontSize: 12, fontWeight: '500', color: colors.text },
   totalTxt: { fontSize: typography.base, fontWeight: '800', color: colors.primary },
-
-  actions: {
-    flexDirection: 'row', gap: 8,
-    borderTopWidth: 1, borderTopColor: colors.border || '#E2E8F0',
-    marginTop: 10, paddingTop: 10,
-  },
-  btnConfirm: {
-    flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4,
-    backgroundColor: '#059669', borderRadius: radius.md, paddingVertical: 9,
-  },
+  actions: { flexDirection: 'row', gap: 8, borderTopWidth: 1, borderTopColor: colors.border || '#E2E8F0', marginTop: 10, paddingTop: 10 },
+  btnConfirm: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4, backgroundColor: '#059669', borderRadius: radius.md, paddingVertical: 9 },
   btnConfirmTxt: { fontSize: 13, fontWeight: '700', color: '#fff' },
-  btnCancel: {
-    flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4,
-    borderWidth: 1.5, borderColor: '#DC2626',
-    borderRadius: radius.md, paddingVertical: 9,
-  },
+  btnCancel: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4, borderWidth: 1.5, borderColor: '#DC2626', borderRadius: radius.md, paddingVertical: 9 },
   btnCancelTxt: { fontSize: 13, fontWeight: '700', color: '#DC2626' },
-
   empty: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: spacing.xl },
   emptyTitle: { fontSize: typography.lg, fontWeight: '700', color: colors.text, marginTop: spacing.md, marginBottom: spacing.xs },
   emptySubtitle: { fontSize: typography.sm, color: colors.muted, textAlign: 'center', maxWidth: 260, lineHeight: 20 },
-  emptyBtn: {
-    flexDirection: 'row', alignItems: 'center', gap: 6,
-    backgroundColor: colors.primary, borderRadius: radius.md,
-    paddingHorizontal: spacing.lg, paddingVertical: 12,
-    marginTop: spacing.lg,
-  },
+  emptyBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: colors.primary, borderRadius: radius.md, paddingHorizontal: spacing.lg, paddingVertical: 12, marginTop: spacing.lg },
   emptyBtnTxt: { fontSize: typography.sm, fontWeight: '700', color: '#fff' },
 });

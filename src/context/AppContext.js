@@ -9,16 +9,14 @@ export const COMMISSION_RATE = 0.12;
 export function AppProvider({ children }) {
   const [user, setUser]           = useState(null);
   const [loading, setLoading]     = useState(true);
-  const [favorites, setFavorites] = useState([]); // liste des IDs de lieux favoris
+  const [favorites, setFavorites] = useState([]);
 
-  // Chargement initial
   useEffect(() => {
     Store.getCurrentUser().then(u => {
       setUser(u);
       if (u?.id) {
         initNotifications(u.id).catch(() => {});
-        // charger les favoris depuis le store si dispo
-        Store.getFavorites?.(u.id).then(favs => {
+        Store.getFavorites(u.id).then(favs => {
           setFavorites(Array.isArray(favs) ? favs : []);
         }).catch(() => setFavorites([]));
       }
@@ -29,15 +27,13 @@ export function AppProvider({ children }) {
     const u = await Store.login(email, password);
     setUser(u);
     initNotifications(u.id).catch(() => {});
-    // charger les favoris de cet user
-    Store.getFavorites?.(u.id).then(favs => {
+    Store.getFavorites(u.id).then(favs => {
       setFavorites(Array.isArray(favs) ? favs : []);
     }).catch(() => setFavorites([]));
     return u;
   }, []);
 
   const register = useCallback(async (data) => {
-    // data = { name, email, password, role }
     const u = await Store.register(data);
     setUser(u);
     setFavorites([]);
@@ -51,18 +47,22 @@ export function AppProvider({ children }) {
     setFavorites([]);
   }, []);
 
+  // Optimistic update + vraie persistance Supabase
   const toggleFavorite = useCallback(async (venueId) => {
-    setFavorites(prev => {
-      const next = prev.includes(venueId)
-        ? prev.filter(id => id !== venueId)
-        : [...prev, venueId];
-      // persister en arrière-plan (optionnel)
-      if (user?.id) {
-        Store.saveFavorites?.(user.id, next).catch(() => {});
-      }
-      return next;
-    });
-  }, [user?.id]);
+    const isCurrentlyFav = favorites.includes(venueId);
+    // Mise à jour optimiste immédiate
+    setFavorites(prev =>
+      isCurrentlyFav ? prev.filter(id => id !== venueId) : [...prev, venueId]
+    );
+    try {
+      if (user?.id) await Store.toggleFavorite(user.id, venueId);
+    } catch {
+      // Rollback en cas d'erreur
+      setFavorites(prev =>
+        isCurrentlyFav ? [...prev, venueId] : prev.filter(id => id !== venueId)
+      );
+    }
+  }, [user?.id, favorites]);
 
   const addReservation = useCallback(async (reservationData) => {
     return await Store.addReservation({
