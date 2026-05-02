@@ -2,38 +2,37 @@
  * stripeService.js
  * Flow Stripe avec Expo + @stripe/stripe-react-native
  *
- * Architecture :
- * 1. Le client appelle processPayment() → Supabase Edge Function 'create-payment-intent'
- * 2. L'Edge Function crée le PaymentIntent côté Stripe (server-side)
- * 3. On récupère le clientSecret + paymentIntentId
- *
- * Clés Stripe test :
- *   pk_test_51TSkDI1... (publishable — safe côté client)
- *   sk_test_...         (secret — stockée UNIQUEMENT dans le secret Supabase STRIPE_SECRET_KEY)
- *
  * Cartes de test :
  *   4242 4242 4242 4242 → paiement accepté
  *   4000 0000 0000 9995 → carte refusée
  *   4000 0025 0000 3155 → 3D Secure requis
  */
-import { supabase } from '../lib/supabase';
+import { supabase } from './supabase'; // FIX: was '../lib/supabase'
 
 export const STRIPE_PUBLISHABLE_KEY = 'pk_test_51TSkDI1XxCdtSfY7N05oDTaJ2ASeVLF6k1bcJ4XQbKntUCJXJkU3oiitj0DXNoeREeajUMdTYVlORWH5SZIhxNyL00Fza4xqXZ';
 
 /**
- * Crée un PaymentIntent via la Supabase Edge Function.
- *
- * @param {object} params
- * @param {number} params.amount         - Montant en euros (ex: 42.50)
- * @param {string|number} params.reservationId
- * @param {string} params.venueName
- * @returns {Promise<{success: boolean, clientSecret?: string, paymentIntentId?: string, error?: string}>}
+ * Mode DÉMO : simule un paiement réussi sans appel Stripe réel.
+ * Pour passer en production, mettre DEMO_MODE = false et déployer
+ * la Edge Function 'create-payment-intent'.
  */
+const DEMO_MODE = true;
+
 export async function processPayment({ amount, reservationId, venueName }) {
+  // Mode démo : toujours succès sans appel réseau
+  if (DEMO_MODE) {
+    await new Promise(r => setTimeout(r, 1200)); // simule latence
+    return {
+      success: true,
+      clientSecret: `demo_cs_${Date.now()}`,
+      paymentIntentId: `demo_pi_${Date.now()}`,
+    };
+  }
+
   try {
     const { data, error } = await supabase.functions.invoke('create-payment-intent', {
       body: {
-        amount,          // en euros — l'Edge Function convertit en centimes
+        amount,
         currency: 'eur',
         reservationId: String(reservationId ?? ''),
         venueName: String(venueName ?? ''),
@@ -59,12 +58,12 @@ export async function processPayment({ amount, reservationId, venueName }) {
  * commission = 12% prélevée sur le subtotal (payé par l'annonceur)
  */
 export function computePricing({ pricePerHour, startTime, endTime, commission = 0.12 }) {
-  const [sh, sm] = startTime.split(':').map(Number);
-  const [eh, em] = endTime.split(':').map(Number);
+  const [sh, sm] = (startTime || '10:00').split(':').map(Number);
+  const [eh, em] = (endTime   || '11:00').split(':').map(Number);
   const hours = Math.max(1, (eh * 60 + em - (sh * 60 + sm)) / 60);
-  const subtotal = Math.round(pricePerHour * hours);
+  const subtotal = Math.round((pricePerHour || 0) * hours);
   const commissionAmount = Math.round(subtotal * commission);
-  const total = subtotal;            // Le client paie le prix brut
-  const netForOwner = subtotal - commissionAmount;  // L'annonceur reçoit ça
+  const total = subtotal;
+  const netForOwner = subtotal - commissionAmount;
   return { hours, subtotal, commissionAmount, total, netForOwner };
 }
