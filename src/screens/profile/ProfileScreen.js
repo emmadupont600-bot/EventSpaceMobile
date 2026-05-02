@@ -6,6 +6,7 @@ import { Feather } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Store } from '../../utils/store';
+import { useApp } from '../../context/AppContext';
 import { colors, spacing, typography, radius, shadow } from '../../theme/colors';
 
 const AVATAR_COLORS = ['#6366F1','#EC4899','#10B981','#F59E0B','#3B82F6','#8B5CF6'];
@@ -13,28 +14,29 @@ const AVATAR_COLORS = ['#6366F1','#EC4899','#10B981','#F59E0B','#3B82F6','#8B5CF
 export default function ProfileScreen({ navigation }) {
   const [user, setUser] = useState(null);
   const insets = useSafeAreaInsets();
+  const { setUser: setAppUser } = useApp();
 
   useFocusEffect(useCallback(() => {
     (async () => setUser(await Store.getCurrentUser()))();
   }, []));
 
   const logout = () => {
-    Alert.alert('🚪 Déconnexion', 'Voulez-vous vous déconnecter ?', [
+    Alert.alert('\uD83D\uDEAA D\u00e9connexion', 'Voulez-vous vous d\u00e9connecter ?', [
       { text: 'Annuler', style: 'cancel' },
-      { text: 'Déconnecter', style: 'destructive', onPress: async () => {
+      { text: 'D\u00e9connecter', style: 'destructive', onPress: async () => {
         await Store.logout();
-        navigation.replace('Login');
+        // Le RootNavigator bascule automatiquement vers AuthNavigator
+        // quand user devient null — pas besoin de navigate('Login')
+        setAppUser(null);
       }},
     ]);
   };
 
+  // Utilisateur non connecté : ne pas naviguer manuellement, laisser RootNavigator gérer
   if (!user) return (
     <View style={[styles.container, { paddingTop: insets.top, alignItems: 'center', justifyContent: 'center' }]}>
-      <Text style={{ fontSize: 64 }}>👤</Text>
-      <Text style={styles.emptyText}>Non connecté</Text>
-      <TouchableOpacity style={styles.loginBtn} onPress={() => navigation.navigate('Login')}>
-        <Text style={styles.loginBtnText}>🔑 Se connecter</Text>
-      </TouchableOpacity>
+      <Text style={{ fontSize: 64 }}>\uD83D\uDC64</Text>
+      <Text style={styles.emptyText}>Non connect\u00e9</Text>
     </View>
   );
 
@@ -46,27 +48,27 @@ export default function ProfileScreen({ navigation }) {
 
   const sections = [
     {
-      title: '💼 Mon compte',
+      title: '\uD83D\uDCBC Mon compte',
       items: [
-        { icon: 'user',    emoji: '👤', label: 'Mes informations',          action: () => {} },
-        { icon: 'bell',    emoji: '🔔', label: 'Notifications',             action: () => {} },
-        { icon: 'shield',  emoji: '🔒', label: 'Sécurité & confidentialité', action: () => {} },
+        { icon: 'user',    emoji: '\uD83D\uDC64', label: 'Mes informations',          action: () => {} },
+        { icon: 'bell',    emoji: '\uD83D\uDD14', label: 'Notifications',             action: () => {} },
+        { icon: 'shield',  emoji: '\uD83D\uDD12', label: 'S\u00e9curit\u00e9 & confidentialit\u00e9', action: () => {} },
       ],
     },
     ...(isAnnonceur ? [{
-      title: '🏢 Espace annonceur',
+      title: '\uD83C\uDFE2 Espace annonceur',
       items: [
-        { icon: 'home',        emoji: '🏠', label: 'Mes lieux',       action: () => navigation.navigate('Dashboard') },
-        { icon: 'plus-circle', emoji: '➕',     label: 'Ajouter un lieu', action: () => navigation.navigate('Ajouter') },
-        { icon: 'bar-chart-2', emoji: '📊', label: 'Statistiques',   action: () => {} },
+        { icon: 'home',        emoji: '\uD83C\uDFE0', label: 'Mes lieux',       action: () => navigation.navigate('Dashboard') },
+        { icon: 'plus-circle', emoji: '\u2795',     label: 'Ajouter un lieu', action: () => navigation.navigate('Ajouter') },
+        { icon: 'bar-chart-2', emoji: '\uD83D\uDCCA', label: 'Statistiques',   action: () => {} },
       ],
     }] : []),
     {
-      title: '📣 Aide & Support',
+      title: '\uD83D\uDCE3 Aide & Support',
       items: [
-        { icon: 'help-circle',    emoji: '❓', label: "Centre d'aide",        action: () => {} },
-        { icon: 'message-square', emoji: '💬', label: 'Nous contacter',       action: () => {} },
-        { icon: 'star',           emoji: '⭐', label: "Évaluer l'application", action: () => {} },
+        { icon: 'help-circle',    emoji: '\u2753', label: "Centre d'aide",        action: () => {} },
+        { icon: 'message-square', emoji: '\uD83D\uDCAC', label: 'Nous contacter',       action: () => {} },
+        { icon: 'star',           emoji: '\u2B50', label: "\u00c9valuer l'application", action: () => {} },
       ],
     },
   ];
@@ -78,7 +80,6 @@ export default function ProfileScreen({ navigation }) {
 
         {/* Hero profil */}
         <View style={styles.hero}>
-          {/* Avatar */}
           <View style={styles.avatarWrap}>
             {user.avatar ? (
               <Image source={{ uri: user.avatar }} style={styles.avatarImg} />
@@ -87,27 +88,25 @@ export default function ProfileScreen({ navigation }) {
                 <Text style={styles.avatarText}>{initials}</Text>
               </View>
             )}
-            {/* Badge role */}
             <View style={[styles.roleBadge, { backgroundColor: isAnnonceur ? colors.secondary || '#8B5CF6' : colors.success || '#10B981' }]}>
-              <Text style={{ fontSize: 10 }}>{isAnnonceur ? '🏢' : '👤'}</Text>
+              <Text style={{ fontSize: 10 }}>{isAnnonceur ? '\uD83C\uDFE2' : '\uD83D\uDC64'}</Text>
             </View>
           </View>
 
           <Text style={styles.name}>{user.name || `${firstName} ${lastName}`.trim()}</Text>
           <Text style={styles.email}>{user.email}</Text>
-          {user.phone && <Text style={styles.phone}>📱 {user.phone}</Text>}
+          {user.phone && <Text style={styles.phone}>\uD83D\uDCF1 {user.phone}</Text>}
 
           <View style={[styles.roleTag, { backgroundColor: isAnnonceur ? '#EDE9FE' : colors.primaryLight }]}>
             <Text style={[styles.roleTagText, { color: isAnnonceur ? '#6D28D9' : colors.primary }]}>
-              {isAnnonceur ? '🏢 Annonceur' : '👤 Client'}
+              {isAnnonceur ? '\uD83C\uDFE2 Annonceur' : '\uD83D\uDC64 Client'}
             </Text>
           </View>
 
-          {/* Stats rapides */}
           <View style={styles.statsRow}>
             <View style={styles.statBox}>
               <Text style={styles.statNum}>3</Text>
-              <Text style={styles.statLabel}>Résas</Text>
+              <Text style={styles.statLabel}>R\u00e9sas</Text>
             </View>
             <View style={styles.statDivider} />
             <View style={styles.statBox}>
@@ -122,7 +121,6 @@ export default function ProfileScreen({ navigation }) {
           </View>
         </View>
 
-        {/* Sections */}
         {sections.map((section, si) => (
           <View key={si} style={styles.section}>
             <Text style={styles.sectionTitle}>{section.title}</Text>
@@ -148,13 +146,12 @@ export default function ProfileScreen({ navigation }) {
           </View>
         ))}
 
-        {/* Déconnexion */}
         <TouchableOpacity style={styles.logoutBtn} onPress={logout}>
-          <Text style={{ fontSize: 18 }}>🚪</Text>
-          <Text style={styles.logoutText}>Se déconnecter</Text>
+          <Text style={{ fontSize: 18 }}>\uD83D\uDEAA</Text>
+          <Text style={styles.logoutText}>Se d\u00e9connecter</Text>
         </TouchableOpacity>
 
-        <Text style={styles.version}>EventSpace v2.0 — Made with ♥ in Paris</Text>
+        <Text style={styles.version}>EventSpace v2.0 \u2014 Made with \u2665 in Paris</Text>
       </ScrollView>
     </View>
   );
@@ -230,9 +227,4 @@ const styles = StyleSheet.create({
   logoutText: { fontSize: typography.body, fontWeight: '700', color: colors.error || '#EF4444' },
   version: { textAlign: 'center', fontSize: typography.tiny, color: colors.light, paddingBottom: spacing.lg },
   emptyText: { fontSize: typography.h3, fontWeight: '700', color: colors.dark, marginTop: spacing.md },
-  loginBtn: {
-    backgroundColor: colors.primary, borderRadius: radius.xl,
-    paddingHorizontal: spacing.xxl || 32, paddingVertical: spacing.md, marginTop: spacing.md,
-  },
-  loginBtnText: { color: '#fff', fontWeight: '700', fontSize: typography.body },
 });
