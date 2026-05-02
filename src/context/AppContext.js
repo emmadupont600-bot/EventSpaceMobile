@@ -64,6 +64,13 @@ export function AppProvider({ children }) {
     });
   }, [user?.id]);
 
+  const addReservation = useCallback(async (reservationData) => {
+    return await Store.addReservation({
+      ...reservationData,
+      userName: user?.name || user?.email || '',
+    });
+  }, [user]);
+
   const updateReservationStatus = useCallback(async (id, status) => {
     await Store.updateReservation(id, { status });
   }, []);
@@ -79,6 +86,7 @@ export function AppProvider({ children }) {
       register,
       logout,
       COMMISSION_RATE,
+      addReservation,
       updateReservationStatus,
     }}>
       {children}
