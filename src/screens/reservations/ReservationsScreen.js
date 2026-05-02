@@ -1,50 +1,56 @@
 import React, { useCallback, useState } from 'react';
 import {
-  View, Text, FlatList, StyleSheet, TouchableOpacity, Alert, StatusBar,
+  View, Text, FlatList, StyleSheet, TouchableOpacity,
+  Alert, StatusBar, RefreshControl,
 } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { Ionicons } from '@expo/vector-icons';
 import { Store } from '../../utils/store';
 import { colors, spacing, typography, radius, shadow } from '../../theme/colors';
 
 const STATUS_MAP = {
-  pending:   { label: 'En attente', emoji: '⏳', color: '#F59E0B', bg: '#FEF3C7' },
-  confirmed: { label: 'Confirmée',  emoji: '✅', color: '#10B981', bg: '#D1FAE5' },
-  cancelled: { label: 'Annulée',   emoji: '❌', color: '#EF4444', bg: '#FEE2E2' },
+  pending:   { label: 'En attente', emoji: '⏳', color: '#D97706', bg: '#FEF3C7' },
+  confirmed: { label: 'Confirmée',  emoji: '✅', color: '#059669', bg: '#D1FAE5' },
+  cancelled: { label: 'Annulée',   emoji: '❌', color: '#DC2626', bg: '#FEE2E2' },
 };
 
 const TABS = [
-  { key: 'all',       label: 'Toutes',     emoji: '📂' },
-  { key: 'pending',   label: 'Attente',    emoji: '⏳' },
-  { key: 'confirmed', label: 'Confirm.',   emoji: '✅' },
-  { key: 'cancelled', label: 'Annulées',  emoji: '❌' },
+  { key: 'all',       label: 'Toutes',   icon: 'list-outline' },
+  { key: 'pending',   label: 'Attente',  icon: 'hourglass-outline' },
+  { key: 'confirmed', label: 'Confirmées', icon: 'checkmark-circle-outline' },
+  { key: 'cancelled', label: 'Annulées', icon: 'close-circle-outline' },
 ];
 
 export default function ReservationsScreen({ navigation }) {
   const [reservations, setReservations] = useState([]);
   const [user, setUser] = useState(null);
   const [tab, setTab] = useState('all');
+  const [refreshing, setRefreshing] = useState(false);
   const insets = useSafeAreaInsets();
 
-  useFocusEffect(useCallback(() => {
-    (async () => {
-      const u = await Store.getCurrentUser();
-      setUser(u);
-      if (!u) return;
-      const all = await Store.getReservations();
-      const mine = u.role === 'annonceur'
-        ? (all || []).filter(r => r.ownerId === u.id)
-        : (all || []).filter(r => r.userId === u.id);
-      setReservations(mine.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)));
-    })();
-  }, []));
+  const load = async () => {
+    const u = await Store.getCurrentUser();
+    setUser(u);
+    if (!u) return;
+    const all = (await Store.getReservations()) || [];
+    const mine = u.role === 'annonceur'
+      ? all.filter(r => r.ownerId === u.id)
+      : all.filter(r => r.userId === u.id);
+    setReservations(mine.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)));
+  };
+
+  useFocusEffect(useCallback(() => { load(); }, []));
+
+  const onRefresh = async () => { setRefreshing(true); await load(); setRefreshing(false); };
 
   const filtered = tab === 'all' ? reservations : reservations.filter(r => r.status === tab);
 
   const updateStatus = (id, status) => {
+    const label = status === 'confirmed' ? 'Confirmer' : 'Annuler';
     Alert.alert(
-      status === 'confirmed' ? '✅ Confirmer ?' : '❌ Annuler ?',
-      status === 'confirmed' ? 'Confirmer cette réservation ?' : 'Annuler cette réservation ?',
+      `${status === 'confirmed' ? '✅' : '❌'} ${label} ?`,
+      `Voulez-vous vraiment ${label.toLowerCase()} cette réservation ?`,
       [
         { text: 'Non', style: 'cancel' },
         { text: 'Oui', onPress: async () => {
@@ -55,44 +61,102 @@ export default function ReservationsScreen({ navigation }) {
     );
   };
 
+  const renderEmpty = () => (
+    <View style={styles.empty}>
+      <Ionicons name="calendar-outline" size={64} color={colors.border || '#E2E8F0'} />
+      <Text style={styles.emptyTitle}>Aucune réservation</Text>
+      <Text style={styles.emptySubtitle}>
+        {tab === 'all'
+          ? 'Réservez un espace pour commencer'
+          : `Aucune réservation « ${TABS.find(t => t.key === tab)?.label} »`
+        }
+      </Text>
+      {tab === 'all' && (
+        <TouchableOpacity
+          style={styles.emptyBtn}
+          onPress={() => navigation.navigate('Accueil')}
+        >
+          <Ionicons name="search-outline" size={16} color="#fff" />
+          <Text style={styles.emptyBtnTxt}>Explorer les espaces</Text>
+        </TouchableOpacity>
+      )}
+    </View>
+  );
+
   const renderItem = ({ item }) => {
     const s = STATUS_MAP[item.status] || STATUS_MAP.pending;
+    const isAnnonceur = user?.role === 'annonceur';
     return (
       <View style={styles.card}>
-        <View style={styles.cardTop}>
-          <View style={styles.cardTitleRow}>
+        {/* Top */}
+        <View style={styles.cardHeader}>
+          <View style={{ flex: 1 }}>
             <Text style={styles.cardVenue} numberOfLines={1}>{item.venueName}</Text>
-            <View style={[styles.statusBadge, { backgroundColor: s.bg }]}>
-              <Text style={styles.statusEmoji}>{s.emoji}</Text>
-              <Text style={[styles.statusText, { color: s.color }]}>{s.label}</Text>
-            </View>
+            {item.venueLocation ? (
+              <Text style={styles.cardLocation} numberOfLines={1}>📍 {item.venueLocation}</Text>
+            ) : null}
           </View>
-          <Text style={styles.cardEvent}>{item.eventType}</Text>
+          <View style={[styles.statusBadge, { backgroundColor: s.bg }]}>
+            <Text style={styles.statusEmoji}>{s.emoji}</Text>
+            <Text style={[styles.statusLabel, { color: s.color }]}>{s.label}</Text>
+          </View>
         </View>
-        <View style={styles.cardMeta}>
-          <Text style={styles.metaText}>📅 {item.date}</Text>
-          <Text style={styles.metaText}>⏰ {item.start} → {item.end}</Text>
-          <Text style={styles.metaText}>👥 {item.guests} personnes</Text>
+
+        {/* Infos */}
+        <View style={styles.metaRow}>
+          <View style={styles.metaItem}>
+            <Ionicons name="calendar-outline" size={13} color={colors.muted} />
+            <Text style={styles.metaTxt}>{item.date}</Text>
+          </View>
+          <View style={styles.metaItem}>
+            <Ionicons name="time-outline" size={13} color={colors.muted} />
+            <Text style={styles.metaTxt}>{item.start} → {item.end}</Text>
+          </View>
+          <View style={styles.metaItem}>
+            <Ionicons name="people-outline" size={13} color={colors.muted} />
+            <Text style={styles.metaTxt}>{item.guests} pers.</Text>
+          </View>
         </View>
-        <View style={styles.cardBottom}>
-          <Text style={styles.cardTotal}>💶 {item.total || item.price}€</Text>
-          {user?.role === 'annonceur' && item.status === 'pending' && (
-            <View style={styles.actions}>
-              <TouchableOpacity
-                style={styles.btnConfirm}
-                onPress={() => updateStatus(item.id, 'confirmed')}
-              >
-                <Text style={styles.btnText}>✅ Confirmer</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={styles.btnCancel}
-                onPress={() => updateStatus(item.id, 'cancelled')}
-              >
-                <Text style={[styles.btnText, { color: colors.error }]}>❌ Refuser</Text>
-              </TouchableOpacity>
-            </View>
-          )}
+
+        <View style={styles.cardFooter}>
+          <View style={styles.eventChip}>
+            <Text style={styles.eventChipTxt}>{item.eventType}</Text>
+          </View>
+          <Text style={styles.totalTxt}>💶 {(item.total || item.price || 0).toLocaleString('fr-FR')} €</Text>
         </View>
+
+        {/* Actions annonceur */}
+        {isAnnonceur && item.status === 'pending' && (
+          <View style={styles.actions}>
+            <TouchableOpacity
+              style={styles.btnConfirm}
+              onPress={() => updateStatus(item.id, 'confirmed')}
+            >
+              <Ionicons name="checkmark" size={16} color="#fff" />
+              <Text style={styles.btnConfirmTxt}>Confirmer</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.btnCancel}
+              onPress={() => updateStatus(item.id, 'cancelled')}
+            >
+              <Ionicons name="close" size={16} color="#DC2626" />
+              <Text style={styles.btnCancelTxt}>Refuser</Text>
+            </TouchableOpacity>
+          </View>
+        )}
+
+        {/* Actions client */}
+        {!isAnnonceur && item.status === 'pending' && (
+          <View style={styles.actions}>
+            <TouchableOpacity
+              style={styles.btnCancel}
+              onPress={() => updateStatus(item.id, 'cancelled')}
+            >
+              <Ionicons name="close" size={14} color="#DC2626" />
+              <Text style={styles.btnCancelTxt}>Annuler la demande</Text>
+            </TouchableOpacity>
+          </View>
+        )}
       </View>
     );
   };
@@ -101,14 +165,12 @@ export default function ReservationsScreen({ navigation }) {
     <View style={[styles.container, { paddingTop: insets.top }]}>
       <StatusBar barStyle="dark-content" />
 
+      {/* Header */}
       <View style={styles.header}>
-        <Text style={styles.titleEmoji}>📅</Text>
-        <Text style={styles.title}>Réservations</Text>
-        {reservations.length > 0 && (
-          <View style={styles.badge}>
-            <Text style={styles.badgeText}>{reservations.length}</Text>
-          </View>
-        )}
+        <Text style={styles.headerTitle}>Réservations</Text>
+        <View style={styles.countBadge}>
+          <Text style={styles.countTxt}>{reservations.length}</Text>
+        </View>
       </View>
 
       {/* Tabs */}
@@ -116,91 +178,113 @@ export default function ReservationsScreen({ navigation }) {
         {TABS.map(t => (
           <TouchableOpacity
             key={t.key}
-            style={[styles.tabBtn, tab === t.key && styles.tabBtnActive]}
+            style={[styles.tab, tab === t.key && styles.tabActive]}
             onPress={() => setTab(t.key)}
           >
-            <Text style={styles.tabEmoji}>{t.emoji}</Text>
-            <Text style={[styles.tabText, tab === t.key && styles.tabTextActive]}>{t.label}</Text>
+            <Text style={[styles.tabTxt, tab === t.key && styles.tabTxtActive]}>{t.label}</Text>
           </TouchableOpacity>
         ))}
       </View>
 
       <FlatList
         data={filtered}
-        keyExtractor={r => String(r.id)}
-        contentContainerStyle={{ padding: spacing.lg, paddingBottom: 120 }}
         renderItem={renderItem}
-        ListEmptyComponent={
-          <View style={styles.empty}>
-            <Text style={styles.emptyIco}>📅</Text>
-            <Text style={styles.emptyTitle}>Aucune réservation</Text>
-            <Text style={styles.emptySub}>Vos réservations apparaitront ici</Text>
-          </View>
+        keyExtractor={item => String(item.id)}
+        contentContainerStyle={[styles.list, filtered.length === 0 && { flex: 1 }]}
+        ListEmptyComponent={renderEmpty}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary} />
         }
+        showsVerticalScrollIndicator={false}
       />
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.bg },
+  container: { flex: 1, backgroundColor: colors.bg || '#F8FAFC' },
+
   header: {
-    flexDirection: 'row', alignItems: 'center',
-    paddingHorizontal: spacing.lg, paddingTop: spacing.md, paddingBottom: spacing.sm,
-    gap: spacing.sm,
+    flexDirection: 'row', alignItems: 'center', gap: 8,
+    paddingHorizontal: spacing.md, paddingVertical: spacing.sm,
+    backgroundColor: colors.white || '#fff',
+    borderBottomWidth: 1, borderBottomColor: colors.border || '#E2E8F0',
   },
-  titleEmoji: { fontSize: 22 },
-  title: { fontSize: typography.h1, fontWeight: '900', color: colors.dark, flex: 1, letterSpacing: -0.5 },
-  badge: {
-    backgroundColor: colors.primaryLight, borderRadius: radius.full,
-    minWidth: 28, height: 28, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 8,
+  headerTitle: { fontSize: typography.xl || 22, fontWeight: '800', color: colors.text },
+  countBadge: {
+    backgroundColor: colors.primary, borderRadius: 12,
+    paddingHorizontal: 8, paddingVertical: 2,
   },
-  badgeText: { fontSize: typography.small, fontWeight: '800', color: colors.primary },
+  countTxt: { fontSize: 12, fontWeight: '700', color: '#fff' },
+
   tabs: {
-    flexDirection: 'row', paddingHorizontal: spacing.lg,
-    marginBottom: spacing.md, gap: spacing.xs,
+    flexDirection: 'row',
+    backgroundColor: colors.white || '#fff',
+    borderBottomWidth: 1, borderBottomColor: colors.border || '#E2E8F0',
+    paddingHorizontal: spacing.sm,
   },
-  tabBtn: {
-    flex: 1, paddingVertical: 7, borderRadius: radius.md,
-    alignItems: 'center', backgroundColor: colors.white,
-    borderWidth: 1.5, borderColor: colors.border,
-    gap: 2,
+  tab: {
+    flex: 1, paddingVertical: 12, alignItems: 'center',
+    borderBottomWidth: 2, borderBottomColor: 'transparent',
   },
-  tabBtnActive: { backgroundColor: colors.primary, borderColor: colors.primary },
-  tabEmoji: { fontSize: 12 },
-  tabText: { fontSize: 10, fontWeight: '700', color: colors.mid },
-  tabTextActive: { color: '#fff' },
+  tabActive: { borderBottomColor: colors.primary },
+  tabTxt: { fontSize: 12, fontWeight: '500', color: colors.muted, textAlign: 'center' },
+  tabTxtActive: { color: colors.primary, fontWeight: '700' },
+
+  list: { padding: spacing.sm, gap: spacing.sm, paddingBottom: spacing.xl },
+
   card: {
-    backgroundColor: colors.white, borderRadius: radius.xl,
-    padding: spacing.md, marginBottom: spacing.md,
-    borderWidth: 1, borderColor: colors.borderLight, ...shadow.sm,
+    backgroundColor: colors.white || '#fff',
+    borderRadius: radius.lg || 14, padding: spacing.md,
+    ...shadow?.sm,
   },
-  cardTop: { marginBottom: spacing.sm },
-  cardTitleRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 3 },
-  cardVenue: { fontSize: typography.body, fontWeight: '800', color: colors.dark, flex: 1, marginRight: spacing.sm },
+  cardHeader: { flexDirection: 'row', alignItems: 'flex-start', marginBottom: 8 },
+  cardVenue: { fontSize: typography.base, fontWeight: '700', color: colors.text },
+  cardLocation: { fontSize: 12, color: colors.muted, marginTop: 1 },
   statusBadge: {
     flexDirection: 'row', alignItems: 'center', gap: 4,
-    borderRadius: radius.full, paddingHorizontal: 8, paddingVertical: 4,
+    borderRadius: radius.full, paddingHorizontal: 8, paddingVertical: 3,
   },
-  statusEmoji: { fontSize: 11 },
-  statusText: { fontSize: 11, fontWeight: '700' },
-  cardEvent: { fontSize: typography.small, color: colors.mid },
-  cardMeta: { gap: 5, marginBottom: spacing.sm, paddingTop: spacing.sm, borderTopWidth: 1, borderTopColor: colors.borderLight },
-  metaText: { fontSize: typography.small, color: colors.mid },
-  cardBottom: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingTop: spacing.sm, borderTopWidth: 1, borderTopColor: colors.borderLight },
-  cardTotal: { fontSize: typography.h2, fontWeight: '900', color: colors.dark },
-  actions: { flexDirection: 'row', gap: spacing.sm },
+  statusEmoji: { fontSize: 12 },
+  statusLabel: { fontSize: 11, fontWeight: '700' },
+
+  metaRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 10 },
+  metaItem: { flexDirection: 'row', alignItems: 'center', gap: 3 },
+  metaTxt: { fontSize: 12, color: colors.muted },
+
+  cardFooter: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  eventChip: {
+    backgroundColor: colors.border || '#E2E8F0',
+    borderRadius: radius.full, paddingHorizontal: 10, paddingVertical: 4,
+  },
+  eventChipTxt: { fontSize: 12, fontWeight: '500', color: colors.text },
+  totalTxt: { fontSize: typography.base, fontWeight: '800', color: colors.primary },
+
+  actions: {
+    flexDirection: 'row', gap: 8,
+    borderTopWidth: 1, borderTopColor: colors.border || '#E2E8F0',
+    marginTop: 10, paddingTop: 10,
+  },
   btnConfirm: {
-    backgroundColor: colors.success, borderRadius: radius.md,
-    paddingHorizontal: spacing.md, paddingVertical: 7,
+    flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4,
+    backgroundColor: '#059669', borderRadius: radius.md, paddingVertical: 9,
   },
+  btnConfirmTxt: { fontSize: 13, fontWeight: '700', color: '#fff' },
   btnCancel: {
-    borderRadius: radius.md, paddingHorizontal: spacing.md, paddingVertical: 7,
-    borderWidth: 1.5, borderColor: '#FECACA', backgroundColor: '#FFF0F0',
+    flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4,
+    borderWidth: 1.5, borderColor: '#DC2626',
+    borderRadius: radius.md, paddingVertical: 9,
   },
-  btnText: { fontSize: typography.small, fontWeight: '700', color: '#fff' },
-  empty: { alignItems: 'center', paddingTop: 80, gap: spacing.md },
-  emptyIco: { fontSize: 48, marginBottom: spacing.sm },
-  emptyTitle: { fontSize: typography.h3, fontWeight: '700', color: colors.dark },
-  emptySub: { fontSize: typography.small, color: colors.light, textAlign: 'center', maxWidth: 240 },
+  btnCancelTxt: { fontSize: 13, fontWeight: '700', color: '#DC2626' },
+
+  empty: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: spacing.xl },
+  emptyTitle: { fontSize: typography.lg, fontWeight: '700', color: colors.text, marginTop: spacing.md, marginBottom: spacing.xs },
+  emptySubtitle: { fontSize: typography.sm, color: colors.muted, textAlign: 'center', maxWidth: 260, lineHeight: 20 },
+  emptyBtn: {
+    flexDirection: 'row', alignItems: 'center', gap: 6,
+    backgroundColor: colors.primary, borderRadius: radius.md,
+    paddingHorizontal: spacing.lg, paddingVertical: 12,
+    marginTop: spacing.lg,
+  },
+  emptyBtnTxt: { fontSize: typography.sm, fontWeight: '700', color: '#fff' },
 });
