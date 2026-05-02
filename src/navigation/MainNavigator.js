@@ -14,6 +14,7 @@ import ChatScreen from '../screens/shared/ChatScreen';
 import ProfileScreen from '../screens/shared/ProfileScreen';
 import AnnonceurDashboard from '../screens/annonceur/AnnonceurDashboard';
 import AddVenueScreen from '../screens/annonceur/AddVenueScreen';
+import EditVenueScreen from '../screens/annonceur/EditVenueScreen';
 
 const Tab = createBottomTabNavigator();
 const Stack = createStackNavigator();
@@ -33,8 +34,9 @@ function AnnonceurStack() {
   return (
     <Stack.Navigator screenOptions={{ headerShown: false }}>
       <Stack.Screen name="Dashboard" component={AnnonceurDashboard} />
-      <Stack.Screen name="AddVenue" component={AddVenueScreen} />
-      <Stack.Screen name="Chat" component={ChatScreen} />
+      <Stack.Screen name="AddVenue"  component={AddVenueScreen} />
+      <Stack.Screen name="EditVenue" component={EditVenueScreen} />
+      <Stack.Screen name="Chat"      component={ChatScreen} />
     </Stack.Navigator>
   );
 }

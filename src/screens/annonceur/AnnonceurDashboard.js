@@ -13,7 +13,7 @@ import { colors, spacing, typography } from '../../theme/colors';
 const C = colors;
 
 export default function AnnonceurDashboard({ navigation }) {
-  const { user, COMMISSION_RATE, updateReservationStatus } = useApp();
+  const { user, COMMISSION_RATE, updateReservationStatus, logout } = useApp();
   const insets = useSafeAreaInsets();
   const [venues, setVenues] = useState([]);
   const [reservations, setReservations] = useState([]);
@@ -38,6 +38,17 @@ export default function AnnonceurDashboard({ navigation }) {
   useFocusEffect(useCallback(() => { load(); }, [load]));
 
   const onRefresh = async () => { setRefreshing(true); await load(); setRefreshing(false); };
+
+  const handleLogout = () => {
+    Alert.alert(
+      'Déconnexion',
+      'Voulez-vous vous déconnecter ?',
+      [
+        { text: 'Annuler', style: 'cancel' },
+        { text: 'Déconnexion', style: 'destructive', onPress: logout },
+      ]
+    );
+  };
 
   const commission = COMMISSION_RATE ?? 0.12;
 
@@ -79,12 +90,22 @@ export default function AnnonceurDashboard({ navigation }) {
           <Text style={styles.greeting}>Tableau de bord</Text>
           <Text style={styles.name}>{user?.name || 'Annonceur'}</Text>
         </View>
-        <TouchableOpacity
-          style={styles.addBtn}
-          onPress={() => navigation.navigate('AddVenue')}
-        >
-          <Ionicons name="add" size={22} color="#fff" />
-        </TouchableOpacity>
+        <View style={styles.headerActions}>
+          {/* Bouton déconnexion */}
+          <TouchableOpacity
+            style={[styles.headerBtn, styles.logoutBtn]}
+            onPress={handleLogout}
+          >
+            <Ionicons name="log-out-outline" size={20} color="#fff" />
+          </TouchableOpacity>
+          {/* Bouton ajouter lieu */}
+          <TouchableOpacity
+            style={styles.headerBtn}
+            onPress={() => navigation.navigate('AddVenue')}
+          >
+            <Ionicons name="add" size={22} color="#fff" />
+          </TouchableOpacity>
+        </View>
       </View>
 
       {/* Tabs */}
@@ -331,10 +352,12 @@ const styles = StyleSheet.create({
   },
   greeting: { fontSize: 12, color: C.mid, fontWeight: '500' },
   name: { fontSize: 22, fontWeight: '900', color: C.dark, letterSpacing: -0.5 },
-  addBtn: {
+  headerActions: { flexDirection: 'row', gap: 10 },
+  headerBtn: {
     width: 40, height: 40, borderRadius: 12,
     backgroundColor: C.primary, alignItems: 'center', justifyContent: 'center',
   },
+  logoutBtn: { backgroundColor: '#EF4444' },
   tabs: { flexGrow: 0, borderBottomWidth: 1, borderBottomColor: C.border },
   tabsContent: { paddingHorizontal: spacing.lg, paddingVertical: spacing.sm, gap: 8 },
   tab: {
