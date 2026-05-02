@@ -1,6 +1,6 @@
 /**
  * EditVenueScreen — modifier ou supprimer une salle existante.
- * Accessible depuis AnnonceurDashboard via navigation.navigate('EditVenue', { venue })
+ * Utilise Store.updateVenue / Store.deleteVenue (Supabase).
  */
 import React, { useState } from 'react';
 import {
@@ -36,22 +36,16 @@ export default function EditVenueScreen({ route, navigation }) {
     }
     setSaving(true);
     try {
-      const venues = await Store.getVenues();
-      const idx = venues.findIndex(v => v.id === venue.id);
-      if (idx >= 0) {
-        venues[idx] = {
-          ...venues[idx],
-          name: name.trim(),
-          type,
-          city: city.trim(),
-          address: address.trim(),
-          price: Number(price),
-          capacity: Number(capacity),
-          description: description.trim(),
-          img: img.trim() || venues[idx].img,
-        };
-        await Store.saveVenues(venues);
-      }
+      await Store.updateVenue(venue.id, {
+        name: name.trim(),
+        type,
+        city: city.trim(),
+        address: address.trim(),
+        price: Number(price),
+        capacity: Number(capacity),
+        description: description.trim(),
+        img: img.trim() || venue.img,
+      });
       Alert.alert('✅ Sauvegardé', 'Les modifications ont été enregistrées.', [
         { text: 'OK', onPress: () => navigation.goBack() },
       ]);
@@ -74,9 +68,7 @@ export default function EditVenueScreen({ route, navigation }) {
           onPress: async () => {
             setDeleting(true);
             try {
-              const venues = await Store.getVenues();
-              const updated = venues.filter(v => v.id !== venue.id);
-              await Store.saveVenues(updated);
+              await Store.deleteVenue(venue.id);
               navigation.goBack();
             } catch (e) {
               Alert.alert('Erreur', e.message);
@@ -92,17 +84,12 @@ export default function EditVenueScreen({ route, navigation }) {
   return (
     <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
       <View style={[styles.container, { paddingTop: insets.top }]}>
-        {/* Header */}
         <View style={styles.header}>
           <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
             <Ionicons name="arrow-back" size={22} color={colors.dark} />
           </TouchableOpacity>
           <Text style={styles.headerTitle}>Modifier le lieu</Text>
-          <TouchableOpacity
-            onPress={handleDelete}
-            style={styles.deleteHeaderBtn}
-            disabled={deleting}
-          >
+          <TouchableOpacity onPress={handleDelete} style={styles.deleteHeaderBtn} disabled={deleting}>
             {deleting
               ? <ActivityIndicator size="small" color="#EF4444" />
               : <Ionicons name="trash-outline" size={22} color="#EF4444" />}
@@ -117,7 +104,6 @@ export default function EditVenueScreen({ route, navigation }) {
         >
           <Field label="Nom du lieu *" value={name} onChangeText={setName} placeholder="Ex: Loft du Marais" />
 
-          {/* Sélecteur de type */}
           <Text style={styles.label}>Type de lieu *</Text>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.typeRow}>
             {TYPES.map(t => (

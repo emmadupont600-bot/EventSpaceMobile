@@ -1,208 +1,329 @@
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import { VENUES, DEMO_USERS, DEMO_REVIEWS, DEMO_RESERVATIONS, DEMO_CONVERSATIONS, DEMO_MESSAGES } from '../data/venues';
-import { DEMO_RESERVATIONS_DATA } from '../data/demoReservations';
+/**
+ * Store — toutes les opérations de données passent par Supabase.
+ * Même API qu'avant pour ne rien casser dans les screens.
+ */
+import { supabase } from '../lib/supabase';
 
-// --- Helper : initialise les données de démo au premier lancement ---
-async function initDemoData() {
-  const initialized = await AsyncStorage.getItem('es_initialized');
-  if (initialized) return;
-
-  const existingRes = await AsyncStorage.getItem('es_reservations');
-  if (!existingRes) {
-    await AsyncStorage.setItem('es_reservations', JSON.stringify(DEMO_RESERVATIONS_DATA));
-  }
-
-  for (const conv of DEMO_CONVERSATIONS) {
-    const key = 'es_conv_' + conv.userId + '_' + conv.venueId;
-    const existing = await AsyncStorage.getItem(key);
-    if (!existing) await AsyncStorage.setItem(key, JSON.stringify(conv));
-  }
-
-  for (const [convId, msgs] of Object.entries(DEMO_MESSAGES)) {
-    const existing = await AsyncStorage.getItem('es_msgs_' + convId);
-    if (!existing) await AsyncStorage.setItem('es_msgs_' + convId, JSON.stringify(msgs));
-  }
-
-  await AsyncStorage.setItem('es_initialized', '1');
-}
+// Utilisateur courant en mémoire (pas de localStorage en React Native sandboxé)
+let _currentUser = null;
 
 export const Store = {
 
-  // --- AUTH ---
+  // ─── AUTH ───────────────────────────────────────────────
   async getUsers() {
-    const saved = await AsyncStorage.getItem('es_users');
-    if (!saved) return [...DEMO_USERS];
-    const parsed = JSON.parse(saved);
-    // Correction : si les users sauvegardés n'ont pas de password, on force un reset avec DEMO_USERS
-    const hasPasswords = parsed.every(u => u.password);
-    if (!hasPasswords) {
-      await AsyncStorage.setItem('es_users', JSON.stringify([...DEMO_USERS]));
-      return [...DEMO_USERS];
-    }
-    return parsed;
-  },
-  async saveUsers(users) {
-    await AsyncStorage.setItem('es_users', JSON.stringify(users));
-  },
-  async getCurrentUser() {
-    const u = await AsyncStorage.getItem('es_user');
-    return u ? JSON.parse(u) : null;
-  },
-  async setCurrentUser(user) {
-    await AsyncStorage.setItem('es_user', JSON.stringify(user));
-  },
-  async logout() {
-    await AsyncStorage.removeItem('es_user');
+    const { data, error } = await supabase.from('users').select('*');
+    if (error) throw new Error(error.message);
+    return data;
   },
 
-  // --- LOGIN : comparaison insensible à la casse + trim ---
+  async getCurrentUser() {
+    return _currentUser;
+  },
+
+  async setCurrentUser(user) {
+    _currentUser = user;
+  },
+
+  async logout() {
+    _currentUser = null;
+  },
+
   async login(email, password) {
-    const users = await this.getUsers();
     const emailNorm = (email || '').trim().toLowerCase();
     const passwordNorm = (password || '').trim();
-    const user = users.find(
-      u => (u.email || '').toLowerCase() === emailNorm && u.password === passwordNorm
-    );
-    if (!user) throw new Error('Email ou mot de passe incorrect');
-    await this.setCurrentUser(user);
-    await initDemoData();
-    return user;
+    const { data, error } = await supabase
+      .from('users')
+      .select('*')
+      .eq('email', emailNorm)
+      .eq('password', passwordNorm)
+      .single();
+    if (error || !data) throw new Error('Email ou mot de passe incorrect');
+    _currentUser = data;
+    return data;
   },
 
-  // --- REGISTER ---
-  async register(data) {
-    const users = await this.getUsers();
-    const emailNorm = (data.email || '').trim().toLowerCase();
-    if (users.find(u => (u.email || '').toLowerCase() === emailNorm)) {
-      throw new Error('Email déjà utilisé');
-    }
-    const user = { ...data, email: emailNorm, id: Date.now() };
-    users.push(user);
-    await this.saveUsers(users);
-    await this.setCurrentUser(user);
-    await initDemoData();
-    return user;
+  async register(userData) {
+    const emailNorm = (userData.email || '').trim().toLowerCase();
+    // Vérifie unicité
+    const { data: existing } = await supabase
+      .from('users')
+      .select('id')
+      .eq('email', emailNorm)
+      .maybeSingle();
+    if (existing) throw new Error('Email déjà utilisé');
+
+    const { data, error } = await supabase
+      .from('users')
+      .insert({ ...userData, email: emailNorm })
+      .select()
+      .single();
+    if (error) throw new Error(error.message);
+    _currentUser = data;
+    return data;
   },
 
-  // --- VENUES ---
+  // ─── VENUES ─────────────────────────────────────────────
   async getVenues() {
-    const saved = await AsyncStorage.getItem('es_venues');
-    return saved ? JSON.parse(saved) : [...VENUES];
-  },
-  async saveVenues(venues) {
-    await AsyncStorage.setItem('es_venues', JSON.stringify(venues));
-  },
-  async getVenue(id) {
-    const venues = await this.getVenues();
-    return venues.find(v => v.id == id) || null;
-  },
-  async addVenue(venue) {
-    const venues = await this.getVenues();
-    venue.id = Date.now();
-    venue.published = true;
-    venue.rating = 0;
-    venue.reviewCount = 0;
-    venue.gallery = [venue.img];
-    venues.push(venue);
-    await this.saveVenues(venues);
-    return venue;
+    const { data, error } = await supabase
+      .from('venues')
+      .select('*')
+      .eq('published', true)
+      .order('created_at', { ascending: false });
+    if (error) throw new Error(error.message);
+    // Normalise les champs snake_case → camelCase pour compat screens
+    return (data || []).map(normalizeVenue);
   },
 
-  // --- RESERVATIONS ---
-  async getReservations() {
-    const saved = await AsyncStorage.getItem('es_reservations');
-    if (saved) return JSON.parse(saved);
-    return [...DEMO_RESERVATIONS_DATA];
-  },
-  async addReservation(res) {
-    const list = await this.getReservations();
-    res.id = Date.now();
-    res.createdAt = new Date().toISOString();
-    list.push(res);
-    await AsyncStorage.setItem('es_reservations', JSON.stringify(list));
-    return res;
-  },
-  async updateReservation(id, changes) {
-    const list = await this.getReservations();
-    const idx = list.findIndex(r => r.id == id);
-    if (idx >= 0) {
-      list[idx] = { ...list[idx], ...changes };
-      await AsyncStorage.setItem('es_reservations', JSON.stringify(list));
+  async saveVenues(venues) {
+    // Utilisé par EditVenueScreen pour sauvegarder une liste modifiée
+    // En mode Supabase, on fait un upsert de chaque venue
+    for (const v of venues) {
+      const row = denormalizeVenue(v);
+      await supabase.from('venues').upsert(row);
     }
   },
 
-  // --- MESSAGES ---
-  async getMessages(convId) {
-    const saved = await AsyncStorage.getItem('es_msgs_' + convId);
-    return saved ? JSON.parse(saved) : [];
+  async getVenue(id) {
+    const { data, error } = await supabase
+      .from('venues')
+      .select('*')
+      .eq('id', id)
+      .single();
+    if (error) return null;
+    return normalizeVenue(data);
   },
-  async addMessage(convId, msg) {
-    const msgs = await this.getMessages(convId);
-    msg.id = Date.now();
-    msg.ts = new Date().toISOString();
-    msgs.push(msg);
-    await AsyncStorage.setItem('es_msgs_' + convId, JSON.stringify(msgs));
-    return msg;
+
+  async addVenue(venue) {
+    const row = denormalizeVenue(venue);
+    delete row.id; // laisser la DB générer l'id
+    const { data, error } = await supabase
+      .from('venues')
+      .insert({ ...row, owner_id: _currentUser?.id, published: true, rating: 0, review_count: 0 })
+      .select()
+      .single();
+    if (error) throw new Error(error.message);
+    return normalizeVenue(data);
   },
+
+  async updateVenue(id, changes) {
+    const row = denormalizeVenue(changes);
+    const { error } = await supabase.from('venues').update(row).eq('id', id);
+    if (error) throw new Error(error.message);
+  },
+
+  async deleteVenue(id) {
+    const { error } = await supabase.from('venues').delete().eq('id', id);
+    if (error) throw new Error(error.message);
+  },
+
+  // ─── RESERVATIONS ────────────────────────────────────────
+  async getReservations() {
+    const { data, error } = await supabase
+      .from('reservations')
+      .select('*')
+      .order('created_at', { ascending: false });
+    if (error) throw new Error(error.message);
+    return (data || []).map(normalizeReservation);
+  },
+
+  async addReservation(res) {
+    const row = {
+      venue_id: res.venueId,
+      user_id: res.userId,
+      owner_id: res.ownerId,
+      venue_name: res.venueName,
+      user_name: res.userName,
+      date: res.date,
+      start_time: res.start,
+      end_time: res.end,
+      guests: res.guests,
+      event_type: res.eventType,
+      message: res.message,
+      total: res.total,
+      status: 'pending',
+    };
+    const { data, error } = await supabase
+      .from('reservations')
+      .insert(row)
+      .select()
+      .single();
+    if (error) throw new Error(error.message);
+    return normalizeReservation(data);
+  },
+
+  async updateReservation(id, changes) {
+    const row = {};
+    if (changes.status) row.status = changes.status;
+    const { error } = await supabase.from('reservations').update(row).eq('id', id);
+    if (error) throw new Error(error.message);
+  },
+
+  // ─── MESSAGES / CONVERSATIONS ───────────────────────────
   async getOrCreateConv(userId, ownerId, venueId, venueName) {
-    const key = 'es_conv_' + userId + '_' + venueId;
-    const saved = await AsyncStorage.getItem(key);
-    if (saved) return JSON.parse(saved);
-    const conv = { id: 'conv_' + userId + '_' + venueId + '_' + Date.now(), userId, ownerId, venueId, venueName };
-    await AsyncStorage.setItem(key, JSON.stringify(conv));
-    return conv;
+    const convId = `conv_${userId}_${venueId}`;
+    // Essaye de récupérer
+    const { data: existing } = await supabase
+      .from('conversations')
+      .select('*')
+      .eq('id', convId)
+      .maybeSingle();
+    if (existing) return existing;
+    // Crée
+    const { data, error } = await supabase
+      .from('conversations')
+      .insert({ id: convId, user_id: userId, owner_id: ownerId, venue_id: venueId, venue_name: venueName })
+      .select()
+      .single();
+    if (error) throw new Error(error.message);
+    return data;
   },
+
   async getAllConversations(userId) {
-    const keys = await AsyncStorage.getAllKeys();
-    const convKeys = keys.filter(k => k.startsWith('es_conv_' + userId + '_'));
-    const results = await Promise.all(
-      convKeys.map(async key => {
-        const raw = await AsyncStorage.getItem(key);
-        return JSON.parse(raw);
-      })
-    );
-    return results.filter(Boolean);
+    const { data, error } = await supabase
+      .from('conversations')
+      .select('*')
+      .or(`user_id.eq.${userId},owner_id.eq.${userId}`);
+    if (error) return [];
+    return data || [];
   },
 
-  // --- REVIEWS ---
+  async getMessages(convId) {
+    const { data, error } = await supabase
+      .from('messages')
+      .select('*')
+      .eq('conversation_id', convId)
+      .order('ts', { ascending: true });
+    if (error) return [];
+    return (data || []).map(m => ({ ...m, senderId: m.sender_id }));
+  },
+
+  async addMessage(convId, msg) {
+    const { data, error } = await supabase
+      .from('messages')
+      .insert({ conversation_id: convId, sender_id: msg.senderId, text: msg.text })
+      .select()
+      .single();
+    if (error) throw new Error(error.message);
+    return { ...data, senderId: data.sender_id };
+  },
+
+  // ─── REVIEWS ────────────────────────────────────────────
   async getReviews(venueId) {
-    const saved = await AsyncStorage.getItem('es_reviews');
-    const all = saved ? JSON.parse(saved) : [...DEMO_REVIEWS];
-    return venueId !== undefined ? all.filter(r => r.venueId == venueId) : all;
-  },
-  async addReview(review) {
-    const saved = await AsyncStorage.getItem('es_reviews');
-    const all = saved ? JSON.parse(saved) : [...DEMO_REVIEWS];
-    review.id = Date.now();
-    review.date = new Date().toISOString().slice(0, 10);
-    all.push(review);
-    await AsyncStorage.setItem('es_reviews', JSON.stringify(all));
-    return review;
+    let query = supabase.from('reviews').select('*').order('created_at', { ascending: false });
+    if (venueId !== undefined) query = query.eq('venue_id', venueId);
+    const { data, error } = await query;
+    if (error) return [];
+    return (data || []).map(r => ({ ...r, venueId: r.venue_id, userId: r.user_id, userName: r.user_name }));
   },
 
-  // --- FAVORITES ---
-  async getFavorites(userId) {
-    const saved = await AsyncStorage.getItem('es_fav_' + userId);
-    return saved ? JSON.parse(saved) : [];
+  async addReview(review) {
+    const { data, error } = await supabase
+      .from('reviews')
+      .insert({
+        venue_id: review.venueId,
+        user_id: review.userId,
+        user_name: review.userName,
+        rating: review.rating,
+        comment: review.comment,
+      })
+      .select()
+      .single();
+    if (error) throw new Error(error.message);
+    return data;
   },
+
+  // ─── FAVORITES ──────────────────────────────────────────
+  async getFavorites(userId) {
+    const { data } = await supabase
+      .from('favorites')
+      .select('venue_id')
+      .eq('user_id', userId);
+    return (data || []).map(f => f.venue_id);
+  },
+
   async toggleFavorite(userId, venueId) {
     const favs = await this.getFavorites(userId);
-    const idx = favs.indexOf(Number(venueId));
-    if (idx >= 0) favs.splice(idx, 1);
-    else favs.push(Number(venueId));
-    await AsyncStorage.setItem('es_fav_' + userId, JSON.stringify(favs));
-    return idx < 0;
-  },
-  async isFavorite(userId, venueId) {
-    const favs = await this.getFavorites(userId);
-    return favs.includes(Number(venueId));
+    const exists = favs.includes(Number(venueId));
+    if (exists) {
+      await supabase.from('favorites').delete().eq('user_id', userId).eq('venue_id', venueId);
+      return false;
+    } else {
+      await supabase.from('favorites').insert({ user_id: userId, venue_id: venueId });
+      return true;
+    }
   },
 
-  // --- RESET ---
+  async isFavorite(userId, venueId) {
+    const { data } = await supabase
+      .from('favorites')
+      .select('venue_id')
+      .eq('user_id', userId)
+      .eq('venue_id', venueId)
+      .maybeSingle();
+    return !!data;
+  },
+
+  // ─── RESET (dev uniquement) ──────────────────────────────
   async resetDemo() {
-    const keys = await AsyncStorage.getAllKeys();
-    const esKeys = keys.filter(k => k.startsWith('es_'));
-    await AsyncStorage.multiRemove(esKeys);
-    console.log('[Store] Données effacées. Redémarre l\'app pour recharger les démos.');
+    console.warn('[Store] resetDemo() n\'a pas d\'effet en mode Supabase.');
   },
 };
+
+// ─── Normaliseurs ────────────────────────────────────────
+function normalizeVenue(v) {
+  return {
+    id: v.id,
+    ownerId: v.owner_id,
+    name: v.name,
+    type: v.type,
+    city: v.city,
+    address: v.address,
+    price: v.price,
+    capacity: v.capacity,
+    description: v.description,
+    img: v.img,
+    gallery: v.gallery || [],
+    tags: v.tags || [],
+    rating: v.rating || 0,
+    reviewCount: v.review_count || 0,
+    published: v.published,
+  };
+}
+
+function denormalizeVenue(v) {
+  const row = {};
+  if (v.id !== undefined) row.id = v.id;
+  if (v.ownerId !== undefined) row.owner_id = v.ownerId;
+  if (v.name !== undefined) row.name = v.name;
+  if (v.type !== undefined) row.type = v.type;
+  if (v.city !== undefined) row.city = v.city;
+  if (v.address !== undefined) row.address = v.address;
+  if (v.price !== undefined) row.price = v.price;
+  if (v.capacity !== undefined) row.capacity = v.capacity;
+  if (v.description !== undefined) row.description = v.description;
+  if (v.img !== undefined) row.img = v.img;
+  if (v.gallery !== undefined) row.gallery = v.gallery;
+  if (v.tags !== undefined) row.tags = v.tags;
+  if (v.published !== undefined) row.published = v.published;
+  return row;
+}
+
+function normalizeReservation(r) {
+  return {
+    id: r.id,
+    venueId: r.venue_id,
+    userId: r.user_id,
+    ownerId: r.owner_id,
+    venueName: r.venue_name,
+    userName: r.user_name,
+    date: r.date,
+    start: r.start_time,
+    end: r.end_time,
+    guests: r.guests,
+    eventType: r.event_type,
+    message: r.message,
+    total: r.total,
+    status: r.status,
+    createdAt: r.created_at,
+  };
+}
