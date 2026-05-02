@@ -1,83 +1,138 @@
-import React, { createContext, useContext, useState } from 'react';
+/**
+ * AppContext — source unique de vérité pour auth + données app.
+ * Utilise Store (AsyncStorage) pour la persistance.
+ * AuthContext.js est conservé comme alias pour la rétro-compatibilité.
+ */
+import React, { createContext, useContext, useState, useEffect } from 'react';
+import { Store } from '../utils/store';
+import { schedulePushNotification } from '../utils/notifications';
 
 const AppContext = createContext();
-
-const DEMO_USERS = [
-  { id: '1', email: 'client@demo.fr', password: 'demo1234', name: 'Marie Dupont', role: 'client', avatar: 'MD' },
-  { id: '2', email: 'annonceur@demo.fr', password: 'demo5678', name: 'Pierre Martin', role: 'annonceur', avatar: 'PM', company: 'EventPro Paris' },
-];
 
 export function AppProvider({ children }) {
   const [user, setUser] = useState(null);
   const [favorites, setFavorites] = useState([]);
-  const [reservations, setReservations] = useState([]);
-  const [messages, setMessages] = useState({});
+  const [loading, setLoading] = useState(true);
 
-  const login = (email, password) => {
-    const found = DEMO_USERS.find(u => u.email === email && u.password === password);
-    if (found) { setUser(found); return { success: true, user: found }; }
-    return { success: false, error: 'Email ou mot de passe incorrect' };
+  // Restaure la session au démarrage
+  useEffect(() => {
+    (async () => {
+      try {
+        const u = await Store.getCurrentUser();
+        if (u) {
+          setUser(u);
+          const favs = await Store.getFavorites(u.id);
+          setFavorites(favs);
+        }
+      } finally {
+        setLoading(false);
+      }
+    })();
+  }, []);
+
+  // ─── AUTH ───────────────────────────────────────────────────────────────────
+  const login = async (email, password) => {
+    try {
+      const u = await Store.login(email, password);
+      setUser(u);
+      const favs = await Store.getFavorites(u.id);
+      setFavorites(favs);
+      return { success: true, user: u };
+    } catch (e) {
+      return { success: false, error: e.message };
+    }
   };
 
-  const register = (name, email, password, role) => {
-    const newUser = { id: Date.now().toString(), email, password, name, role, avatar: name.slice(0, 2).toUpperCase() };
-    setUser(newUser);
-    return { success: true };
+  const register = async (name, email, password, role) => {
+    try {
+      const u = await Store.register({ name, email, password, role });
+      setUser(u);
+      setFavorites([]);
+      return { success: true };
+    } catch (e) {
+      return { success: false, error: e.message };
+    }
   };
 
-  // logout : vide tout et remet user à null → RootNavigator bascule automatiquement
-  const logout = () => {
+  const logout = async () => {
+    await Store.logout();
     setUser(null);
     setFavorites([]);
-    setReservations([]);
-    setMessages({});
   };
 
-  const toggleFavorite = (venueId) => {
-    setFavorites(prev =>
-      prev.includes(venueId) ? prev.filter(id => id !== venueId) : [...prev, venueId]
-    );
+  // ─── FAVORIS ────────────────────────────────────────────────────────────────
+  const toggleFavorite = async (venueId) => {
+    if (!user) return;
+    const added = await Store.toggleFavorite(user.id, venueId);
+    const favs = await Store.getFavorites(user.id);
+    setFavorites(favs);
+    return added;
   };
 
-  const addReservation = (reservation) => {
-    const newRes = {
+  // ─── RÉSERVATIONS ───────────────────────────────────────────────────────────
+  const COMMISSION_RATE = 0.12; // 12% prélevé sur l'annonceur
+
+  const addReservation = async (reservation) => {
+    const subtotal = reservation.total || 0;
+    const commission = Math.round(subtotal * COMMISSION_RATE);
+    const annonceurNet = subtotal - commission;
+    const enriched = {
       ...reservation,
-      id: Date.now().toString(),
+      commission,
+      annonceurNet,
+      commissionRate: COMMISSION_RATE,
       status: 'pending',
-      createdAt: new Date().toISOString(),
     };
-    setReservations(prev => [...prev, newRes]);
-    return newRes;
+    const saved = await Store.addReservation(enriched);
+    // Notification push côté client
+    await schedulePushNotification(
+      '🎉 Demande envoyée !',
+      `Votre demande pour « ${reservation.venueName} » est en attente de confirmation.`,
+      1
+    );
+    return saved;
   };
 
-  const updateReservationStatus = (id, status) => {
-    setReservations(prev => prev.map(r => r.id === id ? { ...r, status } : r));
+  const updateReservationStatus = async (id, status) => {
+    await Store.updateReservation(id, { status });
+    // Notification push si confirmation / refus
+    if (status === 'confirmed') {
+      await schedulePushNotification(
+        '✅ Réservation confirmée !',
+        'L\'annonceur a accepté votre demande.',
+        2
+      );
+    } else if (status === 'cancelled') {
+      await schedulePushNotification(
+        '❌ Réservation refusée',
+        'L\'annonceur n\'a pas pu accepter votre demande.',
+        2
+      );
+    }
   };
 
-  const sendMessage = (venueId, text, sender) => {
-    const msg = {
-      id: Date.now().toString(),
-      text,
-      sender,
-      time: new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }),
-    };
-    setMessages(prev => ({ ...prev, [venueId]: [...(prev[venueId] || []), msg] }));
+  const getReservations = async () => Store.getReservations();
+
+  // ─── MESSAGES ───────────────────────────────────────────────────────────────
+  const sendMessage = async (convId, text, sender) => {
+    return Store.addMessage(convId, { text, sender });
   };
 
   return (
     <AppContext.Provider value={{
       user,
-      setUser,   // exposé pour permettre logout depuis n'importe quel screen
+      setUser,
+      loading,
+      favorites,
       login,
       register,
       logout,
-      favorites,
       toggleFavorite,
-      reservations,
       addReservation,
       updateReservationStatus,
-      messages,
+      getReservations,
       sendMessage,
+      COMMISSION_RATE,
     }}>
       {children}
     </AppContext.Provider>

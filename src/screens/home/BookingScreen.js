@@ -5,7 +5,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Store } from '../../utils/store';
+import { useApp } from '../../context/AppContext';
 import { colors, spacing, typography, radius, shadow } from '../../theme/colors';
 
 const HOURS = ['08:00','09:00','10:00','11:00','12:00','13:00','14:00','15:00','16:00','17:00','18:00','19:00','20:00','21:00','22:00','23:00'];
@@ -21,9 +21,11 @@ const EVENTS = [
 ];
 
 const STEPS = ['Date & Horaires', 'Détails', 'Récapitulatif'];
+const COMMISSION_RATE = 0.12;
 
 export default function BookingScreen({ route, navigation }) {
-  const { venue, user: routeUser } = route.params || {};
+  const { venue } = route.params || {};
+  const { user, addReservation } = useApp();
   const insets = useSafeAreaInsets();
   const [step, setStep] = useState(0);
   const [date, setDate] = useState('');
@@ -34,7 +36,6 @@ export default function BookingScreen({ route, navigation }) {
   const [notes, setNotes] = useState('');
   const [loading, setLoading] = useState(false);
 
-  // Sécurité : si pas de venue on revient en arrière
   if (!venue) {
     return (
       <View style={[styles.container, { paddingTop: insets.top, alignItems: 'center', justifyContent: 'center' }]}>
@@ -50,11 +51,15 @@ export default function BookingScreen({ route, navigation }) {
 
   const calcTotal = () => {
     if (!start || !end) return venue.price || 0;
-    const [h1] = start.split(':').map(Number);
-    const [h2] = end.split(':').map(Number);
+    const h1 = parseInt(start.split(':')[0], 10);
+    const h2 = parseInt(end.split(':')[0], 10);
     const hours = Math.max(1, h2 - h1);
     return hours * (venue.price || 0);
   };
+
+  const subtotal = calcTotal();
+  const commission = Math.round(subtotal * COMMISSION_RATE);
+  const totalClient = subtotal; // Le client paie le prix affiché — la commission est prélevée sur l'annonceur
 
   const isStep0Valid = date.length >= 8 && start && end;
   const isStep1Valid = guests && Number(guests) > 0 && Number(guests) <= (venue.capacity || 999) && eventType;
@@ -72,18 +77,14 @@ export default function BookingScreen({ route, navigation }) {
   };
 
   const book = async () => {
+    if (!user) { navigation.navigate('Login'); return; }
     setLoading(true);
     try {
-      const u = routeUser || await Store.getCurrentUser();
-      if (!u) {
-        navigation.navigate('Login');
-        return;
-      }
-      const reservation = await Store.addReservation({
+      const reservation = await addReservation({
         venueId: venue.id,
         venueName: venue.name,
         venueLocation: venue.location || venue.city || '',
-        userId: u.id,
+        userId: user.id,
         ownerId: venue.ownerId || venue.annonceur?.id || '',
         date,
         start,
@@ -92,7 +93,7 @@ export default function BookingScreen({ route, navigation }) {
         eventType,
         notes,
         status: 'pending',
-        total: calcTotal(),
+        total: totalClient,
         price: venue.price || 0,
       });
       navigation.replace('BookingConfirmation', { reservation, venue });
@@ -129,149 +130,104 @@ export default function BookingScreen({ route, navigation }) {
           {STEPS.map((s, i) => (
             <React.Fragment key={i}>
               <View style={styles.stepItem}>
-                <View style={[
-                  styles.stepCircle,
-                  i === step && styles.stepCircleActive,
-                  i < step && styles.stepCircleDone,
-                ]}>
+                <View style={[styles.stepCircle, i === step && styles.stepCircleActive, i < step && styles.stepCircleDone]}>
                   {i < step
                     ? <Ionicons name="checkmark" size={14} color="#fff" />
                     : <Text style={[styles.stepNum, i === step && styles.stepNumActive]}>{i + 1}</Text>
                   }
                 </View>
-                <Text style={[styles.stepLabel, i === step && styles.stepLabelActive, i < step && styles.stepLabelDone]} numberOfLines={2}>
-                  {s}
-                </Text>
+                <Text style={[styles.stepLabel, i === step && styles.stepLabelActive, i < step && styles.stepLabelDone]} numberOfLines={2}>{s}</Text>
               </View>
-              {i < STEPS.length - 1 && (
-                <View style={[styles.stepLine, i < step && styles.stepLineDone]} />
-              )}
+              {i < STEPS.length - 1 && <View style={[styles.stepLine, i < step && styles.stepLineDone]} />}
             </React.Fragment>
           ))}
         </View>
 
-        <ScrollView
-          contentContainerStyle={styles.content}
-          keyboardShouldPersistTaps="handled"
-          showsVerticalScrollIndicator={false}
-        >
+        <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
 
-          {/* ─── ÉTAPE 0 : Date & Horaires ─── */}
+          {/* ÉTAPE 0 */}
           {step === 0 && (
             <View>
               <Text style={styles.stepTitle}>📅 Date & Horaires</Text>
-
               <Text style={styles.label}>Date de l'événement *</Text>
               <TextInput
-                style={styles.input}
-                value={date}
-                onChangeText={setDate}
-                placeholder="2026-06-15"
-                placeholderTextColor={colors.light}
+                style={styles.input} value={date} onChangeText={setDate}
+                placeholder="2026-06-15" placeholderTextColor={colors.light}
                 keyboardType="numbers-and-punctuation"
               />
-              {date.length > 0 && date.length < 8 && (
-                <Text style={styles.inputHint}>Format : AAAA-MM-JJ (ex: 2026-06-15)</Text>
-              )}
-
+              {date.length > 0 && date.length < 8 && <Text style={styles.inputHint}>Format : AAAA-MM-JJ</Text>}
               <Text style={styles.label}>Heure de début *</Text>
               <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.chipScroll}>
                 {HOURS.map(h => (
-                  <TouchableOpacity
-                    key={h}
-                    style={[styles.chip, start === h && styles.chipActive]}
-                    onPress={() => { setStart(h); if (end && end <= h) setEnd(null); }}
-                  >
+                  <TouchableOpacity key={h} style={[styles.chip, start === h && styles.chipActive]}
+                    onPress={() => { setStart(h); if (end && end <= h) setEnd(null); }}>
                     <Text style={[styles.chipTxt, start === h && styles.chipTxtActive]}>{h}</Text>
                   </TouchableOpacity>
                 ))}
               </ScrollView>
-
               <Text style={styles.label}>Heure de fin *</Text>
               {!start && <Text style={styles.inputHint}>Choisissez d'abord l'heure de début</Text>}
               <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.chipScroll}>
                 {endHours.map(h => (
-                  <TouchableOpacity
-                    key={h}
-                    style={[styles.chip, end === h && styles.chipActive]}
-                    onPress={() => setEnd(h)}
-                    disabled={!start}
-                  >
+                  <TouchableOpacity key={h} style={[styles.chip, end === h && styles.chipActive]}
+                    onPress={() => setEnd(h)} disabled={!start}>
                     <Text style={[styles.chipTxt, end === h && styles.chipTxtActive]}>{h}</Text>
                   </TouchableOpacity>
                 ))}
               </ScrollView>
-
               {start && end && (
                 <View style={styles.durationBadge}>
                   <Ionicons name="time-outline" size={16} color={colors.primary} />
                   <Text style={styles.durationTxt}>
-                    {start} → {end} · {Number(end.split(':')[0]) - Number(start.split(':')[0])}h · {calcTotal().toLocaleString('fr-FR')} €
+                    {start} → {end} · {parseInt(end.split(':')[0], 10) - parseInt(start.split(':')[0], 10)}h · {subtotal.toLocaleString('fr-FR')} €
                   </Text>
                 </View>
               )}
             </View>
           )}
 
-          {/* ─── ÉTAPE 1 : Détails ─── */}
+          {/* ÉTAPE 1 */}
           {step === 1 && (
             <View>
               <Text style={styles.stepTitle}>👥 Détails de l'événement</Text>
-
               <Text style={styles.label}>Nombre d'invités * (max {venue.capacity || 500})</Text>
               <TextInput
-                style={styles.input}
-                value={guests}
+                style={styles.input} value={guests}
                 onChangeText={v => setGuests(v.replace(/[^0-9]/g, ''))}
-                placeholder={`1 à ${venue.capacity || 500}`}
-                placeholderTextColor={colors.light}
+                placeholder={`1 à ${venue.capacity || 500}`} placeholderTextColor={colors.light}
                 keyboardType="number-pad"
               />
               {guests && Number(guests) > (venue.capacity || 999) && (
-                <Text style={[styles.inputHint, { color: '#EF4444' }]}>
-                  ⚠️ Capacité max : {venue.capacity} personnes
-                </Text>
+                <Text style={[styles.inputHint, { color: '#EF4444' }]}>⚠️ Capacité max : {venue.capacity} personnes</Text>
               )}
-
               <Text style={styles.label}>Type d'événement *</Text>
               <View style={styles.eventGrid}>
                 {EVENTS.map(e => (
-                  <TouchableOpacity
-                    key={e.label}
+                  <TouchableOpacity key={e.label}
                     style={[styles.eventChip, eventType === e.label && styles.eventChipActive]}
-                    onPress={() => setEventType(e.label)}
-                  >
+                    onPress={() => setEventType(e.label)}>
                     <Text style={styles.eventChipIcon}>{e.icon}</Text>
                     <Text style={[styles.eventChipTxt, eventType === e.label && styles.eventChipTxtActive]}>{e.label}</Text>
                   </TouchableOpacity>
                 ))}
               </View>
-
               <Text style={styles.label}>Message pour l'hôte (optionnel)</Text>
               <TextInput
-                style={[styles.input, styles.textarea]}
-                value={notes}
-                onChangeText={setNotes}
+                style={[styles.input, styles.textarea]} value={notes} onChangeText={setNotes}
                 placeholder="Informations utiles, demandes spéciales..."
-                placeholderTextColor={colors.light}
-                multiline
-                numberOfLines={4}
-                textAlignVertical="top"
+                placeholderTextColor={colors.light} multiline numberOfLines={4} textAlignVertical="top"
               />
             </View>
           )}
 
-          {/* ─── ÉTAPE 2 : Récapitulatif ─── */}
+          {/* ÉTAPE 2 — Récapitulatif avec détail commission */}
           {step === 2 && (
             <View>
               <Text style={styles.stepTitle}>📝 Récapitulatif</Text>
-
               <View style={styles.recapCard}>
                 <Text style={styles.recapVenueName}>{venue.name}</Text>
                 <Text style={styles.recapVenueLocation}>📍 {venue.location || venue.city || ''}</Text>
-
                 <View style={styles.divider} />
-
                 {[
                   { icon: 'calendar-outline', label: 'Date', value: date },
                   { icon: 'time-outline', label: 'Horaire', value: `${start} → ${end}` },
@@ -286,39 +242,42 @@ export default function BookingScreen({ route, navigation }) {
                     <Text style={styles.recapValue}>{row.value}</Text>
                   </View>
                 ))}
-
                 {notes ? (
                   <View style={styles.notesBox}>
                     <Text style={styles.notesLabel}>Message :</Text>
                     <Text style={styles.notesTxt}>{notes}</Text>
                   </View>
                 ) : null}
-
                 <View style={styles.divider} />
-
+                {/* Prix final client */}
                 <View style={styles.totalRow}>
-                  <Text style={styles.totalLabel}>Total estimé</Text>
-                  <Text style={styles.totalValue}>{calcTotal().toLocaleString('fr-FR')} €</Text>
+                  <Text style={styles.totalLabel}>Total à payer</Text>
+                  <Text style={styles.totalValue}>{totalClient.toLocaleString('fr-FR')} €</Text>
                 </View>
                 <Text style={styles.priceSub}>
-                  {venue.price} €/h · {Number(end?.split(':')[0] || 0) - Number(start?.split(':')[0] || 0)}h de location
+                  {venue.price} €/h · {parseInt((end || '0').split(':')[0], 10) - parseInt((start || '0').split(':')[0], 10)}h
                 </Text>
+                {/* Info commission (transparence) */}
+                <View style={styles.commissionInfo}>
+                  <Ionicons name="information-circle-outline" size={14} color="#6C63FF" />
+                  <Text style={styles.commissionInfoTxt}>
+                    Commission plateforme de 12% ({commission.toLocaleString('fr-FR')} €) déduite du versement à l'annonceur.
+                  </Text>
+                </View>
               </View>
-
               <View style={styles.infoBox}>
                 <Ionicons name="information-circle-outline" size={18} color="#3B82F6" />
                 <Text style={styles.infoTxt}>L'annonceur confirmera votre réservation sous 24h. Aucun paiement maintenant.</Text>
               </View>
             </View>
           )}
-
         </ScrollView>
 
         {/* Bouton bas */}
         <View style={[styles.footer, { paddingBottom: insets.bottom + spacing.sm }]}>
           {step < 2 ? (
             <TouchableOpacity
-              style={[styles.btnPrimary, (!isStep0Valid && step === 0) || (!isStep1Valid && step === 1) ? styles.btnDisabled : {}]}
+              style={[styles.btnPrimary, ((!isStep0Valid && step === 0) || (!isStep1Valid && step === 1)) ? styles.btnDisabled : {}]}
               onPress={goNext}
             >
               <Text style={styles.btnPrimaryTxt}>Continuer</Text>
@@ -327,20 +286,15 @@ export default function BookingScreen({ route, navigation }) {
           ) : (
             <TouchableOpacity
               style={[styles.btnPrimary, loading && styles.btnDisabled]}
-              onPress={book}
-              disabled={loading}
+              onPress={book} disabled={loading}
             >
               {loading
                 ? <ActivityIndicator color="#fff" />
-                : <>
-                    <Ionicons name="checkmark-circle-outline" size={20} color="#fff" />
-                    <Text style={styles.btnPrimaryTxt}>Envoyer la demande</Text>
-                  </>
+                : <><Ionicons name="checkmark-circle-outline" size={20} color="#fff" /><Text style={styles.btnPrimaryTxt}>Envoyer la demande</Text></>
               }
             </TouchableOpacity>
           )}
         </View>
-
       </View>
     </KeyboardAvoidingView>
   );
@@ -348,8 +302,7 @@ export default function BookingScreen({ route, navigation }) {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.bg || '#F8FAFC' },
-  errorTxt: { fontSize: typography.base, color: colors.text, marginBottom: spacing.md },
-
+  errorTxt: { fontSize: 16, color: colors.dark, marginBottom: spacing.md },
   header: {
     flexDirection: 'row', alignItems: 'center',
     paddingHorizontal: spacing.md, paddingVertical: spacing.sm,
@@ -357,10 +310,9 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1, borderBottomColor: colors.border || '#E2E8F0',
   },
   backBtn: { flexDirection: 'row', alignItems: 'center', width: 80 },
-  backTxt: { fontSize: typography.sm, color: colors.primary, marginLeft: 4 },
-  headerTitle: { fontSize: typography.base, fontWeight: '700', color: colors.text },
-  headerSub: { fontSize: typography.xs, color: colors.muted || '#64748B', marginTop: 1 },
-
+  backTxt: { fontSize: 13, color: colors.primary, marginLeft: 4 },
+  headerTitle: { fontSize: 16, fontWeight: '700', color: colors.dark },
+  headerSub: { fontSize: 12, color: colors.mid, marginTop: 1 },
   stepper: {
     flexDirection: 'row', alignItems: 'flex-start',
     paddingHorizontal: spacing.lg, paddingVertical: spacing.md,
@@ -371,107 +323,95 @@ const styles = StyleSheet.create({
   stepCircle: {
     width: 28, height: 28, borderRadius: 14,
     backgroundColor: colors.border || '#E2E8F0',
-    alignItems: 'center', justifyContent: 'center',
-    marginBottom: 4,
+    alignItems: 'center', justifyContent: 'center', marginBottom: 4,
   },
   stepCircleActive: { backgroundColor: colors.primary },
   stepCircleDone: { backgroundColor: '#10B981' },
-  stepNum: { fontSize: 12, fontWeight: '700', color: colors.muted || '#94A3B8' },
+  stepNum: { fontSize: 12, fontWeight: '700', color: colors.mid },
   stepNumActive: { color: '#fff' },
-  stepLabel: { fontSize: 10, color: colors.muted || '#94A3B8', textAlign: 'center', lineHeight: 13 },
+  stepLabel: { fontSize: 10, color: colors.mid, textAlign: 'center', lineHeight: 13 },
   stepLabelActive: { color: colors.primary, fontWeight: '600' },
   stepLabelDone: { color: '#10B981' },
   stepLine: { flex: 1, height: 2, backgroundColor: colors.border || '#E2E8F0', marginTop: 13, marginHorizontal: 2 },
   stepLineDone: { backgroundColor: '#10B981' },
-
   content: { padding: spacing.md, paddingBottom: spacing.xl },
-  stepTitle: { fontSize: typography.lg || 18, fontWeight: '700', color: colors.text, marginBottom: spacing.md },
-
-  label: { fontSize: typography.sm || 14, fontWeight: '600', color: colors.text, marginBottom: spacing.xs, marginTop: spacing.sm },
+  stepTitle: { fontSize: 18, fontWeight: '700', color: colors.dark, marginBottom: spacing.md },
+  label: { fontSize: 14, fontWeight: '600', color: colors.dark, marginBottom: spacing.xs, marginTop: spacing.sm },
   input: {
     borderWidth: 1.5, borderColor: colors.border || '#E2E8F0',
     borderRadius: radius.md || 10, padding: spacing.sm,
-    fontSize: typography.base || 16, color: colors.text,
-    backgroundColor: colors.white || '#fff',
+    fontSize: 16, color: colors.dark, backgroundColor: colors.white || '#fff',
   },
   textarea: { height: 100, paddingTop: spacing.sm },
-  inputHint: { fontSize: 12, color: colors.muted || '#94A3B8', marginTop: 4 },
-
+  inputHint: { fontSize: 12, color: colors.mid, marginTop: 4 },
   chipScroll: { marginVertical: spacing.xs },
   chip: {
     paddingHorizontal: spacing.sm, paddingVertical: 8,
-    borderRadius: radius.full || 999,
-    borderWidth: 1.5, borderColor: colors.border || '#E2E8F0',
+    borderRadius: radius.full || 999, borderWidth: 1.5, borderColor: colors.border || '#E2E8F0',
     marginRight: spacing.xs, backgroundColor: colors.white || '#fff',
   },
   chipActive: { backgroundColor: colors.primary, borderColor: colors.primary },
-  chipTxt: { fontSize: 13, fontWeight: '500', color: colors.text },
+  chipTxt: { fontSize: 13, fontWeight: '500', color: colors.dark },
   chipTxtActive: { color: '#fff' },
-
   durationBadge: {
     flexDirection: 'row', alignItems: 'center', gap: 6,
     backgroundColor: colors.primaryLight || '#EEF2FF',
     borderRadius: radius.md || 10, padding: spacing.sm, marginTop: spacing.sm,
   },
-  durationTxt: { fontSize: typography.sm, fontWeight: '600', color: colors.primary },
-
+  durationTxt: { fontSize: 13, fontWeight: '600', color: colors.primary },
   eventGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginVertical: spacing.xs },
   eventChip: {
     flexDirection: 'row', alignItems: 'center', gap: 4,
-    paddingHorizontal: 12, paddingVertical: 8,
-    borderRadius: radius.full || 999,
-    borderWidth: 1.5, borderColor: colors.border || '#E2E8F0',
-    backgroundColor: colors.white || '#fff',
+    paddingHorizontal: 12, paddingVertical: 8, borderRadius: radius.full || 999,
+    borderWidth: 1.5, borderColor: colors.border || '#E2E8F0', backgroundColor: colors.white || '#fff',
   },
   eventChipActive: { backgroundColor: colors.primary, borderColor: colors.primary },
   eventChipIcon: { fontSize: 14 },
-  eventChipTxt: { fontSize: 13, fontWeight: '500', color: colors.text },
+  eventChipTxt: { fontSize: 13, fontWeight: '500', color: colors.dark },
   eventChipTxtActive: { color: '#fff' },
-
   recapCard: {
-    backgroundColor: colors.white || '#fff',
-    borderRadius: radius.lg || 14,
-    padding: spacing.md,
-    ...shadow?.md,
+    backgroundColor: colors.white || '#fff', borderRadius: radius.lg || 14,
+    padding: spacing.md, marginBottom: spacing.md,
+    borderWidth: 1, borderColor: colors.border || '#E2E8F0',
   },
-  recapVenueName: { fontSize: typography.lg || 18, fontWeight: '700', color: colors.text, marginBottom: 2 },
-  recapVenueLocation: { fontSize: typography.sm, color: colors.muted, marginBottom: spacing.sm },
+  recapVenueName: { fontSize: 18, fontWeight: '700', color: colors.dark, marginBottom: 2 },
+  recapVenueLocation: { fontSize: 13, color: colors.mid, marginBottom: spacing.sm },
   divider: { height: 1, backgroundColor: colors.border || '#E2E8F0', marginVertical: spacing.sm },
   recapRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 6 },
   recapIconWrap: {
     width: 28, height: 28, borderRadius: 14,
     backgroundColor: colors.primaryLight || '#EEF2FF',
-    alignItems: 'center', justifyContent: 'center',
-    marginRight: spacing.sm,
+    alignItems: 'center', justifyContent: 'center', marginRight: spacing.sm,
   },
-  recapLabel: { fontSize: typography.sm, color: colors.muted, flex: 1 },
-  recapValue: { fontSize: typography.sm, fontWeight: '600', color: colors.text },
-  notesBox: { backgroundColor: colors.bg || '#F8FAFC', borderRadius: radius.sm, padding: spacing.sm, marginTop: spacing.xs },
-  notesLabel: { fontSize: 12, fontWeight: '600', color: colors.muted, marginBottom: 2 },
-  notesTxt: { fontSize: typography.sm, color: colors.text, fontStyle: 'italic' },
+  recapLabel: { fontSize: 13, color: colors.mid, flex: 1 },
+  recapValue: { fontSize: 13, fontWeight: '600', color: colors.dark },
+  notesBox: { backgroundColor: colors.bg || '#F8FAFC', borderRadius: radius.sm || 6, padding: spacing.sm, marginTop: spacing.xs },
+  notesLabel: { fontSize: 12, fontWeight: '600', color: colors.mid, marginBottom: 2 },
+  notesTxt: { fontSize: 13, color: colors.dark, fontStyle: 'italic' },
   totalRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: spacing.xs },
-  totalLabel: { fontSize: typography.base, fontWeight: '700', color: colors.text },
-  totalValue: { fontSize: typography.xl || 22, fontWeight: '800', color: colors.primary },
-  priceSub: { fontSize: 12, color: colors.muted, textAlign: 'right', marginTop: 2 },
-
+  totalLabel: { fontSize: 16, fontWeight: '700', color: colors.dark },
+  totalValue: { fontSize: 22, fontWeight: '800', color: colors.primary },
+  priceSub: { fontSize: 12, color: colors.mid, textAlign: 'right', marginTop: 2 },
+  commissionInfo: {
+    flexDirection: 'row', alignItems: 'flex-start', gap: 6,
+    backgroundColor: '#EEF2FF', borderRadius: radius.sm || 6,
+    padding: 8, marginTop: spacing.sm,
+  },
+  commissionInfoTxt: { flex: 1, fontSize: 11, color: '#4338CA', lineHeight: 16 },
   infoBox: {
     flexDirection: 'row', alignItems: 'flex-start', gap: 8,
-    backgroundColor: '#EFF6FF', borderRadius: radius.md,
-    padding: spacing.sm, marginTop: spacing.md,
+    backgroundColor: '#EFF6FF', borderRadius: radius.md || 10,
+    padding: spacing.sm, marginTop: spacing.sm,
   },
   infoTxt: { flex: 1, fontSize: 13, color: '#1D4ED8', lineHeight: 18 },
-
   footer: {
     backgroundColor: colors.white || '#fff',
-    borderTopWidth: 1, borderTopColor: colors.border || '#E2E8F0',
-    padding: spacing.md,
+    borderTopWidth: 1, borderTopColor: colors.border || '#E2E8F0', padding: spacing.md,
   },
   btnPrimary: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
-    backgroundColor: colors.primary,
-    borderRadius: radius.md || 12,
-    paddingVertical: 15,
+    backgroundColor: colors.primary, borderRadius: radius.md || 12, paddingVertical: 15,
   },
-  btnPrimaryTxt: { fontSize: typography.base, fontWeight: '700', color: '#fff' },
+  btnPrimaryTxt: { fontSize: 16, fontWeight: '700', color: '#fff' },
   btnDisabled: { opacity: 0.5 },
 });

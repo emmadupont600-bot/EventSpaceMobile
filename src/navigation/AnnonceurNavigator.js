@@ -24,6 +24,10 @@ function ChatStack() {
   );
 }
 
+/**
+ * DashboardStack : contient le dashboard ET l'écran d'ajout de lieu.
+ * Correction : navigate('AddVenue') depuis AnnonceurDashboard navigue dans ce stack.
+ */
 function DashboardStack() {
   return (
     <Stack.Navigator screenOptions={{ headerShown: false }}>
@@ -33,48 +37,47 @@ function DashboardStack() {
   );
 }
 
+const TABS = [
+  { name: 'Dashboard',    label: 'Tableau',   icon: 'grid' },
+  { name: 'Réservations', label: 'Résas',     icon: 'calendar' },
+  { name: 'Messages',     label: 'Messages',  icon: 'message-circle' },
+  { name: 'Profil',       label: 'Profil',    icon: 'user' },
+];
+
 export default function AnnonceurNavigator() {
   return (
     <Tab.Navigator
-      screenOptions={({ route }) => ({
-        headerShown: false,
-        tabBarActiveTintColor: colors.primary,
-        tabBarInactiveTintColor: colors.light,
-        tabBarStyle: {
-          backgroundColor: colors.white,
-          borderTopWidth: 0,
-          height: Platform.OS === 'ios' ? 84 : 68,
-          paddingBottom: Platform.OS === 'ios' ? 28 : 12,
-          paddingTop: 10,
-          ...shadow.md,
-          shadowColor: '#000',
-        },
-        tabBarLabelStyle: { fontSize: 11, fontWeight: '600', marginTop: 2 },
-        tabBarIcon: ({ color, focused }) => {
-          const icons = {
-            Dashboard: 'grid',
-            'Ajouter': 'plus-circle',
-            Réservations: 'calendar',
-            Messages: 'message-circle',
-            Profil: 'user',
-          };
-          return (
+      screenOptions={({ route }) => {
+        const tab = TABS.find(t => t.name === route.name) || TABS[0];
+        return {
+          headerShown: false,
+          tabBarActiveTintColor: colors.primary,
+          tabBarInactiveTintColor: '#AAAAB5',
+          tabBarStyle: {
+            backgroundColor: colors.white,
+            borderTopWidth: 0,
+            height: Platform.OS === 'ios' ? 84 : 68,
+            paddingBottom: Platform.OS === 'ios' ? 28 : 12,
+            paddingTop: 10,
+            ...(shadow?.md || {}),
+          },
+          tabBarLabelStyle: { fontSize: 10, fontWeight: '600', marginTop: 2 },
+          tabBarIcon: ({ color, focused }) => (
             <View style={focused ? {
-              backgroundColor: colors.primaryLight,
-              borderRadius: 10,
-              padding: 6,
+              backgroundColor: colors.primaryLight || '#EEF2FF',
+              borderRadius: 10, padding: 6,
             } : { padding: 6 }}>
-              <Feather name={icons[route.name] || 'circle'} size={22} color={color} />
+              <Feather name={tab.icon} size={22} color={color} />
             </View>
-          );
-        },
-      })}
+          ),
+          tabBarLabel: tab.label,
+        };
+      }}
     >
-      <Tab.Screen name="Dashboard" component={DashboardStack} />
-      <Tab.Screen name="Ajouter" component={AddVenueScreen} />
+      <Tab.Screen name="Dashboard"    component={DashboardStack} />
       <Tab.Screen name="Réservations" component={ReservationsScreen} />
-      <Tab.Screen name="Messages" component={ChatStack} />
-      <Tab.Screen name="Profil" component={ProfileScreen} />
+      <Tab.Screen name="Messages"     component={ChatStack} />
+      <Tab.Screen name="Profil"       component={ProfileScreen} />
     </Tab.Navigator>
   );
 }
