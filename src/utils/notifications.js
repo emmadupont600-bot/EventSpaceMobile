@@ -1,94 +1,109 @@
 /**
- * notifications.js — Push notifications Expo + sauvegarde du token en DB.
- *
- * Install: npx expo install expo-notifications expo-device
- *
- * Usage:
- *   - Appeler initNotifications(userId) au démarrage (dans AppContext)
- *   - Appeler schedulePushNotification() pour une notif locale immédiate
+ * notifications.js
+ * - Demande la permission Expo Notifications au 1er lancement
+ * - Enregistre le token push dans Supabase (table users.expo_push_token)
+ * - Affiche les notifications reçues en foreground
+ * - sendLocalNotif() : notif locale immédiate (test / fallback)
  */
+import * as Notifications from 'expo-notifications';
+import * as Device from 'expo-device';
+import { Platform } from 'react-native';
+import { supabase } from '../services/supabase';
 
-let Notifications = null;
-let Device = null;
-
-try { Notifications = require('expo-notifications'); } catch { }
-try { Device = require('expo-device'); } catch { }
-
-if (Notifications) {
-  Notifications.setNotificationHandler({
-    handleNotification: async () => ({
-      shouldShowAlert: true,
-      shouldPlaySound: true,
-      shouldSetBadge: true,
-    }),
-  });
-}
-
-import { supabase } from '../lib/supabase';
+// Affiche les notifs en foreground (son + badge + bannière)
+Notifications.setNotificationHandler({
+  handleNotification: async () => ({
+    shouldShowAlert: true,
+    shouldPlaySound: true,
+    shouldSetBadge:  true,
+  }),
+});
 
 /**
- * Demande la permission, récupère le token Expo,
- * le sauvegarde dans users.push_token pour les webhooks.
- * @param {string|number} userId
+ * initNotifications(userId)
+ * À appeler après login / register.
+ * Retourne le token Expo ou null si simulateur / permissions refusées.
  */
 export async function initNotifications(userId) {
-  if (!Notifications || !Device) {
-    console.warn('[Notif] Installe expo-notifications expo-device');
-    return;
+  if (!Device.isDevice) {
+    console.log('[Notif] Simulateur détecté — push non disponible');
+    return null;
   }
-  if (!Device.isDevice) return; // simulateur
 
+  // Demande de permission
   const { status: existing } = await Notifications.getPermissionsAsync();
   let finalStatus = existing;
   if (existing !== 'granted') {
     const { status } = await Notifications.requestPermissionsAsync();
     finalStatus = status;
   }
-  if (finalStatus !== 'granted') return;
+  if (finalStatus !== 'granted') {
+    console.warn('[Notif] Permission refusée');
+    return null;
+  }
 
-  if (require('react-native').Platform.OS === 'android') {
-    await Notifications.setNotificationChannelAsync('eventspace', {
-      name: 'EventSpace',
+  // Android : channel obligatoire
+  if (Platform.OS === 'android') {
+    await Notifications.setNotificationChannelAsync('reservations', {
+      name: 'Réservations',
       importance: Notifications.AndroidImportance.MAX,
       vibrationPattern: [0, 250, 250, 250],
-      lightColor: '#6C63FF',
+      lightColor: '#4F46E5',
     });
   }
 
-  try {
-    const { data: token } = await Notifications.getExpoPushTokenAsync();
-    if (token && userId) {
-      // Sauvegarde du token en DB → utilisé par le Stripe Webhook
-      await supabase.from('users').update({ push_token: token }).eq('id', userId);
-    }
-    return token;
-  } catch (e) {
-    console.warn('[Notif] Token indisponible:', e.message);
+  // Récupération du token Expo Push
+  const tokenData = await Notifications.getExpoPushTokenAsync({
+    projectId: process.env.EXPO_PUBLIC_PROJECT_ID, // défini dans app.json / .env
+  });
+  const token = tokenData.data;
+  console.log('[Notif] Expo push token:', token);
+
+  // Sauvegarde dans Supabase
+  if (userId && token) {
+    const { error } = await supabase
+      .from('users')
+      .update({ expo_push_token: token })
+      .eq('id', userId);
+    if (error) console.warn('[Notif] Erreur save token:', error.message);
   }
+
+  return token;
 }
 
 /**
- * Notification locale immédiate (feedback in-app).
- * @param {string} title
- * @param {string} body
+ * sendLocalNotif(title, body, data?)
+ * Notification locale immédiate — utile pour tests ou fallback offline.
  */
-export async function schedulePushNotification(title, body) {
-  if (!Notifications) return;
-  try {
-    await Notifications.scheduleNotificationAsync({
-      content: { title, body, sound: true },
-      trigger: null, // immédiat
+export async function sendLocalNotif(title, body, data = {}) {
+  await Notifications.scheduleNotificationAsync({
+    content: { title, body, data, sound: true },
+    trigger: null, // immédiat
+  });
+}
+
+/**
+ * useNotificationListener(onNotification, onResponse)
+ * Hook à utiliser dans App.js pour réagir aux notifs reçues / tapées.
+ *
+ * onNotification(notification) — notif reçue en foreground
+ * onResponse(response)         — utilisateur a tapé la notif
+ */
+import { useEffect, useRef } from 'react';
+export function useNotificationListener(onNotification, onResponse) {
+  const notifListener   = useRef();
+  const responseListener = useRef();
+
+  useEffect(() => {
+    notifListener.current = Notifications.addNotificationReceivedListener(n => {
+      onNotification && onNotification(n);
     });
-  } catch (e) {
-    console.warn('[Notif] scheduleNotificationAsync:', e.message);
-  }
-}
-
-/**
- * Retourne l'abonnement aux notifications reçues (à unsub au unmount).
- * @param {function} callback - reçoit la notification
- */
-export function subscribeToNotifications(callback) {
-  if (!Notifications) return { remove: () => {} };
-  return Notifications.addNotificationReceivedListener(callback);
+    responseListener.current = Notifications.addNotificationResponseReceivedListener(r => {
+      onResponse && onResponse(r);
+    });
+    return () => {
+      Notifications.removeNotificationSubscription(notifListener.current);
+      Notifications.removeNotificationSubscription(responseListener.current);
+    };
+  }, []);
 }
