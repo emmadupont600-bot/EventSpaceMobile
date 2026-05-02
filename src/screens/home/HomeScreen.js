@@ -15,14 +15,14 @@ import { HomeScreenSkeleton } from '../../components/SkeletonLoader';
 import { colors, spacing, typography, radius } from '../../theme/colors';
 
 const CATEGORIES = [
-  { label: 'Tous',         value: null,                 emoji: '✨' },
-  { label: 'Mariage',      value: 'Château',            emoji: '💍' },
-  { label: 'Soirée',       value: 'Rooftop',            emoji: '🌙' },
-  { label: 'Séminaire',    value: 'Loft',               emoji: '💼' },
-  { label: 'Anniversaire', value: 'Salle de réception', emoji: '🎂' },
-  { label: 'Atypiques',    value: '__atypique__',        emoji: '🦋' },
-  { label: 'Photo',        value: 'Studio photo',       emoji: '📸' },
-  { label: 'Plein air',    value: 'Jardin',             emoji: '🌿' },
+  { label: 'Tous',      value: null,                 emoji: '✨' },
+  { label: 'Mariage',   value: 'Château',            emoji: '💍' },
+  { label: 'Soirée',    value: 'Rooftop',            emoji: '🌙' },
+  { label: 'Séminaire', value: 'Loft',               emoji: '💼' },
+  { label: 'Anniv.',    value: 'Salle de réception', emoji: '🎂' },
+  { label: 'Atypique',  value: '__atypique__',        emoji: '🦋' },
+  { label: 'Photo',     value: 'Studio photo',       emoji: '📸' },
+  { label: 'Plein air', value: 'Jardin',             emoji: '🌿' },
 ];
 
 export default function HomeScreen({ navigation }) {
@@ -34,11 +34,10 @@ export default function HomeScreen({ navigation }) {
   const [filterOpen, setFilterOpen] = useState(false);
   const [maxPrice, setMaxPrice] = useState('');
   const [minCapacity, setMinCapacity] = useState('');
-  // IA
   const [aiOpen, setAiOpen] = useState(false);
   const [aiQuery, setAiQuery] = useState('');
   const [aiLoading, setAiLoading] = useState(false);
-  const [aiResults, setAiResults] = useState(null); // null = pas encore cherché
+  const [aiResults, setAiResults] = useState(null);
   const insets = useSafeAreaInsets();
 
   useFocusEffect(useCallback(() => {
@@ -54,7 +53,6 @@ export default function HomeScreen({ navigation }) {
   const venues = useMemo(() => (VENUES || []).filter(v => v.published !== false), []);
 
   const filtered = useMemo(() => {
-    // Si résultats IA actifs, on les affiche
     if (aiResults) return aiResults.results;
     return venues.filter(v => {
       const matchSearch = !search ||
@@ -78,13 +76,11 @@ export default function HomeScreen({ navigation }) {
   const handleAiSearch = () => {
     if (!aiQuery.trim()) return;
     setAiLoading(true);
-    // Simule un délai réseau naturel
     setTimeout(() => {
       const result = aiSearchVenues(aiQuery, venues);
       setAiResults(result);
       setAiLoading(false);
       setAiOpen(false);
-      // Reset les filtres manuels
       setSearch('');
       setCat(null);
       setMaxPrice('');
@@ -123,7 +119,7 @@ export default function HomeScreen({ navigation }) {
         activeOpacity={0.85}
       >
         <Text style={styles.aiBtnEmoji}>✨</Text>
-        <Text style={styles.aiBtnText}>
+        <Text style={styles.aiBtnText} numberOfLines={1}>
           {aiResults ? aiResults.summary : 'Décrivez votre événement en texte libre...'}
         </Text>
         {aiResults
@@ -160,7 +156,7 @@ export default function HomeScreen({ navigation }) {
         </View>
       )}
 
-      {/* Catégories */}
+      {/* ── Catégories : emoji AU-DESSUS du label, pill compact ── */}
       {!aiResults && (
         <ScrollView
           horizontal
@@ -221,7 +217,7 @@ export default function HomeScreen({ navigation }) {
               <Text style={styles.emptyTitle}>Aucun résultat</Text>
               <Text style={styles.emptySubtitle}>
                 {aiResults
-                  ? "L'IA n'a pas trouvé de lieu correspondant. Essayez d'être plus précis ou modifiez votre demande."
+                  ? "L'IA n'a pas trouvé de lieu correspondant. Essayez d'être plus précis."
                   : "Essayez d'autres termes ou explorez la carte"}
               </Text>
               {aiResults
@@ -363,7 +359,6 @@ const styles = StyleSheet.create({
   },
   iconBtnEmoji: { fontSize: 18 },
 
-  // Bouton IA
   aiBtn: {
     marginHorizontal: spacing.lg, marginBottom: spacing.sm,
     flexDirection: 'row', alignItems: 'center', gap: 8,
@@ -401,18 +396,35 @@ const styles = StyleSheet.create({
     width: 8, height: 8, borderRadius: 4, backgroundColor: '#EF4444',
   },
 
-  // Catégories
-  catScroll: { flexGrow: 0, marginBottom: spacing.xs },
-  catContent: { paddingHorizontal: spacing.lg, paddingVertical: 4, gap: 6 },
+  // ── Catégories : colonne emoji + label, pill carré compact ──
+  catScroll: { flexGrow: 0, marginBottom: spacing.sm },
+  catContent: {
+    paddingHorizontal: spacing.lg,
+    paddingVertical: 4,
+    gap: 7,
+    alignItems: 'flex-start',
+  },
   catBtn: {
-    flexDirection: 'row', alignItems: 'center', gap: 5,
-    backgroundColor: C.white, borderRadius: 20,
-    paddingHorizontal: 12, paddingVertical: 7,
-    borderWidth: 1.5, borderColor: C.border,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: C.white,
+    borderRadius: 14,
+    paddingHorizontal: 11,
+    paddingVertical: 8,
+    borderWidth: 1.5,
+    borderColor: C.border,
+    minWidth: 60,
+    gap: 3,
   },
   catBtnActive: { backgroundColor: C.primary, borderColor: C.primary },
-  catEmoji: { fontSize: 13, lineHeight: 18 },
-  catText: { fontSize: 13, color: C.dark, fontWeight: '600' },
+  catEmoji: { fontSize: 18, lineHeight: 22 },
+  catText: {
+    fontSize: 11,
+    color: C.dark,
+    fontWeight: '600',
+    textAlign: 'center',
+    lineHeight: 13,
+  },
   catTextActive: { color: '#fff', fontWeight: '700' },
 
   sectionTitle: {
@@ -438,7 +450,6 @@ const styles = StyleSheet.create({
 
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.45)' },
 
-  // Modal IA
   aiSheet: {
     backgroundColor: C.bg, borderTopLeftRadius: 28, borderTopRightRadius: 28,
     padding: spacing.lg, paddingBottom: 40,
@@ -467,7 +478,6 @@ const styles = StyleSheet.create({
   aiSearchBtnDisabled: { opacity: 0.5 },
   aiSearchBtnText: { color: '#fff', fontWeight: '700', fontSize: typography.body },
 
-  // Modal filtres
   modalSheet: {
     backgroundColor: C.bg, borderTopLeftRadius: 24, borderTopRightRadius: 24,
     padding: spacing.lg, paddingBottom: 40,
