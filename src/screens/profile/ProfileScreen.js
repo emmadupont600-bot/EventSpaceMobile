@@ -1,36 +1,50 @@
+/**
+ * ProfileScreen — profil complet client et annonceur.
+ * Annonceur : édition nom, téléphone, IBAN (pour les virements), photo avatar URL.
+ * Sauvegarde dans Supabase via Store.updateUser()
+ */
 import React, { useState } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity, ScrollView,
-  StyleSheet, Alert, ActivityIndicator, KeyboardAvoidingView, Platform,
+  StyleSheet, Alert, ActivityIndicator, KeyboardAvoidingView,
+  Platform, Image,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useApp } from '../../context/AppContext';
-import { Store } from '../../utils/store';
+import { supabase } from '../../lib/supabase';
 import { colors, spacing, typography } from '../../theme/colors';
 
 export default function ProfileScreen({ navigation }) {
   const { user, setUser, logout } = useApp();
   const insets = useSafeAreaInsets();
+  const isAnnonceur = user?.role === 'annonceur';
 
   const [editing, setEditing] = useState(false);
   const [name, setName]       = useState(user?.name || '');
   const [phone, setPhone]     = useState(user?.phone || '');
+  const [avatar, setAvatar]   = useState(user?.avatar || '');
+  const [iban, setIban]       = useState(user?.iban || '');
   const [saving, setSaving]   = useState(false);
 
   const handleSave = async () => {
     if (!name.trim()) { Alert.alert('Champ requis', 'Le nom ne peut pas être vide.'); return; }
     setSaving(true);
     try {
-      // Met à jour dans la liste des users ET dans la session courante
-      const users = await Store.getUsers();
-      const idx = users.findIndex(u => u.id === user.id);
-      const updated = { ...user, name: name.trim(), phone: phone.trim() };
-      if (idx >= 0) {
-        users[idx] = updated;
-        await Store.saveUsers(users);
-      }
-      await Store.setCurrentUser(updated);
+      const changes = {
+        name: name.trim(),
+        phone: phone.trim(),
+        avatar: avatar.trim(),
+        ...(isAnnonceur && { iban: iban.trim() }),
+      };
+      const { data, error } = await supabase
+        .from('users')
+        .update(changes)
+        .eq('id', user.id)
+        .select()
+        .single();
+      if (error) throw new Error(error.message);
+      const updated = { ...user, ...data };
       setUser(updated);
       setEditing(false);
       Alert.alert('✅ Profil mis à jour', 'Vos informations ont bien été enregistrées.');
@@ -48,25 +62,8 @@ export default function ProfileScreen({ navigation }) {
     ]);
   };
 
-  const handleResetDemo = () => {
-    Alert.alert(
-      '🗑️ Réinitialiser les données',
-      'Efface toutes les données locales et recharge les données de démonstration au prochain lancement.',
-      [
-        { text: 'Annuler', style: 'cancel' },
-        {
-          text: 'Réinitialiser', style: 'destructive',
-          onPress: async () => {
-            await Store.resetDemo();
-            await logout();
-          },
-        },
-      ]
-    );
-  };
-
   const C = colors;
-  const isAnnonceur = user?.role === 'annonceur';
+  const initials = (user?.name || '?').split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2);
 
   return (
     <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
@@ -77,44 +74,49 @@ export default function ProfileScreen({ navigation }) {
       >
         {/* Avatar */}
         <View style={styles.avatarSection}>
-          <View style={[styles.avatar, { backgroundColor: isAnnonceur ? '#10B981' : C.primary }]}>
-            <Text style={styles.avatarText}>
-              {(user?.name || '?').charAt(0).toUpperCase()}
-            </Text>
-          </View>
+          {avatar ? (
+            <Image source={{ uri: avatar }} style={styles.avatarImg} />
+          ) : (
+            <View style={[styles.avatar, { backgroundColor: isAnnonceur ? '#10B981' : C.primary }]}>
+              <Text style={styles.avatarText}>{initials}</Text>
+            </View>
+          )}
           <View style={[styles.roleBadge, isAnnonceur && styles.roleBadgeAnnonceur]}>
             <Text style={styles.roleBadgeText}>
               {isAnnonceur ? '🏠 Annonceur' : '👤 Client'}
             </Text>
           </View>
+          <Text style={styles.userName}>{user?.name}</Text>
+          <Text style={styles.userEmail}>{user?.email}</Text>
         </View>
 
-        {/* Infos */}
+        {/* Infos personnelles */}
         <View style={styles.card}>
           <View style={styles.cardHeader}>
             <Text style={styles.cardTitle}>Informations personnelles</Text>
-            <TouchableOpacity onPress={() => setEditing(!editing)}>
+            <TouchableOpacity onPress={() => { setEditing(!editing); }}>
               <Text style={styles.editBtn}>{editing ? 'Annuler' : '✏️ Modifier'}</Text>
             </TouchableOpacity>
           </View>
 
           {editing ? (
             <>
-              <Text style={styles.label}>Nom complet</Text>
-              <TextInput
-                style={styles.input}
-                value={name} onChangeText={setName}
-                placeholder="Votre nom"
-                placeholderTextColor={C.light}
+              <Field label="Nom complet" value={name} onChangeText={setName} placeholder="Votre nom" />
+              <Field label="Téléphone" value={phone} onChangeText={setPhone} placeholder="06 XX XX XX XX" keyboardType="phone-pad" />
+              <Field
+                label="Photo de profil (URL)"
+                value={avatar} onChangeText={setAvatar}
+                placeholder="https://..."
+                autoCapitalize="none"
               />
-              <Text style={styles.label}>Téléphone</Text>
-              <TextInput
-                style={styles.input}
-                value={phone} onChangeText={setPhone}
-                placeholder="06 XX XX XX XX"
-                placeholderTextColor={C.light}
-                keyboardType="phone-pad"
-              />
+              {isAnnonceur && (
+                <Field
+                  label="IBAN (pour recevoir vos paiements)"
+                  value={iban} onChangeText={setIban}
+                  placeholder="FR76 XXXX XXXX XXXX XXXX XXXX XXX"
+                  autoCapitalize="characters"
+                />
+              )}
               <TouchableOpacity
                 style={[styles.saveBtn, saving && styles.saveBtnDisabled]}
                 onPress={handleSave} disabled={saving}
@@ -129,6 +131,13 @@ export default function ProfileScreen({ navigation }) {
               <InfoRow icon="person-outline" label="Nom" value={user?.name || '-'} />
               <InfoRow icon="mail-outline" label="Email" value={user?.email || '-'} />
               <InfoRow icon="call-outline" label="Téléphone" value={user?.phone || 'Non renseigné'} />
+              {isAnnonceur && (
+                <InfoRow
+                  icon="card-outline"
+                  label="IBAN"
+                  value={user?.iban ? `${user.iban.slice(0, 8)}${'•'.repeat(10)}` : 'Non renseigné'}
+                />
+              )}
             </>
           )}
         </View>
@@ -137,91 +146,144 @@ export default function ProfileScreen({ navigation }) {
         {isAnnonceur && (
           <View style={styles.card}>
             <Text style={styles.cardTitle}>Mon activité</Text>
-            <TouchableOpacity style={styles.menuItem} onPress={() => navigation.navigate('AnnonceurTab')}>
-              <Ionicons name="stats-chart-outline" size={20} color={C.primary} />
-              <Text style={styles.menuItemText}>Tableau de bord</Text>
-              <Ionicons name="chevron-forward" size={16} color={C.mid} />
-            </TouchableOpacity>
+            <MenuItem
+              icon="stats-chart-outline"
+              label="Tableau de bord"
+              onPress={() => navigation.navigate('AnnonceurTab')}
+            />
+            <MenuItem
+              icon="home-outline"
+              label="Mes lieux"
+              onPress={() => navigation.navigate('AnnonceurTab', { tab: 'venues' })}
+            />
+            <MenuItem
+              icon="calendar-outline"
+              label="Demandes de réservation"
+              onPress={() => navigation.navigate('AnnonceurTab', { tab: 'requests' })}
+              last
+            />
           </View>
         )}
 
-        {/* Actions */}
+        {/* Paiements (annonceur) */}
+        {isAnnonceur && (
+          <View style={styles.card}>
+            <Text style={styles.cardTitle}>💳 Paiements</Text>
+            <View style={styles.ibanInfo}>
+              <Ionicons name="information-circle-outline" size={18} color={C.primary} />
+              <Text style={styles.ibanInfoText}>
+                EventSpace prélève une commission de <Text style={{ fontWeight: '800' }}>12%</Text> sur chaque réservation confirmée. Le solde net vous est versé dans un délai de 3 jours ouvrés après la date de l'événement.
+              </Text>
+            </View>
+          </View>
+        )}
+
+        {/* Compte */}
         <View style={styles.card}>
           <Text style={styles.cardTitle}>Compte</Text>
-          <TouchableOpacity style={styles.menuItem} onPress={handleResetDemo}>
-            <Ionicons name="refresh-outline" size={20} color={C.mid} />
-            <Text style={[styles.menuItemText, { color: C.mid }]}>Réinitialiser les données démo</Text>
-            <Ionicons name="chevron-forward" size={16} color={C.mid} />
-          </TouchableOpacity>
-          <TouchableOpacity style={[styles.menuItem, styles.menuItemDanger]} onPress={handleLogout}>
-            <Ionicons name="log-out-outline" size={20} color="#EF4444" />
-            <Text style={[styles.menuItemText, { color: '#EF4444' }]}>Se déconnecter</Text>
-            <Ionicons name="chevron-forward" size={16} color="#EF4444" />
-          </TouchableOpacity>
+          <MenuItem icon="log-out-outline" label="Se déconnecter" onPress={handleLogout} danger last />
         </View>
 
-        <Text style={styles.version}>EventSpace v1.0.0 · Données locales (démo)</Text>
+        <Text style={styles.version}>EventSpace v1.0 · Supabase</Text>
       </ScrollView>
     </KeyboardAvoidingView>
   );
 }
 
+function Field({ label, ...props }) {
+  return (
+    <>
+      <Text style={fStyles.label}>{label}</Text>
+      <TextInput
+        style={fStyles.input}
+        placeholderTextColor={colors.light}
+        autoCorrect={false}
+        {...props}
+      />
+    </>
+  );
+}
+const fStyles = StyleSheet.create({
+  label: { fontSize: 12, fontWeight: '700', color: colors.mid, marginBottom: 6, marginTop: 14 },
+  input: {
+    backgroundColor: colors.bg, borderRadius: 10, borderWidth: 1.5, borderColor: colors.border,
+    paddingHorizontal: spacing.md, paddingVertical: 11,
+    fontSize: typography.body, color: colors.dark,
+  },
+});
+
 function InfoRow({ icon, label, value }) {
   return (
-    <View style={infoStyles.row}>
+    <View style={iStyles.row}>
       <Ionicons name={icon} size={18} color={colors.mid} />
       <View style={{ flex: 1 }}>
-        <Text style={infoStyles.label}>{label}</Text>
-        <Text style={infoStyles.value}>{value}</Text>
+        <Text style={iStyles.label}>{label}</Text>
+        <Text style={iStyles.value}>{value}</Text>
       </View>
     </View>
   );
 }
-const infoStyles = StyleSheet.create({
+const iStyles = StyleSheet.create({
   row: { flexDirection: 'row', alignItems: 'flex-start', gap: 12, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: colors.border },
   label: { fontSize: 11, color: colors.light, fontWeight: '500', marginBottom: 2 },
   value: { fontSize: 15, fontWeight: '600', color: colors.dark },
+});
+
+function MenuItem({ icon, label, onPress, danger, last }) {
+  return (
+    <TouchableOpacity
+      style={[mStyles.item, !last && mStyles.itemBorder]}
+      onPress={onPress}
+      activeOpacity={0.7}
+    >
+      <Ionicons name={icon} size={20} color={danger ? '#EF4444' : colors.primary} />
+      <Text style={[mStyles.label, danger && mStyles.danger]}>{label}</Text>
+      <Ionicons name="chevron-forward" size={16} color={danger ? '#EF4444' : colors.mid} />
+    </TouchableOpacity>
+  );
+}
+const mStyles = StyleSheet.create({
+  item: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 13 },
+  itemBorder: { borderBottomWidth: 1, borderBottomColor: colors.border },
+  label: { flex: 1, fontSize: 15, fontWeight: '600', color: colors.dark },
+  danger: { color: '#EF4444' },
 });
 
 const C = colors;
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: C.bg },
   content: { paddingHorizontal: spacing.lg, paddingBottom: 60 },
-  avatarSection: { alignItems: 'center', paddingTop: spacing.xl, paddingBottom: spacing.lg, gap: 12 },
+  avatarSection: { alignItems: 'center', paddingTop: spacing.xl, paddingBottom: spacing.lg, gap: 8 },
   avatar: {
-    width: 80, height: 80, borderRadius: 40,
+    width: 88, height: 88, borderRadius: 44,
     alignItems: 'center', justifyContent: 'center',
     shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.12, shadowRadius: 12, elevation: 4,
   },
-  avatarText: { fontSize: 32, fontWeight: '900', color: '#fff' },
-  roleBadge: { backgroundColor: C.primaryLight || '#EEF2FF', paddingHorizontal: 14, paddingVertical: 5, borderRadius: 999 },
+  avatarImg: { width: 88, height: 88, borderRadius: 44 },
+  avatarText: { fontSize: 34, fontWeight: '900', color: '#fff' },
+  roleBadge: { backgroundColor: C.primaryLight || '#EEF2FF', paddingHorizontal: 14, paddingVertical: 5, borderRadius: 999, marginTop: 4 },
   roleBadgeAnnonceur: { backgroundColor: '#D1FAE5' },
   roleBadgeText: { fontSize: 13, fontWeight: '700', color: C.dark },
+  userName: { fontSize: 20, fontWeight: '900', color: C.dark, marginTop: 4 },
+  userEmail: { fontSize: 13, color: C.mid },
   card: {
     backgroundColor: C.white, borderRadius: 16, padding: spacing.lg,
     marginBottom: spacing.md, borderWidth: 1, borderColor: C.border,
     shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.04, shadowRadius: 8, elevation: 1,
   },
-  cardHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: spacing.md },
+  cardHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: spacing.sm },
   cardTitle: { fontSize: 15, fontWeight: '800', color: C.dark },
   editBtn: { fontSize: 13, color: C.primary, fontWeight: '700' },
-  label: { fontSize: 12, fontWeight: '700', color: C.mid, marginBottom: 6, marginTop: 12 },
-  input: {
-    backgroundColor: C.bg, borderRadius: 10, borderWidth: 1.5, borderColor: C.border,
-    paddingHorizontal: spacing.md, paddingVertical: 11,
-    fontSize: typography.body, color: C.dark,
-  },
   saveBtn: {
     backgroundColor: C.primary, borderRadius: 12,
     paddingVertical: 13, alignItems: 'center', marginTop: spacing.md,
   },
   saveBtnDisabled: { opacity: 0.6 },
   saveBtnText: { color: '#fff', fontWeight: '700', fontSize: 15 },
-  menuItem: {
-    flexDirection: 'row', alignItems: 'center', gap: 12,
-    paddingVertical: 13, borderBottomWidth: 1, borderBottomColor: C.border,
+  ibanInfo: {
+    flexDirection: 'row', gap: 10, backgroundColor: C.bg,
+    borderRadius: 10, padding: spacing.md, borderWidth: 1, borderColor: C.border,
   },
-  menuItemDanger: { borderBottomWidth: 0 },
-  menuItemText: { flex: 1, fontSize: 15, fontWeight: '600', color: C.dark },
+  ibanInfoText: { flex: 1, fontSize: 13, color: C.mid, lineHeight: 19 },
   version: { textAlign: 'center', fontSize: 11, color: C.light, marginTop: 8, paddingBottom: 20 },
 });

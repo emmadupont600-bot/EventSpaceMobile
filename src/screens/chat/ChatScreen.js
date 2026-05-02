@@ -1,22 +1,17 @@
-import React, { useState, useEffect, useRef } from 'react';
+/**
+ * ChatScreen — messagerie temps réel via Supabase Realtime.
+ * Remplace le setInterval(load, 3000) par un channel Supabase.
+ */
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   View, Text, FlatList, TextInput, TouchableOpacity,
   StyleSheet, KeyboardAvoidingView, Platform, StatusBar,
 } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { supabase } from '../../lib/supabase';
 import { Store } from '../../utils/store';
 import { colors, spacing, typography, radius, shadow } from '../../theme/colors';
-
-const BOT_REPLIES = [
-  'Bonjour ! Je suis disponible à cette date.',
-  'Bien sûr, nous pouvons adapter selon vos souhaits.',
-  'Pouvez-vous préciser le nombre de personnes prévu ?',
-  'Le lieu est libre ce jour-là. Je vous envoie un devis.',
-  'Merci pour votre intérêt ! N\'hésitez pas à réserver.',
-  'Nous avons aussi un espace extérieur disponible.',
-  'Je vous confirme la disponibilité dans les 24h.',
-];
 
 export default function ChatScreen({ route, navigation }) {
   const { conv, venueName, user } = route.params;
@@ -24,44 +19,63 @@ export default function ChatScreen({ route, navigation }) {
   const [text, setText] = useState('');
   const flatRef = useRef(null);
   const insets = useSafeAreaInsets();
+  const channelRef = useRef(null);
 
-  useEffect(() => {
-    load();
-    const t = setInterval(load, 3000);
-    return () => clearInterval(t);
-  }, []);
-
-  const load = async () => {
+  // ── Chargement initial ────────────────────────────────────────────
+  const loadMessages = useCallback(async () => {
     const msgs = await Store.getMessages(conv.id);
     setMessages(msgs);
     setTimeout(() => flatRef.current?.scrollToEnd({ animated: false }), 50);
-  };
+  }, [conv.id]);
 
+  // ── Supabase Realtime subscription ───────────────────────────────
+  useEffect(() => {
+    loadMessages();
+
+    // Souscription aux nouveaux messages de cette conversation
+    const channel = supabase
+      .channel(`messages:${conv.id}`)
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'messages',
+          filter: `conversation_id=eq.${conv.id}`,
+        },
+        (payload) => {
+          const m = payload.new;
+          const normalized = { ...m, senderId: m.sender_id };
+          setMessages(prev => {
+            // Évite les doublons (message qu'on vient d'envoyer)
+            if (prev.find(x => x.id === m.id)) return prev;
+            return [...prev, normalized];
+          });
+          setTimeout(() => flatRef.current?.scrollToEnd({ animated: true }), 80);
+        }
+      )
+      .subscribe();
+
+    channelRef.current = channel;
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [conv.id, loadMessages]);
+
+  // ── Envoi ─────────────────────────────────────────────────────────
   const send = async () => {
     const trimmed = text.trim();
     if (!trimmed) return;
-    const msg = {
-      text: trimmed,
-      senderId: user.id,
-      senderName: user.firstName || user.name,
-      ts: new Date().toISOString(),
-    };
-    await Store.addMessage(conv.id, msg);
     setText('');
-    await load();
-
-    // Simulation réponse automatique côté annonceur
-    if (user.role === 'client' || user.role === 'particulier') {
-      setTimeout(async () => {
-        const reply = BOT_REPLIES[Math.floor(Math.random() * BOT_REPLIES.length)];
-        await Store.addMessage(conv.id, {
-          text: reply,
-          senderId: conv.ownerId || 'annonceur',
-          senderName: 'Annonceur',
-          ts: new Date().toISOString(),
-        });
-        await load();
-      }, 1200 + Math.random() * 1500);
+    try {
+      await Store.addMessage(conv.id, {
+        senderId: user.id,
+        text: trimmed,
+      });
+      // Le Realtime va automatiquement mettre à jour les messages
+    } catch (e) {
+      console.error('[Chat] send error:', e);
     }
   };
 
@@ -75,18 +89,20 @@ export default function ChatScreen({ route, navigation }) {
     return name.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2);
   };
 
-  const isMe = (msg) => msg.senderId === user?.id || msg.senderId === String(user?.id);
+  const isMe = (msg) => String(msg.senderId) === String(user?.id);
 
   const renderItem = ({ item, index }) => {
     const me = isMe(item);
     const prev = index > 0 ? messages[index - 1] : null;
-    const showAvatar = !me && (!prev || prev.senderId !== item.senderId);
+    const showAvatar = !me && (!prev || String(prev.senderId) !== String(item.senderId));
 
     return (
       <View style={[styles.msgRow, me ? styles.msgRowMe : styles.msgRowOther]}>
         {!me && (
           <View style={[styles.msgAvatar, !showAvatar && { opacity: 0 }]}>
-            <Text style={styles.msgAvatarText}>{getInitials(item.senderName)}</Text>
+            <Text style={styles.msgAvatarText}>
+              {getInitials(item.senderName || (me ? user?.name : 'A'))}
+            </Text>
           </View>
         )}
         <View style={[styles.bubble, me ? styles.bubbleMe : styles.bubbleOther]}>
@@ -120,10 +136,12 @@ export default function ChatScreen({ route, navigation }) {
             </Text>
           </View>
           <View style={styles.headerInfo}>
-            <Text style={styles.headerName} numberOfLines={1}>{venueName || conv.venueName || 'Conversation'}</Text>
+            <Text style={styles.headerName} numberOfLines={1}>
+              {venueName || conv.venueName || 'Conversation'}
+            </Text>
             <View style={styles.onlineRow}>
               <View style={styles.onlineDot} />
-              <Text style={styles.onlineText}>En ligne</Text>
+              <Text style={styles.onlineText}>Temps réel ⚡</Text>
             </View>
           </View>
           <TouchableOpacity style={styles.headerAction}>
@@ -135,7 +153,7 @@ export default function ChatScreen({ route, navigation }) {
         <FlatList
           ref={flatRef}
           data={messages}
-          keyExtractor={(_, i) => i.toString()}
+          keyExtractor={(item, i) => String(item.id || i)}
           renderItem={renderItem}
           contentContainerStyle={styles.msgList}
           showsVerticalScrollIndicator={false}
@@ -146,7 +164,7 @@ export default function ChatScreen({ route, navigation }) {
                 <Feather name="message-circle" size={28} color={colors.primary} />
               </View>
               <Text style={styles.emptyChatText}>Démarrez la conversation</Text>
-              <Text style={styles.emptyChatSub}>Posez vos questions à l'annonceur</Text>
+              <Text style={styles.emptyChatSub}>Les messages arrivent en temps réel</Text>
             </View>
           }
         />
@@ -161,7 +179,6 @@ export default function ChatScreen({ route, navigation }) {
             onChangeText={setText}
             multiline
             maxLength={500}
-            onSubmitEditing={send}
           />
           <TouchableOpacity
             style={[styles.sendBtn, !text.trim() && styles.sendBtnDisabled]}
@@ -198,8 +215,8 @@ const styles = StyleSheet.create({
   headerInfo: { flex: 1 },
   headerName: { fontSize: typography.body, fontWeight: '800', color: colors.dark },
   onlineRow: { flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 1 },
-  onlineDot: { width: 7, height: 7, borderRadius: 4, backgroundColor: colors.success },
-  onlineText: { fontSize: typography.tiny, color: colors.success, fontWeight: '600' },
+  onlineDot: { width: 7, height: 7, borderRadius: 4, backgroundColor: '#10B981' },
+  onlineText: { fontSize: typography.tiny, color: '#10B981', fontWeight: '600' },
   headerAction: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center' },
   msgList: { paddingHorizontal: spacing.lg, paddingVertical: spacing.lg, gap: 4 },
   msgRow: { flexDirection: 'row', marginBottom: 4, alignItems: 'flex-end' },
@@ -215,15 +232,12 @@ const styles = StyleSheet.create({
     maxWidth: '75%', borderRadius: 18, paddingHorizontal: spacing.md, paddingVertical: spacing.sm,
   },
   bubbleMe: {
-    backgroundColor: colors.primary,
-    borderBottomRightRadius: 4,
+    backgroundColor: colors.primary, borderBottomRightRadius: 4,
     ...shadow.sm, shadowColor: colors.primary,
   },
   bubbleOther: {
-    backgroundColor: colors.white,
-    borderBottomLeftRadius: 4,
-    borderWidth: 1, borderColor: colors.borderLight,
-    ...shadow.xs,
+    backgroundColor: colors.white, borderBottomLeftRadius: 4,
+    borderWidth: 1, borderColor: colors.borderLight, ...shadow.xs,
   },
   senderName: { fontSize: typography.tiny, fontWeight: '700', color: colors.mid, marginBottom: 2 },
   bubbleText: { fontSize: typography.body, color: colors.dark, lineHeight: 20 },
