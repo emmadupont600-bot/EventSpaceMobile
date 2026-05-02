@@ -11,13 +11,15 @@ const W = Dimensions.get('window').width;
 export default function VenueDetailScreen({ route, navigation }) {
   const { venue: initialVenue = null, venueId: routeVenueId } = route.params || {};
   const effectiveVenueId = routeVenueId || initialVenue?.id;
-  const { user } = useApp();
+  const { user, favorites, toggleFavorite } = useApp();
 
   const [venue, setVenue] = useState(initialVenue || null);
   const [reviews, setReviews] = useState([]);
-  const [isFav, setIsFav] = useState(false);
   const [activeImg, setActiveImg] = useState(0);
   const [loading, setLoading] = useState(!initialVenue);
+
+  // Dérivé directement depuis le contexte global → toujours à jour
+  const isFav = favorites.includes(effectiveVenueId);
 
   useEffect(() => {
     let mounted = true;
@@ -30,10 +32,6 @@ export default function VenueDetailScreen({ route, navigation }) {
         if (!mounted) return;
         setVenue(v || initialVenue || null);
         setReviews(r || []);
-        if (user?.id && effectiveVenueId) {
-          const fav = await Store.isFavorite(user.id, effectiveVenueId);
-          if (mounted) setIsFav(!!fav);
-        }
       } catch (e) {
         console.warn('VenueDetailScreen load error:', e);
       } finally {
@@ -43,16 +41,17 @@ export default function VenueDetailScreen({ route, navigation }) {
     return () => { mounted = false; };
   }, [initialVenue, effectiveVenueId]);
 
-  const toggleFav = async () => {
-    if (!user) return;
-    await Store.toggleFavorite(user.id, effectiveVenueId);
-    setIsFav(f => !f);
+  const handleToggleFav = () => {
+    if (!user) {
+      navigation.navigate('Auth');
+      return;
+    }
+    toggleFavorite(effectiveVenueId);
   };
 
   const startChat = async () => {
     if (!user || !venue) return;
     const conv = await Store.getOrCreateConv(user.id, venue.ownerId, venue.id, venue.name);
-    // ChatScreen est dans ChatStack > tab Messages
     navigation.navigate('Messages', {
       screen: 'ChatRoom',
       params: { conv, venueName: venue.name, user },
@@ -105,7 +104,7 @@ export default function VenueDetailScreen({ route, navigation }) {
             <Ionicons name="arrow-back" size={22} color={colors.dark} />
           </TouchableOpacity>
 
-          <TouchableOpacity style={styles.favBtn} onPress={toggleFav}>
+          <TouchableOpacity style={styles.favBtn} onPress={handleToggleFav}>
             <Ionicons name={isFav ? 'heart' : 'heart-outline'} size={22} color={isFav ? '#ef4444' : colors.dark} />
           </TouchableOpacity>
 
@@ -185,9 +184,9 @@ export default function VenueDetailScreen({ route, navigation }) {
           <Text style={styles.chatBtnTxt}>Contacter</Text>
         </TouchableOpacity>
         <Button
-          title="Réserver maintenant"
+          title={user ? 'Réserver maintenant' : 'Se connecter pour réserver'}
           onPress={() => {
-            if (!user) return;
+            if (!user) { navigation.navigate('Auth'); return; }
             navigation.navigate('Booking', { venue, user });
           }}
           style={{ flex: 1, marginLeft: spacing.md }}
