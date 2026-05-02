@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity,
   StyleSheet, ActivityIndicator, ScrollView,
-  KeyboardAvoidingView, Platform, Alert,
+  KeyboardAvoidingView, Platform,
 } from 'react-native';
 import { useApp } from '../../context/AppContext';
 
@@ -19,9 +19,14 @@ export default function LoginScreen({ navigation }) {
     if (!e || !p) { setError('Veuillez remplir tous les champs.'); return; }
     setLoading(true);
     setError('');
-    const result = await login(e, p);
-    setLoading(false);
-    if (!result.success) setError(result.error || 'Identifiants incorrects');
+    try {
+      await login(e, p);
+      // navigation gérée par AppContext via user state
+    } catch (err) {
+      setError(err.message || 'Identifiants incorrects');
+    } finally {
+      setLoading(false);
+    }
   };
 
   const quickLogin = (role) => {
@@ -38,14 +43,12 @@ export default function LoginScreen({ navigation }) {
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
       <ScrollView contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled">
-        {/* Logo / Titre */}
         <View style={styles.header}>
           <Text style={styles.logo}>📍</Text>
           <Text style={styles.title}>EventSpace</Text>
           <Text style={styles.subtitle}>Trouvez et louez le lieu parfait</Text>
         </View>
 
-        {/* Formulaire */}
         <View style={styles.form}>
           <Text style={styles.label}>Adresse email</Text>
           <TextInput
@@ -81,7 +84,6 @@ export default function LoginScreen({ navigation }) {
           </TouchableOpacity>
         </View>
 
-        {/* Connexion rapide démo */}
         <View style={styles.demoSection}>
           <Text style={styles.demoTitle}>— Connexion rapide (démo) —</Text>
           <View style={styles.demoRow}>
@@ -106,7 +108,6 @@ export default function LoginScreen({ navigation }) {
           <Text style={styles.demoHint}>Mot de passe des deux comptes : demo123</Text>
         </View>
 
-        {/* Lien inscription */}
         <TouchableOpacity
           style={styles.registerLink}
           onPress={() => navigation.navigate('Register')}
@@ -122,135 +123,28 @@ export default function LoginScreen({ navigation }) {
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flexGrow: 1,
-    justifyContent: 'center',
-    paddingHorizontal: 24,
-    paddingVertical: 40,
-    backgroundColor: '#fff',
-  },
-  header: {
-    alignItems: 'center',
-    marginBottom: 36,
-  },
-  logo: {
-    fontSize: 48,
-    marginBottom: 8,
-  },
-  title: {
-    fontSize: 28,
-    fontWeight: '700',
-    color: '#1a1a2e',
-    letterSpacing: -0.5,
-  },
-  subtitle: {
-    fontSize: 14,
-    color: '#888',
-    marginTop: 4,
-  },
-  form: {
-    marginBottom: 28,
-  },
-  label: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: '#444',
-    marginBottom: 6,
-    marginTop: 14,
-  },
-  input: {
-    borderWidth: 1.5,
-    borderColor: '#e0e0e0',
-    borderRadius: 10,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    fontSize: 15,
-    color: '#1a1a2e',
-    backgroundColor: '#fafafa',
-  },
-  error: {
-    color: '#e53935',
-    fontSize: 13,
-    marginTop: 10,
-    textAlign: 'center',
-  },
-  btn: {
-    backgroundColor: '#6C63FF',
-    borderRadius: 12,
-    paddingVertical: 15,
-    alignItems: 'center',
-    marginTop: 22,
-    shadowColor: '#6C63FF',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 4,
-  },
-  btnDisabled: {
-    opacity: 0.6,
-  },
-  btnText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: '700',
-  },
-  // Démo
-  demoSection: {
-    marginBottom: 24,
-  },
-  demoTitle: {
-    textAlign: 'center',
-    color: '#aaa',
-    fontSize: 12,
-    marginBottom: 12,
-    fontWeight: '500',
-  },
-  demoRow: {
-    flexDirection: 'row',
-    gap: 10,
-  },
-  demoBtn: {
-    flex: 1,
-    borderRadius: 10,
-    paddingVertical: 12,
-    paddingHorizontal: 10,
-    alignItems: 'center',
-    borderWidth: 1.5,
-  },
-  demoBtnClient: {
-    borderColor: '#6C63FF',
-    backgroundColor: '#f3f1ff',
-  },
-  demoBtnAnnonceur: {
-    borderColor: '#00b894',
-    backgroundColor: '#f0faf7',
-  },
-  demoBtnText: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: '#1a1a2e',
-  },
-  demoBtnSub: {
-    fontSize: 11,
-    color: '#888',
-    marginTop: 2,
-  },
-  demoHint: {
-    textAlign: 'center',
-    fontSize: 11,
-    color: '#bbb',
-    marginTop: 8,
-  },
-  registerLink: {
-    alignItems: 'center',
-    paddingVertical: 8,
-  },
-  registerText: {
-    fontSize: 14,
-    color: '#888',
-  },
-  registerTextBold: {
-    color: '#6C63FF',
-    fontWeight: '700',
-  },
+  container: { flexGrow: 1, justifyContent: 'center', paddingHorizontal: 24, paddingVertical: 40, backgroundColor: '#fff' },
+  header: { alignItems: 'center', marginBottom: 36 },
+  logo: { fontSize: 48, marginBottom: 8 },
+  title: { fontSize: 28, fontWeight: '700', color: '#1a1a2e', letterSpacing: -0.5 },
+  subtitle: { fontSize: 14, color: '#888', marginTop: 4 },
+  form: { marginBottom: 28 },
+  label: { fontSize: 13, fontWeight: '600', color: '#444', marginBottom: 6, marginTop: 14 },
+  input: { borderWidth: 1.5, borderColor: '#e0e0e0', borderRadius: 10, paddingHorizontal: 14, paddingVertical: 12, fontSize: 15, color: '#1a1a2e', backgroundColor: '#fafafa' },
+  error: { color: '#e53935', fontSize: 13, marginTop: 10, textAlign: 'center' },
+  btn: { backgroundColor: '#6C63FF', borderRadius: 12, paddingVertical: 15, alignItems: 'center', marginTop: 22, shadowColor: '#6C63FF', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 8, elevation: 4 },
+  btnDisabled: { opacity: 0.6 },
+  btnText: { color: '#fff', fontSize: 16, fontWeight: '700' },
+  demoSection: { marginBottom: 24 },
+  demoTitle: { textAlign: 'center', color: '#aaa', fontSize: 12, marginBottom: 12, fontWeight: '500' },
+  demoRow: { flexDirection: 'row', gap: 10 },
+  demoBtn: { flex: 1, borderRadius: 10, paddingVertical: 12, paddingHorizontal: 10, alignItems: 'center', borderWidth: 1.5 },
+  demoBtnClient: { borderColor: '#6C63FF', backgroundColor: '#f3f1ff' },
+  demoBtnAnnonceur: { borderColor: '#00b894', backgroundColor: '#f0faf7' },
+  demoBtnText: { fontSize: 14, fontWeight: '700', color: '#1a1a2e' },
+  demoBtnSub: { fontSize: 11, color: '#888', marginTop: 2 },
+  demoHint: { textAlign: 'center', fontSize: 11, color: '#bbb', marginTop: 8 },
+  registerLink: { alignItems: 'center', paddingVertical: 8 },
+  registerText: { fontSize: 14, color: '#888' },
+  registerTextBold: { color: '#6C63FF', fontWeight: '700' },
 });

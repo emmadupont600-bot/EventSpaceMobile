@@ -1,19 +1,28 @@
 import React, { useState } from 'react';
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, Alert, KeyboardAvoidingView, Platform, ScrollView } from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, StyleSheet, Alert, KeyboardAvoidingView, Platform, ScrollView, ActivityIndicator } from 'react-native';
 import { useApp } from '../../context/AppContext';
 import { COLORS } from '../../theme/colors';
 
 export default function RegisterScreen({ navigation }) {
-  const [name, setName] = useState('');
-  const [email, setEmail] = useState('');
+  const [name, setName]         = useState('');
+  const [email, setEmail]       = useState('');
   const [password, setPassword] = useState('');
-  const [role, setRole] = useState('client');
+  const [role, setRole]         = useState('client');
+  const [loading, setLoading]   = useState(false);
   const { register } = useApp();
 
-  const handleRegister = () => {
+  const handleRegister = async () => {
     if (!name || !email || !password) { Alert.alert('Erreur', 'Remplissez tous les champs'); return; }
     if (password.length < 6) { Alert.alert('Erreur', 'Mot de passe trop court (6 caractères min)'); return; }
-    register(name, email.toLowerCase().trim(), password, role);
+    setLoading(true);
+    try {
+      // AppContext.register attend un objet { name, email, password, role }
+      await register({ name, email: email.toLowerCase().trim(), password, role });
+    } catch (err) {
+      Alert.alert('Erreur', err.message || 'Impossible de créer le compte');
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -24,6 +33,7 @@ export default function RegisterScreen({ navigation }) {
         </TouchableOpacity>
         <Text style={styles.title}>Créer un compte</Text>
         <Text style={styles.subtitle}>Rejoignez EventSpace gratuitement</Text>
+
         <View style={styles.roleContainer}>
           <Text style={styles.label}>Je suis :</Text>
           <View style={styles.roleRow}>
@@ -35,14 +45,16 @@ export default function RegisterScreen({ navigation }) {
             </TouchableOpacity>
           </View>
         </View>
+
         <Text style={styles.label}>Nom complet</Text>
         <TextInput style={styles.input} placeholder="Jean Dupont" value={name} onChangeText={setName} placeholderTextColor={COLORS.textLight} />
         <Text style={styles.label}>Email</Text>
         <TextInput style={styles.input} placeholder="votre@email.fr" value={email} onChangeText={setEmail} keyboardType="email-address" autoCapitalize="none" placeholderTextColor={COLORS.textLight} />
         <Text style={styles.label}>Mot de passe</Text>
         <TextInput style={styles.input} placeholder="Minimum 6 caractères" value={password} onChangeText={setPassword} secureTextEntry placeholderTextColor={COLORS.textLight} />
-        <TouchableOpacity style={styles.btn} onPress={handleRegister}>
-          <Text style={styles.btnText}>Créer mon compte</Text>
+
+        <TouchableOpacity style={[styles.btn, loading && { opacity: 0.6 }]} onPress={handleRegister} disabled={loading}>
+          {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.btnText}>Créer mon compte</Text>}
         </TouchableOpacity>
       </ScrollView>
     </KeyboardAvoidingView>

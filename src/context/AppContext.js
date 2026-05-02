@@ -10,25 +10,24 @@ export function AppProvider({ children }) {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
 
-  // Restaurer session + init notifications au démarrage
   useEffect(() => {
     Store.getCurrentUser().then(u => {
       setUser(u);
       setLoading(false);
-      // Si l'utilisateur est déjà connecté, init push dès le démarrage
       if (u?.id) initNotifications(u.id).catch(() => {});
-    });
+    }).catch(() => setLoading(false));
   }, []);
 
   const login = useCallback(async (email, password) => {
+    // throws si erreur — le screen catch et affiche le message
     const u = await Store.login(email, password);
     setUser(u);
-    // Init push après login
     initNotifications(u.id).catch(() => {});
     return u;
   }, []);
 
   const register = useCallback(async (data) => {
+    // data = { name, email, password, role }
     const u = await Store.register(data);
     setUser(u);
     initNotifications(u.id).catch(() => {});
