@@ -14,17 +14,17 @@ export default function ProfileScreen({ navigation }) {
   const insets = useSafeAreaInsets();
 
   const handleLogout = () => {
-    Alert.alert('\uD83D\uDEAA D\u00e9connexion', 'Voulez-vous vous d\u00e9connecter ?', [
+    Alert.alert('Déconnexion', 'Voulez-vous vous déconnecter ?', [
       { text: 'Annuler', style: 'cancel' },
       {
-        text: 'D\u00e9connecter', style: 'destructive', onPress: () => {
-          logout(); // vide user → RootNavigator bascule automatiquement sur AuthNavigator
+        text: 'Déconnecter', style: 'destructive', onPress: () => {
+          logout();
         },
       },
     ]);
   };
 
-  if (!user) return null; // RootNavigator g\u00e8re la redirection
+  if (!user) return null;
 
   const firstName = user.firstName || user.name?.split(' ')[0] || '';
   const lastName = user.lastName || user.name?.split(' ').slice(1).join(' ') || '';
@@ -34,27 +34,27 @@ export default function ProfileScreen({ navigation }) {
 
   const sections = [
     {
-      title: '\uD83D\uDCBC Mon compte',
+      title: 'Mon compte',
       items: [
-        { emoji: '\uD83D\uDC64', label: 'Mes informations', action: () => {} },
-        { emoji: '\uD83D\uDD14', label: 'Notifications', action: () => {} },
-        { emoji: '\uD83D\uDD12', label: 'S\u00e9curit\u00e9 & confidentialit\u00e9', action: () => {} },
+        { emoji: '👤', label: 'Mes informations', action: () => {} },
+        { emoji: '🔔', label: 'Notifications', action: () => {} },
+        { emoji: '🔒', label: 'Sécurité & confidentialité', action: () => {} },
       ],
     },
     ...(isAnnonceur ? [{
-      title: '\uD83C\uDFE2 Espace annonceur',
+      title: 'Espace annonceur',
       items: [
-        { emoji: '\uD83C\uDFE0', label: 'Mes lieux', action: () => navigation.navigate('Dashboard') },
-        { emoji: '\u2795', label: 'Ajouter un lieu', action: () => navigation.navigate('Ajouter') },
-        { emoji: '\uD83D\uDCCA', label: 'Statistiques', action: () => {} },
+        { emoji: '🏠', label: 'Mes lieux', action: () => navigation.navigate('Dashboard') },
+        { emoji: '➕', label: 'Ajouter un lieu', action: () => navigation.navigate('Ajouter') },
+        { emoji: '📊', label: 'Statistiques', action: () => {} },
       ],
     }] : []),
     {
-      title: '\uD83D\uDCE3 Aide & Support',
+      title: 'Aide & Support',
       items: [
-        { emoji: '\u2753', label: "Centre d'aide", action: () => {} },
-        { emoji: '\uD83D\uDCAC', label: 'Nous contacter', action: () => {} },
-        { emoji: '\u2B50', label: "\u00c9valuer l'application", action: () => {} },
+        { emoji: '❓', label: "Centre d'aide", action: () => {} },
+        { emoji: '💬', label: 'Nous contacter', action: () => {} },
+        { emoji: '⭐', label: "Évaluer l'application", action: () => {} },
       ],
     },
   ];
@@ -74,22 +74,22 @@ export default function ProfileScreen({ navigation }) {
               </View>
             )}
             <View style={[styles.roleBadge, { backgroundColor: isAnnonceur ? '#8B5CF6' : '#10B981' }]}>
-              <Text style={{ fontSize: 10 }}>{isAnnonceur ? '\uD83C\uDFE2' : '\uD83D\uDC64'}</Text>
+              <Text style={{ fontSize: 10 }}>{isAnnonceur ? '🏢' : '👤'}</Text>
             </View>
           </View>
 
           <Text style={styles.name}>{user.name || `${firstName} ${lastName}`.trim()}</Text>
           <Text style={styles.email}>{user.email}</Text>
-          {user.phone && <Text style={styles.phone}>\uD83D\uDCF1 {user.phone}</Text>}
+          {user.phone && <Text style={styles.phone}>📱 {user.phone}</Text>}
 
           <View style={[styles.roleTag, { backgroundColor: isAnnonceur ? '#EDE9FE' : colors.primaryLight }]}>
             <Text style={[styles.roleTagText, { color: isAnnonceur ? '#6D28D9' : colors.primary }]}>
-              {isAnnonceur ? '\uD83C\uDFE2 Annonceur' : '\uD83D\uDC64 Client'}
+              {isAnnonceur ? '🏢 Annonceur' : '👤 Client'}
             </Text>
           </View>
 
           <View style={styles.statsRow}>
-            {[['3', 'R\u00e9sas'], ['2', 'Favoris'], ['5', 'Messages']].map(([num, label], i, arr) => (
+            {[['3', 'Résas'], ['2', 'Favoris'], ['5', 'Messages']].map(([num, label], i, arr) => (
               <React.Fragment key={label}>
                 <View style={styles.statBox}>
                   <Text style={styles.statNum}>{num}</Text>
@@ -124,11 +124,11 @@ export default function ProfileScreen({ navigation }) {
         ))}
 
         <TouchableOpacity style={styles.logoutBtn} onPress={handleLogout}>
-          <Text style={{ fontSize: 18 }}>\uD83D\uDEAA</Text>
-          <Text style={styles.logoutText}>Se d\u00e9connecter</Text>
+          <Text style={{ fontSize: 18 }}>🚪</Text>
+          <Text style={styles.logoutText}>Se déconnecter</Text>
         </TouchableOpacity>
 
-        <Text style={styles.version}>EventSpace v2.0 \u2014 Made with \u2665 in Paris</Text>
+        <Text style={styles.version}>EventSpace v2.0 — Made with ♥ in Paris</Text>
       </ScrollView>
     </View>
   );
@@ -162,7 +162,7 @@ const styles = StyleSheet.create({
   statsRow: {
     flexDirection: 'row', backgroundColor: colors.white,
     borderRadius: radius.xl, borderWidth: 1, borderColor: colors.borderLight || colors.border,
-    overflow: 'hidden', width: '90%', ...shadow.xs || shadow.sm,
+    overflow: 'hidden', width: '90%', ...shadow.sm,
   },
   statBox: { flex: 1, alignItems: 'center', paddingVertical: spacing.md },
   statNum: { fontSize: typography.h2, fontWeight: '900', color: colors.dark },
@@ -173,7 +173,7 @@ const styles = StyleSheet.create({
   sectionCard: {
     backgroundColor: colors.white, borderRadius: radius.xl,
     borderWidth: 1, borderColor: colors.borderLight || colors.border,
-    overflow: 'hidden', ...shadow.xs || shadow.sm,
+    overflow: 'hidden', ...shadow.sm,
   },
   menuItem: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: spacing.lg, paddingVertical: spacing.md },
   menuItemBorder: { borderBottomWidth: 1, borderBottomColor: colors.borderLight || colors.border },
