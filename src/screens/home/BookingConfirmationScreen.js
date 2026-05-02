@@ -21,7 +21,7 @@ export default function BookingConfirmationScreen({ route, navigation }) {
     return (
       <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.bg }}>
         <Text style={{ color: colors.text }}>Réservation introuvable.</Text>
-        <TouchableOpacity onPress={() => navigation.navigate('MainTabs')} style={{ marginTop: 16 }}>
+        <TouchableOpacity onPress={() => navigation.navigate('Accueil')} style={{ marginTop: 16 }}>
           <Text style={{ color: colors.primary }}>Retour à l'accueil</Text>
         </TouchableOpacity>
       </View>
@@ -80,7 +80,7 @@ export default function BookingConfirmationScreen({ route, navigation }) {
           {/* Boutons */}
           <TouchableOpacity
             style={styles.btnPrimary}
-            onPress={() => navigation.navigate('Réservations')}
+            onPress={() => navigation.navigate('Reservations')}
           >
             <Ionicons name="calendar-outline" size={20} color="#fff" />
             <Text style={styles.btnPrimaryTxt}>Voir mes réservations</Text>
@@ -88,7 +88,7 @@ export default function BookingConfirmationScreen({ route, navigation }) {
 
           <TouchableOpacity
             style={styles.btnSecondary}
-            onPress={() => navigation.navigate('MainTabs')}
+            onPress={() => navigation.navigate('Accueil')}
           >
             <Text style={styles.btnSecondaryTxt}>Retour à l'accueil</Text>
           </TouchableOpacity>
