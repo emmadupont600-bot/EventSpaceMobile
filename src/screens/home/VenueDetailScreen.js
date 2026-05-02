@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { View, Text, Image, ScrollView, TouchableOpacity, StyleSheet, ActivityIndicator, Dimensions } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Store } from '../../utils/store';
+import { useAuth } from '../../context/AuthContext';
 import Button from '../../components/Button';
 import { colors, spacing, typography, radius, shadow } from '../../theme/colors';
 
@@ -10,33 +11,27 @@ const W = Dimensions.get('window').width;
 export default function VenueDetailScreen({ route, navigation }) {
   const { venue: initialVenue = null, venueId: routeVenueId } = route.params || {};
   const effectiveVenueId = routeVenueId || initialVenue?.id;
+  const { user } = useAuth();
 
   const [venue, setVenue] = useState(initialVenue || null);
   const [reviews, setReviews] = useState([]);
-  const [user, setUser] = useState(null);
   const [isFav, setIsFav] = useState(false);
   const [activeImg, setActiveImg] = useState(0);
   const [loading, setLoading] = useState(!initialVenue);
 
   useEffect(() => {
     let mounted = true;
-
     (async () => {
       try {
-        const [v, r, u] = await Promise.all([
+        const [v, r] = await Promise.all([
           initialVenue ? Promise.resolve(initialVenue) : Store.getVenue(effectiveVenueId),
           effectiveVenueId ? Store.getReviews(effectiveVenueId) : Promise.resolve([]),
-          Store.getCurrentUser(),
         ]);
-
         if (!mounted) return;
-
         setVenue(v || initialVenue || null);
         setReviews(r || []);
-        setUser(u || null);
-
-        if (u?.id && effectiveVenueId) {
-          const fav = await Store.isFavorite(u.id, effectiveVenueId);
+        if (user?.id && effectiveVenueId) {
+          const fav = await Store.isFavorite(user.id, effectiveVenueId);
           if (mounted) setIsFav(!!fav);
         }
       } catch (e) {
@@ -45,21 +40,17 @@ export default function VenueDetailScreen({ route, navigation }) {
         if (mounted) setLoading(false);
       }
     })();
-
-    return () => {
-      mounted = false;
-    };
+    return () => { mounted = false; };
   }, [initialVenue, effectiveVenueId]);
 
   const toggleFav = async () => {
-    if (!user) return navigation.navigate('Login');
+    if (!user) return;
     await Store.toggleFavorite(user.id, effectiveVenueId);
     setIsFav(f => !f);
   };
 
   const startChat = async () => {
-    if (!user) return navigation.navigate('Login');
-    if (!venue) return;
+    if (!user || !venue) return;
     const conv = await Store.getOrCreateConv(user.id, venue.ownerId, venue.id, venue.name);
     navigation.navigate('Chat', { conv, venueName: venue.name, user });
   };
@@ -192,7 +183,7 @@ export default function VenueDetailScreen({ route, navigation }) {
         <Button
           title="Réserver maintenant"
           onPress={() => {
-            if (!user) return navigation.navigate('Login');
+            if (!user) return;
             navigation.navigate('Booking', { venue, user });
           }}
           style={{ flex: 1, marginLeft: spacing.md }}
