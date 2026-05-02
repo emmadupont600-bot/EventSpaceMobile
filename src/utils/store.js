@@ -44,7 +44,6 @@ export const Store = {
 
   async register(userData) {
     const emailNorm = (userData.email || '').trim().toLowerCase();
-    // Vérifie unicité
     const { data: existing } = await supabase
       .from('users')
       .select('id')
@@ -70,13 +69,10 @@ export const Store = {
       .eq('published', true)
       .order('created_at', { ascending: false });
     if (error) throw new Error(error.message);
-    // Normalise les champs snake_case → camelCase pour compat screens
     return (data || []).map(normalizeVenue);
   },
 
   async saveVenues(venues) {
-    // Utilisé par EditVenueScreen pour sauvegarder une liste modifiée
-    // En mode Supabase, on fait un upsert de chaque venue
     for (const v of venues) {
       const row = denormalizeVenue(v);
       await supabase.from('venues').upsert(row);
@@ -95,7 +91,7 @@ export const Store = {
 
   async addVenue(venue) {
     const row = denormalizeVenue(venue);
-    delete row.id; // laisser la DB générer l'id
+    delete row.id;
     const { data, error } = await supabase
       .from('venues')
       .insert({ ...row, owner_id: _currentUser?.id, published: true, rating: 0, review_count: 0 })
@@ -114,6 +110,32 @@ export const Store = {
   async deleteVenue(id) {
     const { error } = await supabase.from('venues').delete().eq('id', id);
     if (error) throw new Error(error.message);
+  },
+
+  // ─── PHOTO UPLOAD (cover) ────────────────────────────────
+  async updateVenueCover(venueId, coverUrl) {
+    const { error } = await supabase
+      .from('venues')
+      .update({ cover_url: coverUrl, img: coverUrl })
+      .eq('id', venueId);
+    if (error) throw new Error(error.message);
+  },
+
+  async addVenueGalleryPhoto(venueId, photoUrl) {
+    // Récupère la galerie actuelle puis append
+    const { data } = await supabase
+      .from('venues')
+      .select('gallery_urls')
+      .eq('id', venueId)
+      .single();
+    const existing = data?.gallery_urls || [];
+    const updated = [...existing, photoUrl];
+    const { error } = await supabase
+      .from('venues')
+      .update({ gallery_urls: updated, gallery: updated })
+      .eq('id', venueId);
+    if (error) throw new Error(error.message);
+    return updated;
   },
 
   // ─── RESERVATIONS ────────────────────────────────────────
@@ -141,6 +163,7 @@ export const Store = {
       message: res.message,
       total: res.total,
       status: 'pending',
+      payment_status: 'unpaid',
     };
     const { data, error } = await supabase
       .from('reservations')
@@ -153,7 +176,9 @@ export const Store = {
 
   async updateReservation(id, changes) {
     const row = {};
-    if (changes.status) row.status = changes.status;
+    if (changes.status !== undefined) row.status = changes.status;
+    if (changes.payment_status !== undefined) row.payment_status = changes.payment_status;
+    if (changes.payment_intent_id !== undefined) row.payment_intent_id = changes.payment_intent_id;
     const { error } = await supabase.from('reservations').update(row).eq('id', id);
     if (error) throw new Error(error.message);
   },
@@ -161,14 +186,12 @@ export const Store = {
   // ─── MESSAGES / CONVERSATIONS ───────────────────────────
   async getOrCreateConv(userId, ownerId, venueId, venueName) {
     const convId = `conv_${userId}_${venueId}`;
-    // Essaye de récupérer
     const { data: existing } = await supabase
       .from('conversations')
       .select('*')
       .eq('id', convId)
       .maybeSingle();
     if (existing) return existing;
-    // Crée
     const { data, error } = await supabase
       .from('conversations')
       .insert({ id: convId, user_id: userId, owner_id: ownerId, venue_id: venueId, venue_name: venueName })
@@ -263,7 +286,6 @@ export const Store = {
     return !!data;
   },
 
-  // ─── RESET (dev uniquement) ──────────────────────────────
   async resetDemo() {
     console.warn('[Store] resetDemo() n\'a pas d\'effet en mode Supabase.');
   },
@@ -281,8 +303,8 @@ function normalizeVenue(v) {
     price: v.price,
     capacity: v.capacity,
     description: v.description,
-    img: v.img,
-    gallery: v.gallery || [],
+    img: v.cover_url || v.img,
+    gallery: v.gallery_urls || v.gallery || [],
     tags: v.tags || [],
     rating: v.rating || 0,
     reviewCount: v.review_count || 0,
@@ -302,7 +324,9 @@ function denormalizeVenue(v) {
   if (v.capacity !== undefined) row.capacity = v.capacity;
   if (v.description !== undefined) row.description = v.description;
   if (v.img !== undefined) row.img = v.img;
+  if (v.cover_url !== undefined) row.cover_url = v.cover_url;
   if (v.gallery !== undefined) row.gallery = v.gallery;
+  if (v.gallery_urls !== undefined) row.gallery_urls = v.gallery_urls;
   if (v.tags !== undefined) row.tags = v.tags;
   if (v.published !== undefined) row.published = v.published;
   return row;
@@ -324,6 +348,10 @@ function normalizeReservation(r) {
     message: r.message,
     total: r.total,
     status: r.status,
+    paymentStatus: r.payment_status,
+    paymentIntentId: r.payment_intent_id,
+    commissionAmount: r.commission_amount,
+    netOwner: r.net_owner,
     createdAt: r.created_at,
   };
 }

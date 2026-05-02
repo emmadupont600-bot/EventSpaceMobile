@@ -1,23 +1,19 @@
 /**
- * notifications.js — Gestion des push notifications avec expo-notifications.
+ * notifications.js — Push notifications Expo + sauvegarde du token en DB.
  *
- * ⚠️  Requires: npx expo install expo-notifications expo-device
+ * Install: npx expo install expo-notifications expo-device
  *
- * Toutes les fonctions sont défensives : elles échouent silencieusement
- * si les packages ne sont pas encore installés ou si on est sur simulateur.
+ * Usage:
+ *   - Appeler initNotifications(userId) au démarrage (dans AppContext)
+ *   - Appeler schedulePushNotification() pour une notif locale immédiate
  */
 
 let Notifications = null;
 let Device = null;
 
-try {
-  Notifications = require('expo-notifications');
-  Device = require('expo-device');
-} catch {
-  // expo-notifications pas encore installé → toutes les fonctions seront des no-ops
-}
+try { Notifications = require('expo-notifications'); } catch { }
+try { Device = require('expo-device'); } catch { }
 
-// Config du handler (affiche l'alerte même en foreground)
 if (Notifications) {
   Notifications.setNotificationHandler({
     handleNotification: async () => ({
@@ -28,35 +24,30 @@ if (Notifications) {
   });
 }
 
+import { supabase } from '../lib/supabase';
+
 /**
- * Demande la permission push et retourne le token Expo.
- * Retourne null si permission refusée ou packages absents.
+ * Demande la permission, récupère le token Expo,
+ * le sauvegarde dans users.push_token pour les webhooks.
+ * @param {string|number} userId
  */
-export async function registerForPushNotificationsAsync() {
+export async function initNotifications(userId) {
   if (!Notifications || !Device) {
-    console.warn('[Notifications] expo-notifications non installé. Lance : npx expo install expo-notifications expo-device');
-    return null;
+    console.warn('[Notif] Installe expo-notifications expo-device');
+    return;
   }
-  if (!Device.isDevice) {
-    console.warn('[Notifications] Push non disponible sur simulateur');
-    return null;
-  }
+  if (!Device.isDevice) return; // simulateur
 
-  const { status: existingStatus } = await Notifications.getPermissionsAsync();
-  let finalStatus = existingStatus;
-
-  if (existingStatus !== 'granted') {
+  const { status: existing } = await Notifications.getPermissionsAsync();
+  let finalStatus = existing;
+  if (existing !== 'granted') {
     const { status } = await Notifications.requestPermissionsAsync();
     finalStatus = status;
   }
-
-  if (finalStatus !== 'granted') {
-    console.warn('[Notifications] Permission refusée par l\'utilisateur');
-    return null;
-  }
+  if (finalStatus !== 'granted') return;
 
   if (require('react-native').Platform.OS === 'android') {
-    await Notifications.setNotificationChannelAsync('default', {
+    await Notifications.setNotificationChannelAsync('eventspace', {
       name: 'EventSpace',
       importance: Notifications.AndroidImportance.MAX,
       vibrationPattern: [0, 250, 250, 250],
@@ -65,30 +56,39 @@ export async function registerForPushNotificationsAsync() {
   }
 
   try {
-    const token = await Notifications.getExpoPushTokenAsync();
-    return token.data;
+    const { data: token } = await Notifications.getExpoPushTokenAsync();
+    if (token && userId) {
+      // Sauvegarde du token en DB → utilisé par le Stripe Webhook
+      await supabase.from('users').update({ push_token: token }).eq('id', userId);
+    }
+    return token;
   } catch (e) {
-    console.warn('[Notifications] Token indisponible:', e.message);
-    return null;
+    console.warn('[Notif] Token indisponible:', e.message);
   }
 }
 
 /**
- * Planifie une notification locale après `delaySeconds` secondes.
- * No-op silencieux si expo-notifications n'est pas installé.
- *
+ * Notification locale immédiate (feedback in-app).
  * @param {string} title
  * @param {string} body
- * @param {number} delaySeconds
  */
-export async function schedulePushNotification(title, body, delaySeconds = 1) {
+export async function schedulePushNotification(title, body) {
   if (!Notifications) return;
   try {
     await Notifications.scheduleNotificationAsync({
       content: { title, body, sound: true },
-      trigger: delaySeconds > 0 ? { seconds: delaySeconds } : null,
+      trigger: null, // immédiat
     });
   } catch (e) {
-    console.warn('[Notifications] scheduleNotificationAsync:', e.message);
+    console.warn('[Notif] scheduleNotificationAsync:', e.message);
   }
+}
+
+/**
+ * Retourne l'abonnement aux notifications reçues (à unsub au unmount).
+ * @param {function} callback - reçoit la notification
+ */
+export function subscribeToNotifications(callback) {
+  if (!Notifications) return { remove: () => {} };
+  return Notifications.addNotificationReceivedListener(callback);
 }
