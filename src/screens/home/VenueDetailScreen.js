@@ -52,7 +52,11 @@ export default function VenueDetailScreen({ route, navigation }) {
   const startChat = async () => {
     if (!user || !venue) return;
     const conv = await Store.getOrCreateConv(user.id, venue.ownerId, venue.id, venue.name);
-    navigation.navigate('Chat', { conv, venueName: venue.name, user });
+    // ChatScreen est dans ChatStack > tab Messages
+    navigation.navigate('Messages', {
+      screen: 'ChatRoom',
+      params: { conv, venueName: venue.name, user },
+    });
   };
 
   if (loading && !venue) {
