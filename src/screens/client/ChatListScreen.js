@@ -1,62 +1,132 @@
 import React from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, FlatList, SafeAreaView } from 'react-native';
+import {
+  View, Text, StyleSheet, FlatList, TouchableOpacity, StatusBar,
+} from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { MESSAGES } from '../../data/mockData';
+import { useApp } from '../../context/AppContext';
+import { VENUES } from '../../data/venues';
+import { COLORS } from '../../theme/colors';
+
+const P = COLORS.primary || '#4F46E5';
 
 export default function ChatListScreen({ navigation }) {
+  const insets = useSafeAreaInsets();
+  const { messages } = useApp();
+
+  // Construit la liste des conversations à partir des messages
+  const conversations = React.useMemo(() => {
+    if (!messages || typeof messages !== 'object') return [];
+    return Object.entries(messages)
+      .map(([venueId, msgs]) => {
+        const venue = (VENUES || []).find(v => String(v.id) === String(venueId));
+        const last = Array.isArray(msgs) && msgs.length > 0 ? msgs[msgs.length - 1] : null;
+        return { venueId, venue, last };
+      })
+      .filter(c => c.venue && c.last)
+      .sort((a, b) => (b.last?.timestamp || 0) - (a.last?.timestamp || 0));
+  }, [messages]);
+
   return (
-    <SafeAreaView style={styles.safe}>
+    <View style={[styles.container, { paddingTop: insets.top }]}>
+      <StatusBar barStyle="dark-content" />
+
       <View style={styles.header}>
-        <Text style={styles.title}>Messages</Text>
-        <View style={styles.badge}><Text style={styles.badgeTxt}>{MESSAGES.length}</Text></View>
+        <Text style={styles.headerTitle}>Messages</Text>
+        {conversations.length > 0 && (
+          <View style={styles.countBadge}>
+            <Text style={styles.countBadgeText}>{conversations.length}</Text>
+          </View>
+        )}
       </View>
+
       <FlatList
-        data={MESSAGES}
-        keyExtractor={i => i.id}
-        contentContainerStyle={{ padding: 16 }}
+        data={conversations}
+        keyExtractor={item => item.venueId}
+        contentContainerStyle={styles.list}
+        showsVerticalScrollIndicator={false}
+        ItemSeparatorComponent={() => <View style={styles.separator} />}
         ListEmptyComponent={
           <View style={styles.empty}>
-            <Ionicons name="chatbubbles-outline" size={64} color="#444" />
-            <Text style={styles.emptyTxt}>Aucun message</Text>
-            <Text style={styles.emptySub}>Contactez un annonceur depuis un lieu</Text>
+            <Ionicons name="chatbubbles-outline" size={60} color="#CBD5E1" />
+            <Text style={styles.emptyTitle}>Aucun message</Text>
+            <Text style={styles.emptySub}>Contactez un annonceur depuis la page d'un lieu.</Text>
           </View>
         }
-        renderItem={({ item }) => (
-          <TouchableOpacity style={styles.item} onPress={() => navigation.navigate('Chat', { conversation: item })}>
-            <View style={styles.avatar}><Ionicons name="person" size={22} color="#e94560" /></View>
-            <View style={styles.itemBody}>
-              <View style={styles.itemTop}>
-                <Text style={styles.itemNom}>{item.annonceurNom}</Text>
-                <Text style={styles.itemHeure}>{item.heure}</Text>
+        renderItem={({ item }) => {
+          const name = item.venue?.annonceurName || item.venue?.name || 'Annonceur';
+          const initials = name.split(' ').map(w => w[0] || '').join('').toUpperCase().slice(0, 2);
+          const isMe = item.last?.sender === 'user';
+          const preview = item.last?.text || '';
+
+          return (
+            <TouchableOpacity
+              style={styles.convRow}
+              onPress={() => navigation.navigate('Chat', { venue: item.venue })}
+              activeOpacity={0.75}
+            >
+              <View style={[styles.convAvatar, { backgroundColor: P }]}>
+                <Text style={styles.convAvatarText}>{initials}</Text>
+                <View style={styles.onlineDot} />
               </View>
-              <Text style={styles.itemLieu}>{item.lieuNom}</Text>
-              <Text style={styles.itemDernier} numberOfLines={1}>{item.dernier}</Text>
-            </View>
-            {item.nonLus > 0 && <View style={styles.nonLus}><Text style={styles.nonLusTxt}>{item.nonLus}</Text></View>}
-          </TouchableOpacity>
-        )}
+              <View style={styles.convBody}>
+                <View style={styles.convTop}>
+                  <Text style={styles.convName} numberOfLines={1}>{name}</Text>
+                  <Text style={styles.convTime}>{item.last?.time || ''}</Text>
+                </View>
+                <Text style={styles.convPreview} numberOfLines={1}>
+                  {isMe ? 'Vous : ' : ''}{preview}
+                </Text>
+              </View>
+              <Ionicons name="chevron-forward" size={16} color="#CBD5E1" />
+            </TouchableOpacity>
+          );
+        }}
       />
-    </SafeAreaView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: '#0f0c29' },
-  header: { flexDirection: 'row', alignItems: 'center', padding: 20, gap: 10 },
-  title: { fontSize: 24, fontWeight: '800', color: '#fff' },
-  badge: { backgroundColor: '#e94560', borderRadius: 10, paddingHorizontal: 8, paddingVertical: 2 },
-  badgeTxt: { color: '#fff', fontSize: 12, fontWeight: '700' },
-  item: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#1a1a2e', borderRadius: 14, padding: 14, marginBottom: 10, borderWidth: 1, borderColor: 'rgba(255,255,255,0.08)' },
-  avatar: { width: 48, height: 48, borderRadius: 24, backgroundColor: 'rgba(233,69,96,0.15)', justifyContent: 'center', alignItems: 'center', marginRight: 12 },
-  itemBody: { flex: 1 },
-  itemTop: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 2 },
-  itemNom: { color: '#fff', fontWeight: '700', fontSize: 15 },
-  itemHeure: { color: '#666', fontSize: 12 },
-  itemLieu: { color: '#e94560', fontSize: 12, marginBottom: 3 },
-  itemDernier: { color: '#aaa', fontSize: 13 },
-  nonLus: { backgroundColor: '#e94560', borderRadius: 10, width: 20, height: 20, justifyContent: 'center', alignItems: 'center' },
-  nonLusTxt: { color: '#fff', fontSize: 11, fontWeight: '700' },
-  empty: { alignItems: 'center', paddingTop: 80 },
-  emptyTxt: { color: '#aaa', fontSize: 18, fontWeight: '700', marginTop: 16 },
-  emptySub: { color: '#666', fontSize: 14, marginTop: 6, textAlign: 'center' },
+  container: { flex: 1, backgroundColor: '#F8FAFC' },
+  header: {
+    flexDirection: 'row', alignItems: 'center', gap: 10,
+    paddingHorizontal: 20, paddingVertical: 14,
+    backgroundColor: '#fff', borderBottomWidth: 1, borderBottomColor: '#E2E8F0',
+  },
+  headerTitle: { fontSize: 20, fontWeight: '800', color: '#0F172A', flex: 1 },
+  countBadge: {
+    backgroundColor: P, borderRadius: 999,
+    paddingHorizontal: 8, paddingVertical: 3, minWidth: 24, alignItems: 'center',
+  },
+  countBadgeText: { color: '#fff', fontSize: 12, fontWeight: '700' },
+
+  list: { paddingVertical: 8, paddingBottom: 100 },
+  separator: { height: 1, backgroundColor: '#F1F5F9', marginLeft: 84 },
+
+  convRow: {
+    flexDirection: 'row', alignItems: 'center',
+    paddingHorizontal: 20, paddingVertical: 14, gap: 14,
+    backgroundColor: '#fff',
+  },
+  convAvatar: {
+    width: 50, height: 50, borderRadius: 25,
+    alignItems: 'center', justifyContent: 'center',
+    position: 'relative',
+  },
+  convAvatarText: { color: '#fff', fontWeight: '700', fontSize: 16 },
+  onlineDot: {
+    position: 'absolute', bottom: 2, right: 2,
+    width: 12, height: 12, borderRadius: 6,
+    backgroundColor: '#22C55E', borderWidth: 2, borderColor: '#fff',
+  },
+  convBody: { flex: 1 },
+  convTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 3 },
+  convName: { fontSize: 15, fontWeight: '700', color: '#0F172A' },
+  convTime: { fontSize: 11, color: '#94A3B8' },
+  convPreview: { fontSize: 13, color: '#94A3B8' },
+
+  empty: { alignItems: 'center', paddingTop: 100, gap: 10, paddingHorizontal: 40 },
+  emptyTitle: { fontSize: 18, fontWeight: '700', color: '#0F172A' },
+  emptySub: { fontSize: 14, color: '#94A3B8', textAlign: 'center', lineHeight: 20 },
 });
