@@ -1,22 +1,19 @@
 /**
  * Store — toutes les opérations de données passent par Supabase.
- * Même API qu'avant pour ne rien casser dans les screens.
  */
-import { supabase } from '../lib/supabase';
+import { supabase } from '../services/supabase';
 
-// Utilisateur courant en mémoire (pas de localStorage en React Native sandboxé)
 let _currentUser = null;
 
 export const Store = {
 
-  // ─── AUTH ───────────────────────────────────────────────
-  async getUsers() {
-    const { data, error } = await supabase.from('users').select('*');
-    if (error) throw new Error(error.message);
-    return data;
-  },
-
+  // ─── AUTH ─────────────────────────────────────────────────────────
   async getCurrentUser() {
+    if (_currentUser) return _currentUser;
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session?.user) return null;
+    const { data } = await supabase.from('users').select('*').eq('id', session.user.id).maybeSingle();
+    _currentUser = data || { id: session.user.id, email: session.user.email, role: 'client' };
     return _currentUser;
   },
 
@@ -24,44 +21,39 @@ export const Store = {
     _currentUser = user;
   },
 
-  async logout() {
-    _currentUser = null;
-  },
-
   async login(email, password) {
-    const emailNorm = (email || '').trim().toLowerCase();
-    const passwordNorm = (password || '').trim();
-    const { data, error } = await supabase
-      .from('users')
-      .select('*')
-      .eq('email', emailNorm)
-      .eq('password', passwordNorm)
-      .single();
-    if (error || !data) throw new Error('Email ou mot de passe incorrect');
-    _currentUser = data;
-    return data;
+    const { data, error } = await supabase.auth.signInWithPassword({
+      email: (email || '').trim().toLowerCase(),
+      password: (password || '').trim(),
+    });
+    if (error || !data?.user) throw new Error(error?.message || 'Email ou mot de passe incorrect');
+    // Récupère le profil
+    const { data: profile } = await supabase.from('users').select('*').eq('id', data.user.id).maybeSingle();
+    _currentUser = profile || { id: data.user.id, email: data.user.email, role: data.user.user_metadata?.role || 'client', name: data.user.user_metadata?.name };
+    return _currentUser;
   },
 
   async register(userData) {
     const emailNorm = (userData.email || '').trim().toLowerCase();
-    const { data: existing } = await supabase
-      .from('users')
-      .select('id')
-      .eq('email', emailNorm)
-      .maybeSingle();
-    if (existing) throw new Error('Email déjà utilisé');
-
-    const { data, error } = await supabase
-      .from('users')
-      .insert({ ...userData, email: emailNorm })
-      .select()
-      .single();
-    if (error) throw new Error(error.message);
-    _currentUser = data;
-    return data;
+    const { data, error } = await supabase.auth.signUp({
+      email: emailNorm,
+      password: userData.password,
+      options: { data: { name: userData.name, role: userData.role || 'client' } },
+    });
+    if (error || !data?.user) throw new Error(error?.message || 'Erreur lors de l\'inscription');
+    // Crée le profil dans la table users
+    const profile = { id: data.user.id, email: emailNorm, name: userData.name, role: userData.role || 'client', phone: userData.phone || null };
+    await supabase.from('users').insert(profile);
+    _currentUser = profile;
+    return _currentUser;
   },
 
-  // ─── VENUES ─────────────────────────────────────────────
+  async logout() {
+    await supabase.auth.signOut();
+    _currentUser = null;
+  },
+
+  // ─── VENUES ─────────────────────────────────────────────────────────
   async getVenues() {
     const { data, error } = await supabase
       .from('venues')
@@ -72,19 +64,8 @@ export const Store = {
     return (data || []).map(normalizeVenue);
   },
 
-  async saveVenues(venues) {
-    for (const v of venues) {
-      const row = denormalizeVenue(v);
-      await supabase.from('venues').upsert(row);
-    }
-  },
-
   async getVenue(id) {
-    const { data, error } = await supabase
-      .from('venues')
-      .select('*')
-      .eq('id', id)
-      .single();
+    const { data, error } = await supabase.from('venues').select('*').eq('id', id).single();
     if (error) return null;
     return normalizeVenue(data);
   },
@@ -95,15 +76,13 @@ export const Store = {
     const { data, error } = await supabase
       .from('venues')
       .insert({ ...row, owner_id: _currentUser?.id, published: true, rating: 0, review_count: 0 })
-      .select()
-      .single();
+      .select().single();
     if (error) throw new Error(error.message);
     return normalizeVenue(data);
   },
 
   async updateVenue(id, changes) {
-    const row = denormalizeVenue(changes);
-    const { error } = await supabase.from('venues').update(row).eq('id', id);
+    const { error } = await supabase.from('venues').update(denormalizeVenue(changes)).eq('id', id);
     if (error) throw new Error(error.message);
   },
 
@@ -112,64 +91,39 @@ export const Store = {
     if (error) throw new Error(error.message);
   },
 
-  // ─── PHOTO UPLOAD (cover) ────────────────────────────────
+  async saveVenues(venues) {
+    for (const v of venues) await supabase.from('venues').upsert(denormalizeVenue(v));
+  },
+
   async updateVenueCover(venueId, coverUrl) {
-    const { error } = await supabase
-      .from('venues')
-      .update({ cover_url: coverUrl, img: coverUrl })
-      .eq('id', venueId);
+    const { error } = await supabase.from('venues').update({ cover_url: coverUrl, img: coverUrl }).eq('id', venueId);
     if (error) throw new Error(error.message);
   },
 
   async addVenueGalleryPhoto(venueId, photoUrl) {
-    // Récupère la galerie actuelle puis append
-    const { data } = await supabase
-      .from('venues')
-      .select('gallery_urls')
-      .eq('id', venueId)
-      .single();
-    const existing = data?.gallery_urls || [];
-    const updated = [...existing, photoUrl];
-    const { error } = await supabase
-      .from('venues')
-      .update({ gallery_urls: updated, gallery: updated })
-      .eq('id', venueId);
+    const { data } = await supabase.from('venues').select('gallery_urls').eq('id', venueId).single();
+    const updated = [...(data?.gallery_urls || []), photoUrl];
+    const { error } = await supabase.from('venues').update({ gallery_urls: updated, gallery: updated }).eq('id', venueId);
     if (error) throw new Error(error.message);
     return updated;
   },
 
-  // ─── RESERVATIONS ────────────────────────────────────────
+  // ─── RESERVATIONS ──────────────────────────────────────────────────────────
   async getReservations() {
-    const { data, error } = await supabase
-      .from('reservations')
-      .select('*')
-      .order('created_at', { ascending: false });
+    const { data, error } = await supabase.from('reservations').select('*').order('created_at', { ascending: false });
     if (error) throw new Error(error.message);
     return (data || []).map(normalizeReservation);
   },
 
   async addReservation(res) {
     const row = {
-      venue_id: res.venueId,
-      user_id: res.userId,
-      owner_id: res.ownerId,
-      venue_name: res.venueName,
-      user_name: res.userName,
-      date: res.date,
-      start_time: res.start,
-      end_time: res.end,
-      guests: res.guests,
-      event_type: res.eventType,
-      message: res.message,
-      total: res.total,
-      status: 'pending',
-      payment_status: 'unpaid',
+      venue_id: res.venueId, user_id: res.userId, owner_id: res.ownerId,
+      venue_name: res.venueName, user_name: res.userName, date: res.date,
+      start_time: res.start, end_time: res.end, guests: res.guests,
+      event_type: res.eventType, message: res.message, total: res.total,
+      status: 'pending', payment_status: 'unpaid',
     };
-    const { data, error } = await supabase
-      .from('reservations')
-      .insert(row)
-      .select()
-      .single();
+    const { data, error } = await supabase.from('reservations').insert(row).select().single();
     if (error) throw new Error(error.message);
     return normalizeReservation(data);
   },
@@ -183,39 +137,27 @@ export const Store = {
     if (error) throw new Error(error.message);
   },
 
-  // ─── MESSAGES / CONVERSATIONS ───────────────────────────
+  // ─── MESSAGES / CONVERSATIONS ────────────────────────────────────────────
   async getOrCreateConv(userId, ownerId, venueId, venueName) {
     const convId = `conv_${userId}_${venueId}`;
-    const { data: existing } = await supabase
-      .from('conversations')
-      .select('*')
-      .eq('id', convId)
-      .maybeSingle();
+    const { data: existing } = await supabase.from('conversations').select('*').eq('id', convId).maybeSingle();
     if (existing) return existing;
     const { data, error } = await supabase
       .from('conversations')
       .insert({ id: convId, user_id: userId, owner_id: ownerId, venue_id: venueId, venue_name: venueName })
-      .select()
-      .single();
+      .select().single();
     if (error) throw new Error(error.message);
     return data;
   },
 
   async getAllConversations(userId) {
-    const { data, error } = await supabase
-      .from('conversations')
-      .select('*')
-      .or(`user_id.eq.${userId},owner_id.eq.${userId}`);
+    const { data, error } = await supabase.from('conversations').select('*').or(`user_id.eq.${userId},owner_id.eq.${userId}`);
     if (error) return [];
     return data || [];
   },
 
   async getMessages(convId) {
-    const { data, error } = await supabase
-      .from('messages')
-      .select('*')
-      .eq('conversation_id', convId)
-      .order('ts', { ascending: true });
+    const { data, error } = await supabase.from('messages').select('*').eq('conversation_id', convId).order('ts', { ascending: true });
     if (error) return [];
     return (data || []).map(m => ({ ...m, senderId: m.sender_id }));
   },
@@ -224,13 +166,12 @@ export const Store = {
     const { data, error } = await supabase
       .from('messages')
       .insert({ conversation_id: convId, sender_id: msg.senderId, text: msg.text })
-      .select()
-      .single();
+      .select().single();
     if (error) throw new Error(error.message);
     return { ...data, senderId: data.sender_id };
   },
 
-  // ─── REVIEWS ────────────────────────────────────────────
+  // ─── REVIEWS ───────────────────────────────────────────────────────────────
   async getReviews(venueId) {
     let query = supabase.from('reviews').select('*').order('created_at', { ascending: false });
     if (venueId !== undefined) query = query.eq('venue_id', venueId);
@@ -242,32 +183,21 @@ export const Store = {
   async addReview(review) {
     const { data, error } = await supabase
       .from('reviews')
-      .insert({
-        venue_id: review.venueId,
-        user_id: review.userId,
-        user_name: review.userName,
-        rating: review.rating,
-        comment: review.comment,
-      })
-      .select()
-      .single();
+      .insert({ venue_id: review.venueId, user_id: review.userId, user_name: review.userName, rating: review.rating, comment: review.comment })
+      .select().single();
     if (error) throw new Error(error.message);
     return data;
   },
 
-  // ─── FAVORITES ──────────────────────────────────────────
+  // ─── FAVORITES ────────────────────────────────────────────────────────────
   async getFavorites(userId) {
-    const { data } = await supabase
-      .from('favorites')
-      .select('venue_id')
-      .eq('user_id', userId);
+    const { data } = await supabase.from('favorites').select('venue_id').eq('user_id', userId);
     return (data || []).map(f => f.venue_id);
   },
 
   async toggleFavorite(userId, venueId) {
-    const favs = await this.getFavorites(userId);
-    const exists = favs.includes(Number(venueId));
-    if (exists) {
+    const { data: existing } = await supabase.from('favorites').select('id').eq('user_id', userId).eq('venue_id', venueId).maybeSingle();
+    if (existing) {
       await supabase.from('favorites').delete().eq('user_id', userId).eq('venue_id', venueId);
       return false;
     } else {
@@ -277,12 +207,7 @@ export const Store = {
   },
 
   async isFavorite(userId, venueId) {
-    const { data } = await supabase
-      .from('favorites')
-      .select('venue_id')
-      .eq('user_id', userId)
-      .eq('venue_id', venueId)
-      .maybeSingle();
+    const { data } = await supabase.from('favorites').select('id').eq('user_id', userId).eq('venue_id', venueId).maybeSingle();
     return !!data;
   },
 
@@ -291,24 +216,15 @@ export const Store = {
   },
 };
 
-// ─── Normaliseurs ────────────────────────────────────────
+// ─── Normaliseurs ───────────────────────────────────────────────────────────────
 function normalizeVenue(v) {
   return {
-    id: v.id,
-    ownerId: v.owner_id,
-    name: v.name,
-    type: v.type,
-    city: v.city,
-    address: v.address,
-    price: v.price,
-    capacity: v.capacity,
-    description: v.description,
-    img: v.cover_url || v.img,
+    id: v.id, ownerId: v.owner_id, name: v.name, type: v.type,
+    city: v.city, address: v.address, price: v.price, capacity: v.capacity,
+    description: v.description, img: v.cover_url || v.img,
     gallery: v.gallery_urls || v.gallery || [],
-    tags: v.tags || [],
-    rating: v.rating || 0,
-    reviewCount: v.review_count || 0,
-    published: v.published,
+    tags: v.tags || [], rating: v.rating || 0,
+    reviewCount: v.review_count || 0, published: v.published,
   };
 }
 
@@ -334,24 +250,13 @@ function denormalizeVenue(v) {
 
 function normalizeReservation(r) {
   return {
-    id: r.id,
-    venueId: r.venue_id,
-    userId: r.user_id,
-    ownerId: r.owner_id,
-    venueName: r.venue_name,
-    userName: r.user_name,
-    date: r.date,
-    start: r.start_time,
-    end: r.end_time,
-    guests: r.guests,
-    eventType: r.event_type,
-    message: r.message,
-    total: r.total,
-    status: r.status,
-    paymentStatus: r.payment_status,
+    id: r.id, venueId: r.venue_id, userId: r.user_id, ownerId: r.owner_id,
+    venueName: r.venue_name, userName: r.user_name, date: r.date,
+    start: r.start_time, end: r.end_time, guests: r.guests,
+    eventType: r.event_type, message: r.message, total: r.total,
+    status: r.status, paymentStatus: r.payment_status,
     paymentIntentId: r.payment_intent_id,
     commissionAmount: r.commission_amount,
-    netOwner: r.net_owner,
-    createdAt: r.created_at,
+    netOwner: r.net_owner, createdAt: r.created_at,
   };
 }
