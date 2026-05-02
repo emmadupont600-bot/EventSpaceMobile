@@ -2,15 +2,17 @@ import React, { useState, useCallback, useMemo } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, StyleSheet,
   FlatList, TextInput, RefreshControl, StatusBar, Modal,
+  ActivityIndicator, KeyboardAvoidingView, Platform,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
 import { useApp } from '../../context/AppContext';
 import { VENUES } from '../../data/venues';
+import { aiSearchVenues } from '../../utils/aiSearch';
 import VenueCard from '../../components/VenueCard';
 import { HomeScreenSkeleton } from '../../components/SkeletonLoader';
-import { colors, spacing, typography, radius, shadow } from '../../theme/colors';
+import { colors, spacing, typography, radius } from '../../theme/colors';
 
 const CATEGORIES = [
   { label: 'Tous',         value: null,                 emoji: '✨' },
@@ -18,6 +20,7 @@ const CATEGORIES = [
   { label: 'Soirée',       value: 'Rooftop',            emoji: '🌙' },
   { label: 'Séminaire',    value: 'Loft',               emoji: '💼' },
   { label: 'Anniversaire', value: 'Salle de réception', emoji: '🎂' },
+  { label: 'Atypiques',    value: '__atypique__',        emoji: '🦋' },
   { label: 'Photo',        value: 'Studio photo',       emoji: '📸' },
   { label: 'Plein air',    value: 'Jardin',             emoji: '🌿' },
 ];
@@ -31,6 +34,11 @@ export default function HomeScreen({ navigation }) {
   const [filterOpen, setFilterOpen] = useState(false);
   const [maxPrice, setMaxPrice] = useState('');
   const [minCapacity, setMinCapacity] = useState('');
+  // IA
+  const [aiOpen, setAiOpen] = useState(false);
+  const [aiQuery, setAiQuery] = useState('');
+  const [aiLoading, setAiLoading] = useState(false);
+  const [aiResults, setAiResults] = useState(null); // null = pas encore cherché
   const insets = useSafeAreaInsets();
 
   useFocusEffect(useCallback(() => {
@@ -40,24 +48,58 @@ export default function HomeScreen({ navigation }) {
 
   const onRefresh = () => {
     setRefreshing(true);
-    setTimeout(() => setRefreshing(false), 600);
+    setTimeout(() => { setRefreshing(false); }, 600);
   };
 
   const venues = useMemo(() => (VENUES || []).filter(v => v.published !== false), []);
 
-  const filtered = useMemo(() => venues.filter(v => {
-    const matchSearch = !search ||
-      (v.name || '').toLowerCase().includes(search.toLowerCase()) ||
-      (v.city || '').toLowerCase().includes(search.toLowerCase()) ||
-      (v.location || '').toLowerCase().includes(search.toLowerCase());
-    const matchCat = !cat || v.type === cat;
-    const matchPrice = !maxPrice || (v.price || 0) <= Number(maxPrice);
-    const matchCap = !minCapacity || (v.capacity || 0) >= Number(minCapacity);
-    return matchSearch && matchCat && matchPrice && matchCap;
-  }), [venues, search, cat, maxPrice, minCapacity]);
+  const filtered = useMemo(() => {
+    // Si résultats IA actifs, on les affiche
+    if (aiResults) return aiResults.results;
+    return venues.filter(v => {
+      const matchSearch = !search ||
+        (v.name || '').toLowerCase().includes(search.toLowerCase()) ||
+        (v.city || '').toLowerCase().includes(search.toLowerCase()) ||
+        (v.location || '').toLowerCase().includes(search.toLowerCase());
+      const matchCat = !cat
+        ? true
+        : cat === '__atypique__'
+          ? v.atypique === true
+          : v.type === cat;
+      const matchPrice = !maxPrice || (v.price || 0) <= Number(maxPrice);
+      const matchCap = !minCapacity || (v.capacity || 0) >= Number(minCapacity);
+      return matchSearch && matchCat && matchPrice && matchCap;
+    });
+  }, [venues, search, cat, maxPrice, minCapacity, aiResults]);
 
   const hasFilters = maxPrice || minCapacity;
   const firstName = user?.name?.split(' ')[0] || '';
+
+  const handleAiSearch = () => {
+    if (!aiQuery.trim()) return;
+    setAiLoading(true);
+    // Simule un délai réseau naturel
+    setTimeout(() => {
+      const result = aiSearchVenues(aiQuery, venues);
+      setAiResults(result);
+      setAiLoading(false);
+      setAiOpen(false);
+      // Reset les filtres manuels
+      setSearch('');
+      setCat(null);
+      setMaxPrice('');
+      setMinCapacity('');
+    }, 900);
+  };
+
+  const clearAi = () => {
+    setAiResults(null);
+    setAiQuery('');
+  };
+
+  const sectionLabel = aiResults
+    ? aiResults.summary
+    : `${filtered.length} lieu${filtered.length > 1 ? 'x' : ''} disponible${filtered.length > 1 ? 's' : ''}`;
 
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
@@ -74,55 +116,74 @@ export default function HomeScreen({ navigation }) {
         </TouchableOpacity>
       </View>
 
+      {/* Bouton IA */}
+      <TouchableOpacity
+        style={[styles.aiBtn, aiResults && styles.aiBtnActive]}
+        onPress={aiResults ? clearAi : () => setAiOpen(true)}
+        activeOpacity={0.85}
+      >
+        <Text style={styles.aiBtnEmoji}>✨</Text>
+        <Text style={styles.aiBtnText}>
+          {aiResults ? aiResults.summary : 'Décrivez votre événement en texte libre...'}
+        </Text>
+        {aiResults
+          ? <Ionicons name="close-circle" size={18} color={colors.primary} />
+          : <Ionicons name="arrow-forward-circle" size={18} color={colors.primary} />}
+      </TouchableOpacity>
+
       {/* Search + Filter */}
-      <View style={styles.searchRow}>
-        <View style={styles.searchBar}>
-          <Ionicons name="search-outline" size={16} color={colors.mid} />
-          <TextInput
-            style={styles.searchInput}
-            placeholder="Ville, nom, type d'espace..."
-            placeholderTextColor={colors.light}
-            value={search}
-            onChangeText={setSearch}
-            returnKeyType="search"
-          />
-          {!!search && (
-            <TouchableOpacity onPress={() => setSearch('')} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-              <Ionicons name="close-circle" size={16} color={colors.mid} />
-            </TouchableOpacity>
-          )}
+      {!aiResults && (
+        <View style={styles.searchRow}>
+          <View style={styles.searchBar}>
+            <Ionicons name="search-outline" size={16} color={colors.mid} />
+            <TextInput
+              style={styles.searchInput}
+              placeholder="Ville, nom, type d'espace..."
+              placeholderTextColor={colors.light}
+              value={search}
+              onChangeText={setSearch}
+              returnKeyType="search"
+            />
+            {!!search && (
+              <TouchableOpacity onPress={() => setSearch('')} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                <Ionicons name="close-circle" size={16} color={colors.mid} />
+              </TouchableOpacity>
+            )}
+          </View>
+          <TouchableOpacity
+            style={[styles.filterBtn, hasFilters && styles.filterBtnActive]}
+            onPress={() => setFilterOpen(true)}
+          >
+            <Text style={{ fontSize: 18 }}>⚙️</Text>
+            {!!hasFilters && <View style={styles.filterDot} />}
+          </TouchableOpacity>
         </View>
-        <TouchableOpacity
-          style={[styles.filterBtn, hasFilters && styles.filterBtnActive]}
-          onPress={() => setFilterOpen(true)}
-        >
-          <Ionicons name="options-outline" size={20} color={hasFilters ? colors.primary : colors.mid} />
-          {!!hasFilters && <View style={styles.filterDot} />}
-        </TouchableOpacity>
-      </View>
+      )}
 
       {/* Catégories */}
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        style={styles.catScroll}
-        contentContainerStyle={styles.catContent}
-      >
-        {CATEGORIES.map(c => {
-          const active = cat === c.value;
-          return (
-            <TouchableOpacity
-              key={c.label}
-              style={[styles.catBtn, active && styles.catBtnActive]}
-              onPress={() => setCat(active ? null : c.value)}
-              activeOpacity={0.7}
-            >
-              <Text style={styles.catEmoji}>{c.emoji}</Text>
-              <Text style={[styles.catText, active && styles.catTextActive]}>{c.label}</Text>
-            </TouchableOpacity>
-          );
-        })}
-      </ScrollView>
+      {!aiResults && (
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          style={styles.catScroll}
+          contentContainerStyle={styles.catContent}
+        >
+          {CATEGORIES.map(c => {
+            const active = cat === c.value;
+            return (
+              <TouchableOpacity
+                key={c.label}
+                style={[styles.catBtn, active && styles.catBtnActive]}
+                onPress={() => setCat(active ? null : c.value)}
+                activeOpacity={0.7}
+              >
+                <Text style={styles.catEmoji}>{c.emoji}</Text>
+                <Text style={[styles.catText, active && styles.catTextActive]}>{c.label}</Text>
+              </TouchableOpacity>
+            );
+          })}
+        </ScrollView>
+      )}
 
       {/* Contenu */}
       {loading ? (
@@ -150,37 +211,110 @@ export default function HomeScreen({ navigation }) {
             />
           }
           ListHeaderComponent={
-            <Text style={styles.sectionTitle}>
-              {filtered.length} lieu{filtered.length > 1 ? 'x' : ''} disponible{filtered.length > 1 ? 's' : ''}
+            <Text style={[styles.sectionTitle, aiResults && styles.sectionTitleAi]}>
+              {sectionLabel}
             </Text>
           }
           ListEmptyComponent={
             <View style={styles.empty}>
               <Text style={styles.emptyIco}>🔍</Text>
               <Text style={styles.emptyTitle}>Aucun résultat</Text>
-              <Text style={styles.emptySubtitle}>Essayez d’autres termes ou explorez la carte</Text>
-              <TouchableOpacity style={styles.emptyMapBtn} onPress={() => navigation.navigate('MapSearch')}>
-                <Text>🗺️</Text>
-                <Text style={styles.emptyMapBtnText}>Explorer la carte</Text>
-              </TouchableOpacity>
+              <Text style={styles.emptySubtitle}>
+                {aiResults
+                  ? "L'IA n'a pas trouvé de lieu correspondant. Essayez d'être plus précis ou modifiez votre demande."
+                  : "Essayez d'autres termes ou explorez la carte"}
+              </Text>
+              {aiResults
+                ? (
+                  <TouchableOpacity style={styles.emptyMapBtn} onPress={clearAi}>
+                    <Text style={styles.emptyMapBtnText}>↩ Retour à la liste</Text>
+                  </TouchableOpacity>
+                ) : (
+                  <TouchableOpacity style={styles.emptyMapBtn} onPress={() => navigation.navigate('MapSearch')}>
+                    <Text>🗺️</Text>
+                    <Text style={styles.emptyMapBtnText}>Explorer la carte</Text>
+                  </TouchableOpacity>
+                )}
             </View>
           }
         />
       )}
+
+      {/* Modal IA */}
+      <Modal visible={aiOpen} transparent animationType="slide" onRequestClose={() => setAiOpen(false)}>
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+          style={{ flex: 1 }}
+        >
+          <TouchableOpacity style={styles.modalOverlay} activeOpacity={1} onPress={() => setAiOpen(false)} />
+          <View style={styles.aiSheet}>
+            <View style={styles.modalHandle} />
+            <View style={styles.aiSheetHeader}>
+              <Text style={styles.aiSheetTitle}>✨ Assistant IA</Text>
+              <Text style={styles.aiSheetSub}>
+                Décrivez votre événement en langage naturel — l'IA trouve les lieux pour vous.
+              </Text>
+            </View>
+
+            <View style={styles.aiExamples}>
+              {[
+                '"Anniversaire 30 ans, 40 personnes, Paris, budget 800€"',
+                '"Mariage champêtre 150 invités en Provence"',
+                '"Soirée atypique sur une péniche à Paris"',
+              ].map((ex, i) => (
+                <TouchableOpacity
+                  key={i}
+                  style={styles.aiExampleBtn}
+                  onPress={() => setAiQuery(ex.replace(/"/g, ''))}
+                >
+                  <Text style={styles.aiExampleText}>{ex}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+
+            <TextInput
+              style={styles.aiInput}
+              placeholder="Ex: anniversaire 30 ans pour 40 personnes à Paris, budget 800€..."
+              placeholderTextColor={colors.light}
+              value={aiQuery}
+              onChangeText={setAiQuery}
+              multiline
+              numberOfLines={3}
+              textAlignVertical="top"
+              autoFocus
+              returnKeyType="search"
+            />
+
+            <TouchableOpacity
+              style={[styles.aiSearchBtn, (!aiQuery.trim() || aiLoading) && styles.aiSearchBtnDisabled]}
+              onPress={handleAiSearch}
+              disabled={!aiQuery.trim() || aiLoading}
+            >
+              {aiLoading
+                ? <ActivityIndicator color="#fff" size="small" />
+                : <>
+                    <Text style={styles.aiSearchBtnText}>✨ Trouver les lieux</Text>
+                    <Ionicons name="arrow-forward" size={18} color="#fff" />
+                  </>
+              }
+            </TouchableOpacity>
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
 
       {/* Modal filtres */}
       <Modal visible={filterOpen} transparent animationType="slide" onRequestClose={() => setFilterOpen(false)}>
         <TouchableOpacity style={styles.modalOverlay} activeOpacity={1} onPress={() => setFilterOpen(false)} />
         <View style={styles.modalSheet}>
           <View style={styles.modalHandle} />
-          <Text style={styles.modalTitle}>🎯 Filtres avancés</Text>
+          <Text style={styles.modalTitle}>⚙️ Filtres avancés</Text>
 
           <Text style={styles.filterLabel}>💶 Prix maximum (€/heure)</Text>
           <TextInput
             style={styles.filterInput}
             value={maxPrice}
             onChangeText={setMaxPrice}
-            placeholder="Ex : 2000"
+            placeholder="Ex : 2000"
             placeholderTextColor={colors.light}
             keyboardType="number-pad"
           />
@@ -190,7 +324,7 @@ export default function HomeScreen({ navigation }) {
             style={styles.filterInput}
             value={minCapacity}
             onChangeText={setMinCapacity}
-            placeholder="Ex : 50"
+            placeholder="Ex : 50"
             placeholderTextColor={colors.light}
             keyboardType="number-pad"
           />
@@ -212,99 +346,152 @@ export default function HomeScreen({ navigation }) {
   );
 }
 
+const C = colors;
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.bg },
+  container: { flex: 1, backgroundColor: C.bg },
   header: {
     flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
     paddingHorizontal: spacing.lg, paddingTop: spacing.md, paddingBottom: spacing.sm,
   },
-  greeting: { fontSize: typography.small, color: colors.mid, fontWeight: '500' },
-  logo: { fontSize: 26, fontWeight: '900', color: colors.dark, letterSpacing: -0.5 },
-  logoAccent: { color: colors.primary },
+  greeting: { fontSize: typography.small, color: C.mid, fontWeight: '500' },
+  logo: { fontSize: 26, fontWeight: '900', color: C.dark, letterSpacing: -0.5 },
+  logoAccent: { color: C.primary },
   iconBtn: {
     width: 38, height: 38, borderRadius: 11,
-    backgroundColor: colors.primaryLight || '#EEF2FF',
+    backgroundColor: C.primaryLight || '#EEF2FF',
     alignItems: 'center', justifyContent: 'center',
   },
   iconBtnEmoji: { fontSize: 18 },
+
+  // Bouton IA
+  aiBtn: {
+    marginHorizontal: spacing.lg, marginBottom: spacing.sm,
+    flexDirection: 'row', alignItems: 'center', gap: 8,
+    backgroundColor: C.white, borderRadius: 14,
+    paddingHorizontal: spacing.md, paddingVertical: 11,
+    borderWidth: 1.5, borderColor: C.primary + '44',
+    borderStyle: 'dashed',
+  },
+  aiBtnActive: {
+    borderStyle: 'solid', borderColor: C.primary,
+    backgroundColor: C.primaryLight || '#EEF2FF',
+  },
+  aiBtnEmoji: { fontSize: 16 },
+  aiBtnText: { flex: 1, fontSize: 13, color: C.mid, fontWeight: '500' },
+
   searchRow: {
     flexDirection: 'row', alignItems: 'center',
-    paddingHorizontal: spacing.lg, marginTop: spacing.xs,
-    marginBottom: spacing.sm, gap: spacing.sm,
+    paddingHorizontal: spacing.lg, marginBottom: spacing.sm, gap: spacing.sm,
   },
   searchBar: {
     flex: 1, flexDirection: 'row', alignItems: 'center',
-    backgroundColor: colors.white,
-    borderRadius: 14, paddingHorizontal: spacing.md, paddingVertical: 10,
-    borderWidth: 1.5, borderColor: colors.border,
-    gap: spacing.sm,
+    backgroundColor: C.white, borderRadius: 14,
+    paddingHorizontal: spacing.md, paddingVertical: 10,
+    borderWidth: 1.5, borderColor: C.border, gap: spacing.sm,
   },
-  searchInput: { flex: 1, fontSize: typography.body, color: colors.dark },
+  searchInput: { flex: 1, fontSize: typography.body, color: C.dark },
   filterBtn: {
     width: 44, height: 44, borderRadius: 12,
-    backgroundColor: colors.white,
-    alignItems: 'center', justifyContent: 'center',
-    borderWidth: 1.5, borderColor: colors.border,
-    position: 'relative',
+    backgroundColor: C.white, alignItems: 'center', justifyContent: 'center',
+    borderWidth: 1.5, borderColor: C.border, position: 'relative',
   },
-  filterBtnActive: { borderColor: colors.primary, backgroundColor: colors.primaryLight || '#EEF2FF' },
+  filterBtnActive: { borderColor: C.primary, backgroundColor: C.primaryLight || '#EEF2FF' },
   filterDot: {
     position: 'absolute', top: 6, right: 6,
-    width: 8, height: 8, borderRadius: 4,
-    backgroundColor: '#EF4444',
+    width: 8, height: 8, borderRadius: 4, backgroundColor: '#EF4444',
   },
+
+  // Catégories
   catScroll: { flexGrow: 0, marginBottom: spacing.xs },
-  catContent: { paddingHorizontal: spacing.lg, paddingVertical: 2, gap: 6 },
+  catContent: { paddingHorizontal: spacing.lg, paddingVertical: 4, gap: 6 },
   catBtn: {
-    flexDirection: 'row', alignItems: 'center', gap: 4,
-    backgroundColor: colors.white, borderRadius: 20,
-    paddingHorizontal: 10, paddingVertical: 4,
-    borderWidth: 1.5, borderColor: colors.border,
+    flexDirection: 'row', alignItems: 'center', gap: 5,
+    backgroundColor: C.white, borderRadius: 20,
+    paddingHorizontal: 12, paddingVertical: 7,
+    borderWidth: 1.5, borderColor: C.border,
   },
-  catBtnActive: { backgroundColor: colors.primary, borderColor: colors.primary },
-  catEmoji: { fontSize: 12, lineHeight: 16 },
-  catText: { fontSize: 11, color: colors.mid, fontWeight: '500' },
+  catBtnActive: { backgroundColor: C.primary, borderColor: C.primary },
+  catEmoji: { fontSize: 13, lineHeight: 18 },
+  catText: { fontSize: 13, color: C.dark, fontWeight: '600' },
   catTextActive: { color: '#fff', fontWeight: '700' },
+
   sectionTitle: {
-    fontSize: typography.small, fontWeight: '700', color: colors.mid,
+    fontSize: typography.small, fontWeight: '700', color: C.mid,
     marginBottom: spacing.md, marginTop: spacing.xs,
     letterSpacing: 0.5, textTransform: 'uppercase',
   },
+  sectionTitleAi: {
+    color: C.primary, textTransform: 'none', fontSize: 13,
+    fontWeight: '700', letterSpacing: 0,
+  },
+
   empty: { alignItems: 'center', paddingTop: 60, gap: spacing.md },
   emptyIco: { fontSize: 44 },
-  emptyTitle: { fontSize: typography.h3, fontWeight: '700', color: colors.dark },
-  emptySubtitle: { fontSize: typography.small, color: colors.light, textAlign: 'center', maxWidth: 240 },
+  emptyTitle: { fontSize: typography.h3, fontWeight: '700', color: C.dark },
+  emptySubtitle: { fontSize: typography.small, color: C.light, textAlign: 'center', maxWidth: 260 },
   emptyMapBtn: {
     flexDirection: 'row', alignItems: 'center', gap: 6,
-    backgroundColor: colors.primary, borderRadius: 20,
+    backgroundColor: C.primary, borderRadius: 20,
     paddingHorizontal: spacing.xl, paddingVertical: spacing.md, marginTop: spacing.sm,
   },
   emptyMapBtnText: { color: '#fff', fontWeight: '700', fontSize: typography.small },
+
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.45)' },
+
+  // Modal IA
+  aiSheet: {
+    backgroundColor: C.bg, borderTopLeftRadius: 28, borderTopRightRadius: 28,
+    padding: spacing.lg, paddingBottom: 40,
+  },
+  aiSheetHeader: { marginBottom: spacing.md },
+  aiSheetTitle: { fontSize: typography.h2, fontWeight: '900', color: C.dark, marginBottom: 4 },
+  aiSheetSub: { fontSize: typography.small, color: C.mid, lineHeight: 18 },
+  aiExamples: { marginBottom: spacing.md, gap: 6 },
+  aiExampleBtn: {
+    backgroundColor: C.primaryLight || '#EEF2FF',
+    borderRadius: 10, paddingHorizontal: 12, paddingVertical: 8,
+  },
+  aiExampleText: { fontSize: 12, color: C.primary, fontStyle: 'italic' },
+  aiInput: {
+    backgroundColor: C.white, borderRadius: 14,
+    borderWidth: 1.5, borderColor: C.primary,
+    paddingHorizontal: spacing.md, paddingVertical: 12,
+    fontSize: typography.body, color: C.dark,
+    minHeight: 80, marginBottom: spacing.md,
+  },
+  aiSearchBtn: {
+    backgroundColor: C.primary, borderRadius: 14,
+    paddingVertical: spacing.md, alignItems: 'center',
+    flexDirection: 'row', justifyContent: 'center', gap: 8,
+  },
+  aiSearchBtnDisabled: { opacity: 0.5 },
+  aiSearchBtnText: { color: '#fff', fontWeight: '700', fontSize: typography.body },
+
+  // Modal filtres
   modalSheet: {
-    backgroundColor: colors.bg, borderTopLeftRadius: 24, borderTopRightRadius: 24,
+    backgroundColor: C.bg, borderTopLeftRadius: 24, borderTopRightRadius: 24,
     padding: spacing.lg, paddingBottom: 40,
   },
   modalHandle: {
     width: 40, height: 4, borderRadius: 2,
-    backgroundColor: colors.border, alignSelf: 'center', marginBottom: spacing.lg,
+    backgroundColor: C.border, alignSelf: 'center', marginBottom: spacing.lg,
   },
-  modalTitle: { fontSize: typography.h2, fontWeight: '900', color: colors.dark, marginBottom: spacing.lg },
-  filterLabel: { fontSize: typography.small, fontWeight: '700', color: colors.mid, marginBottom: spacing.sm },
+  modalTitle: { fontSize: typography.h2, fontWeight: '900', color: C.dark, marginBottom: spacing.lg },
+  filterLabel: { fontSize: typography.small, fontWeight: '700', color: C.mid, marginBottom: spacing.sm },
   filterInput: {
-    backgroundColor: colors.white, borderRadius: 12,
-    borderWidth: 1.5, borderColor: colors.border,
+    backgroundColor: C.white, borderRadius: 12,
+    borderWidth: 1.5, borderColor: C.border,
     paddingHorizontal: spacing.md, paddingVertical: 12,
-    fontSize: typography.body, color: colors.dark, marginBottom: spacing.lg,
+    fontSize: typography.body, color: C.dark, marginBottom: spacing.lg,
   },
   applyBtn: {
-    backgroundColor: colors.primary, borderRadius: 14,
+    backgroundColor: C.primary, borderRadius: 14,
     paddingVertical: spacing.md, alignItems: 'center', marginBottom: spacing.sm,
   },
   applyBtnText: { color: '#fff', fontWeight: '700', fontSize: typography.body },
   clearBtn: {
     borderRadius: 14, paddingVertical: spacing.md,
-    alignItems: 'center', borderWidth: 1.5, borderColor: colors.border,
+    alignItems: 'center', borderWidth: 1.5, borderColor: C.border,
   },
-  clearBtnText: { color: colors.mid, fontWeight: '600', fontSize: typography.body },
+  clearBtnText: { color: C.mid, fontWeight: '600', fontSize: typography.body },
 });
