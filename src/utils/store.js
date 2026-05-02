@@ -7,20 +7,17 @@ async function initDemoData() {
   const initialized = await AsyncStorage.getItem('es_initialized');
   if (initialized) return;
 
-  // Réservations de démo
   const existingRes = await AsyncStorage.getItem('es_reservations');
   if (!existingRes) {
     await AsyncStorage.setItem('es_reservations', JSON.stringify(DEMO_RESERVATIONS_DATA));
   }
 
-  // Conversations de démo
   for (const conv of DEMO_CONVERSATIONS) {
     const key = 'es_conv_' + conv.userId + '_' + conv.venueId;
     const existing = await AsyncStorage.getItem(key);
     if (!existing) await AsyncStorage.setItem(key, JSON.stringify(conv));
   }
 
-  // Messages de démo
   for (const [convId, msgs] of Object.entries(DEMO_MESSAGES)) {
     const existing = await AsyncStorage.getItem('es_msgs_' + convId);
     if (!existing) await AsyncStorage.setItem('es_msgs_' + convId, JSON.stringify(msgs));
@@ -34,7 +31,15 @@ export const Store = {
   // --- AUTH ---
   async getUsers() {
     const saved = await AsyncStorage.getItem('es_users');
-    return saved ? JSON.parse(saved) : [...DEMO_USERS];
+    if (!saved) return [...DEMO_USERS];
+    const parsed = JSON.parse(saved);
+    // Correction : si les users sauvegardés n'ont pas de password, on force un reset avec DEMO_USERS
+    const hasPasswords = parsed.every(u => u.password);
+    if (!hasPasswords) {
+      await AsyncStorage.setItem('es_users', JSON.stringify([...DEMO_USERS]));
+      return [...DEMO_USERS];
+    }
+    return parsed;
   },
   async saveUsers(users) {
     await AsyncStorage.setItem('es_users', JSON.stringify(users));
@@ -50,10 +55,14 @@ export const Store = {
     await AsyncStorage.removeItem('es_user');
   },
 
-  // --- LOGIN DEMO (email + password) ---
+  // --- LOGIN : comparaison insensible à la casse + trim ---
   async login(email, password) {
     const users = await this.getUsers();
-    const user = users.find(u => u.email === email && u.password === password);
+    const emailNorm = (email || '').trim().toLowerCase();
+    const passwordNorm = (password || '').trim();
+    const user = users.find(
+      u => (u.email || '').toLowerCase() === emailNorm && u.password === passwordNorm
+    );
     if (!user) throw new Error('Email ou mot de passe incorrect');
     await this.setCurrentUser(user);
     await initDemoData();
@@ -63,8 +72,11 @@ export const Store = {
   // --- REGISTER ---
   async register(data) {
     const users = await this.getUsers();
-    if (users.find(u => u.email === data.email)) throw new Error('Email déjà utilisé');
-    const user = { ...data, id: Date.now() };
+    const emailNorm = (data.email || '').trim().toLowerCase();
+    if (users.find(u => (u.email || '').toLowerCase() === emailNorm)) {
+      throw new Error('Email déjà utilisé');
+    }
+    const user = { ...data, email: emailNorm, id: Date.now() };
     users.push(user);
     await this.saveUsers(users);
     await this.setCurrentUser(user);
@@ -100,7 +112,6 @@ export const Store = {
   async getReservations() {
     const saved = await AsyncStorage.getItem('es_reservations');
     if (saved) return JSON.parse(saved);
-    // Fallback : demo reservations si pas encore initialisé
     return [...DEMO_RESERVATIONS_DATA];
   },
   async addReservation(res) {
@@ -187,8 +198,7 @@ export const Store = {
     return favs.includes(Number(venueId));
   },
 
-  // --- RESET (pour re-tester depuis zéro) ---
-  // Appelle Store.resetDemo() dans la console Expo ou dans le ProfilScreen pour tout effacer
+  // --- RESET ---
   async resetDemo() {
     const keys = await AsyncStorage.getAllKeys();
     const esKeys = keys.filter(k => k.startsWith('es_'));
