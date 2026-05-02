@@ -4,8 +4,8 @@
 import { createClient } from '@supabase/supabase-js';
 import 'react-native-url-polyfill/auto';
 
-const SUPABASE_URL       = 'https://lmmadyvzbzeafriyeseg.supabase.co';
-const SUPABASE_ANON_KEY  = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImxtbWFkeXZ6YnplYWZyaXllc2VnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzc3MzUwNDMsImV4cCI6MjA5MzMxMTA0M30.tZeGgUBkkRJqG1e3CejbODxlH-m7oLFrkSfCNIqBCgg';
+const SUPABASE_URL      = 'https://lmmadyvzbzeafriyeseg.supabase.co';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImxtbWFkeXZ6YnplYWZyaXllc2VnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzc3MzUwNDMsImV4cCI6MjA5MzMxMTA0M30.tZeGgUBkkRJqG1e3CejbODxlH-m7oLFrkSfCNIqBCgg';
 
 export const isSupabaseConfigured = true;
 
@@ -83,21 +83,23 @@ export const SupabaseReservations = {
 };
 
 // ─── MESSAGES ────────────────────────────────────────────────────────────────
+// FIX: toutes les requêtes utilisent 'conversation_id' (cohérent avec store.js)
 export const SupabaseMessages = {
   async getByConv(convId) {
     return sbQuery(sb =>
-      sb.from('messages').select('*').eq('conv_id', convId).order('ts', { ascending: true })
+      sb.from('messages').select('*').eq('conversation_id', convId).order('ts', { ascending: true })
     );
   },
   async insert(msg) {
     return sbQuery(sb => sb.from('messages').insert(msg).select().single());
   },
+  // FIX: filtre sur 'conversation_id' au lieu de 'conv_id'
   subscribeToConv(convId, onMessage) {
     const channel = supabase
       .channel('conv-' + convId)
       .on('postgres_changes', {
         event: 'INSERT', schema: 'public', table: 'messages',
-        filter: `conv_id=eq.${convId}`,
+        filter: `conversation_id=eq.${convId}`,
       }, payload => onMessage(payload.new))
       .subscribe();
     return () => supabase.removeChannel(channel);

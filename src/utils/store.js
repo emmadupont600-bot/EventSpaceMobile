@@ -3,15 +3,21 @@
  */
 import { supabase } from '../services/supabase';
 
+// FIX: plus de cache module-level, on récupère toujours depuis la session en cours
 let _currentUser = null;
 
 export const Store = {
 
   // ─── AUTH ─────────────────────────────────────────────────────────
   async getCurrentUser() {
-    if (_currentUser) return _currentUser;
+    // FIX: on vérifie toujours la session Supabase pour éviter un cache stale
     const { data: { session } } = await supabase.auth.getSession();
-    if (!session?.user) return null;
+    if (!session?.user) {
+      _currentUser = null;
+      return null;
+    }
+    // Si le cache correspond au bon utilisateur, on le retourne directement
+    if (_currentUser && _currentUser.id === session.user.id) return _currentUser;
     const { data } = await supabase.from('users').select('*').eq('id', session.user.id).maybeSingle();
     _currentUser = data || { id: session.user.id, email: session.user.email, role: 'client' };
     return _currentUser;
@@ -41,7 +47,9 @@ export const Store = {
     });
     if (error || !data?.user) throw new Error(error?.message || 'Erreur lors de l\'inscription');
     const profile = { id: data.user.id, email: emailNorm, name: userData.name, role: userData.role || 'client', phone: userData.phone || null };
-    await supabase.from('users').insert(profile);
+    // FIX: upsert au lieu de insert pour éviter un doublon si profil existe déjà
+    const { error: profileError } = await supabase.from('users').upsert(profile, { onConflict: 'id' });
+    if (profileError) console.warn('[Store.register] profil insert warning:', profileError.message);
     _currentUser = profile;
     return _currentUser;
   },
@@ -125,7 +133,7 @@ export const Store = {
       end_time:      res.end,
       guests:        res.guests,
       event_type:    res.eventType,
-      message:       res.notes || res.message || null,   // fix: accepte les deux champs
+      message:       res.notes || res.message || null,
       total:         res.total,
       status:        'pending',
       payment_status: 'unpaid',
@@ -164,7 +172,11 @@ export const Store = {
   },
 
   async getMessages(convId) {
-    const { data, error } = await supabase.from('messages').select('*').eq('conversation_id', convId).order('ts', { ascending: true });
+    const { data, error } = await supabase
+      .from('messages')
+      .select('*')
+      .eq('conversation_id', convId)
+      .order('ts', { ascending: true });
     if (error) return [];
     return (data || []).map(m => ({ ...m, senderId: m.sender_id }));
   },
@@ -184,13 +196,27 @@ export const Store = {
     if (venueId !== undefined) query = query.eq('venue_id', venueId);
     const { data, error } = await query;
     if (error) return [];
-    return (data || []).map(r => ({ ...r, venueId: r.venue_id, userId: r.user_id, userName: r.user_name }));
+    // FIX: normalise 'user_name'→'author' et 'comment'→'text' pour VenueDetailScreen
+    return (data || []).map(r => ({
+      ...r,
+      venueId:  r.venue_id,
+      userId:   r.user_id,
+      userName: r.user_name,
+      author:   r.user_name || 'Anonyme',   // alias pour l'affichage
+      text:     r.comment   || '',           // alias pour l'affichage
+    }));
   },
 
   async addReview(review) {
     const { data, error } = await supabase
       .from('reviews')
-      .insert({ venue_id: review.venueId, user_id: review.userId, user_name: review.userName, rating: review.rating, comment: review.comment })
+      .insert({
+        venue_id:  review.venueId,
+        user_id:   review.userId,
+        user_name: review.userName,
+        rating:    review.rating,
+        comment:   review.comment,
+      })
       .select().single();
     if (error) throw new Error(error.message);
     return data;
@@ -203,7 +229,9 @@ export const Store = {
   },
 
   async toggleFavorite(userId, venueId) {
-    const { data: existing } = await supabase.from('favorites').select('id').eq('user_id', userId).eq('venue_id', venueId).maybeSingle();
+    const { data: existing } = await supabase
+      .from('favorites').select('id')
+      .eq('user_id', userId).eq('venue_id', venueId).maybeSingle();
     if (existing) {
       await supabase.from('favorites').delete().eq('user_id', userId).eq('venue_id', venueId);
       return false;
@@ -214,7 +242,9 @@ export const Store = {
   },
 
   async isFavorite(userId, venueId) {
-    const { data } = await supabase.from('favorites').select('id').eq('user_id', userId).eq('venue_id', venueId).maybeSingle();
+    const { data } = await supabase
+      .from('favorites').select('id')
+      .eq('user_id', userId).eq('venue_id', venueId).maybeSingle();
     return !!data;
   },
 
@@ -237,21 +267,21 @@ function normalizeVenue(v) {
 
 function denormalizeVenue(v) {
   const row = {};
-  if (v.id !== undefined)          row.id = v.id;
-  if (v.ownerId !== undefined)     row.owner_id = v.ownerId;
-  if (v.name !== undefined)        row.name = v.name;
-  if (v.type !== undefined)        row.type = v.type;
-  if (v.city !== undefined)        row.city = v.city;
-  if (v.address !== undefined)     row.address = v.address;
-  if (v.price !== undefined)       row.price = v.price;
-  if (v.capacity !== undefined)    row.capacity = v.capacity;
-  if (v.description !== undefined) row.description = v.description;
-  if (v.img !== undefined)         row.img = v.img;
-  if (v.cover_url !== undefined)   row.cover_url = v.cover_url;
-  if (v.gallery !== undefined)     row.gallery = v.gallery;
+  if (v.id !== undefined)           row.id = v.id;
+  if (v.ownerId !== undefined)      row.owner_id = v.ownerId;
+  if (v.name !== undefined)         row.name = v.name;
+  if (v.type !== undefined)         row.type = v.type;
+  if (v.city !== undefined)         row.city = v.city;
+  if (v.address !== undefined)      row.address = v.address;
+  if (v.price !== undefined)        row.price = v.price;
+  if (v.capacity !== undefined)     row.capacity = v.capacity;
+  if (v.description !== undefined)  row.description = v.description;
+  if (v.img !== undefined)          row.img = v.img;
+  if (v.cover_url !== undefined)    row.cover_url = v.cover_url;
+  if (v.gallery !== undefined)      row.gallery = v.gallery;
   if (v.gallery_urls !== undefined) row.gallery_urls = v.gallery_urls;
-  if (v.tags !== undefined)        row.tags = v.tags;
-  if (v.published !== undefined)   row.published = v.published;
+  if (v.tags !== undefined)         row.tags = v.tags;
+  if (v.published !== undefined)    row.published = v.published;
   return row;
 }
 

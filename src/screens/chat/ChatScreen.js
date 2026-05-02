@@ -1,6 +1,6 @@
 /**
  * ChatScreen — messagerie temps réel via Supabase Realtime.
- * Remplace le setInterval(load, 3000) par un channel Supabase.
+ * FIX: import supabase depuis le bon chemin (services/ et non lib/)
  */
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
@@ -9,7 +9,7 @@ import {
 } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { supabase } from '../../lib/supabase';
+import { supabase } from '../../services/supabase';
 import { Store } from '../../utils/store';
 import { colors, spacing, typography, radius, shadow } from '../../theme/colors';
 
@@ -32,7 +32,7 @@ export default function ChatScreen({ route, navigation }) {
   useEffect(() => {
     loadMessages();
 
-    // Souscription aux nouveaux messages de cette conversation
+    // FIX: filtre sur 'conversation_id' (cohérent avec le schema DB)
     const channel = supabase
       .channel(`messages:${conv.id}`)
       .on(
@@ -47,7 +47,6 @@ export default function ChatScreen({ route, navigation }) {
           const m = payload.new;
           const normalized = { ...m, senderId: m.sender_id };
           setMessages(prev => {
-            // Évite les doublons (message qu'on vient d'envoyer)
             if (prev.find(x => x.id === m.id)) return prev;
             return [...prev, normalized];
           });
@@ -73,7 +72,6 @@ export default function ChatScreen({ route, navigation }) {
         senderId: user.id,
         text: trimmed,
       });
-      // Le Realtime va automatiquement mettre à jour les messages
     } catch (e) {
       console.error('[Chat] send error:', e);
     }
@@ -101,7 +99,7 @@ export default function ChatScreen({ route, navigation }) {
         {!me && (
           <View style={[styles.msgAvatar, !showAvatar && { opacity: 0 }]}>
             <Text style={styles.msgAvatarText}>
-              {getInitials(item.senderName || (me ? user?.name : 'A'))}
+              {getInitials(item.senderName || 'A')}
             </Text>
           </View>
         )}
