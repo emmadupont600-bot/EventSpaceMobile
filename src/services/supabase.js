@@ -1,33 +1,20 @@
 /**
  * supabase.js — Client Supabase centralisé.
- *
- * Pour activer le vrai backend :
- * 1. Va sur https://supabase.com → New project
- * 2. Copie l'URL et la clé anon depuis Settings > API
- * 3. Remplace SUPABASE_URL et SUPABASE_ANON_KEY ci-dessous
- * 4. Lance le script SQL dans src/services/supabase-schema.sql
- *
- * Tant que les variables sont sur 'YOUR_*', le service retourne
- * des erreurs silencieuses et le Store local (AsyncStorage) prend le relais.
  */
 import { createClient } from '@supabase/supabase-js';
 import 'react-native-url-polyfill/auto';
 
-const SUPABASE_URL       = 'YOUR_SUPABASE_URL';
-const SUPABASE_ANON_KEY  = 'YOUR_SUPABASE_ANON_KEY';
+const SUPABASE_URL       = 'https://lmmadyvzbzeafriyeseg.supabase.co';
+const SUPABASE_ANON_KEY  = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImxtbWFkeXZ6YnplYWZyaXllc2VnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzc3MzUwNDMsImV4cCI6MjA5MzMxMTA0M30.tZeGgUBkkRJqG1e3CejbODxlH-m7oLFrkSfCNIqBCgg';
 
-export const isSupabaseConfigured = !SUPABASE_URL.startsWith('YOUR_');
+export const isSupabaseConfigured = true;
 
-export const supabase = isSupabaseConfigured
-  ? createClient(SUPABASE_URL, SUPABASE_ANON_KEY)
-  : null;
+export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 /**
- * Helper générique : exécute une requête Supabase si configuré,
- * sinon retourne { data: null, error: null } silencieusement.
+ * Helper générique : exécute une requête Supabase.
  */
 export async function sbQuery(fn) {
-  if (!supabase) return { data: null, error: null };
   try {
     return await fn(supabase);
   } catch (e) {
@@ -105,9 +92,7 @@ export const SupabaseMessages = {
   async insert(msg) {
     return sbQuery(sb => sb.from('messages').insert(msg).select().single());
   },
-  // Realtime subscription
   subscribeToConv(convId, onMessage) {
-    if (!supabase) return () => {};
     const channel = supabase
       .channel('conv-' + convId)
       .on('postgres_changes', {
