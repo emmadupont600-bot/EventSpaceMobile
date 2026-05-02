@@ -156,7 +156,7 @@ export default function HomeScreen({ navigation }) {
         </View>
       )}
 
-      {/* ── Catégories : emoji AU-DESSUS du label, pill compact ── */}
+      {/* Catégories — pill slim horizontal, 1 ligne, ~30px de hauteur */}
       {!aiResults && (
         <ScrollView
           horizontal
@@ -171,7 +171,7 @@ export default function HomeScreen({ navigation }) {
                 key={c.label}
                 style={[styles.catBtn, active && styles.catBtnActive]}
                 onPress={() => setCat(active ? null : c.value)}
-                activeOpacity={0.7}
+                activeOpacity={0.75}
               >
                 <Text style={styles.catEmoji}>{c.emoji}</Text>
                 <Text style={[styles.catText, active && styles.catTextActive]}>{c.label}</Text>
@@ -217,7 +217,7 @@ export default function HomeScreen({ navigation }) {
               <Text style={styles.emptyTitle}>Aucun résultat</Text>
               <Text style={styles.emptySubtitle}>
                 {aiResults
-                  ? "L'IA n'a pas trouvé de lieu correspondant. Essayez d'être plus précis."
+                  ? "L'IA n'a pas trouvé de lieu. Essayez d'être plus précis."
                   : "Essayez d'autres termes ou explorez la carte"}
               </Text>
               {aiResults
@@ -238,10 +238,7 @@ export default function HomeScreen({ navigation }) {
 
       {/* Modal IA */}
       <Modal visible={aiOpen} transparent animationType="slide" onRequestClose={() => setAiOpen(false)}>
-        <KeyboardAvoidingView
-          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-          style={{ flex: 1 }}
-        >
+        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
           <TouchableOpacity style={styles.modalOverlay} activeOpacity={1} onPress={() => setAiOpen(false)} />
           <View style={styles.aiSheet}>
             <View style={styles.modalHandle} />
@@ -251,23 +248,17 @@ export default function HomeScreen({ navigation }) {
                 Décrivez votre événement en langage naturel — l'IA trouve les lieux pour vous.
               </Text>
             </View>
-
             <View style={styles.aiExamples}>
               {[
                 '"Anniversaire 30 ans, 40 personnes, Paris, budget 800€"',
                 '"Mariage champêtre 150 invités en Provence"',
                 '"Soirée atypique sur une péniche à Paris"',
               ].map((ex, i) => (
-                <TouchableOpacity
-                  key={i}
-                  style={styles.aiExampleBtn}
-                  onPress={() => setAiQuery(ex.replace(/"/g, ''))}
-                >
+                <TouchableOpacity key={i} style={styles.aiExampleBtn} onPress={() => setAiQuery(ex.replace(/"/g, ''))}>
                   <Text style={styles.aiExampleText}>{ex}</Text>
                 </TouchableOpacity>
               ))}
             </View>
-
             <TextInput
               style={styles.aiInput}
               placeholder="Ex: anniversaire 30 ans pour 40 personnes à Paris, budget 800€..."
@@ -278,9 +269,7 @@ export default function HomeScreen({ navigation }) {
               numberOfLines={3}
               textAlignVertical="top"
               autoFocus
-              returnKeyType="search"
             />
-
             <TouchableOpacity
               style={[styles.aiSearchBtn, (!aiQuery.trim() || aiLoading) && styles.aiSearchBtnDisabled]}
               onPress={handleAiSearch}
@@ -288,11 +277,7 @@ export default function HomeScreen({ navigation }) {
             >
               {aiLoading
                 ? <ActivityIndicator color="#fff" size="small" />
-                : <>
-                    <Text style={styles.aiSearchBtnText}>✨ Trouver les lieux</Text>
-                    <Ionicons name="arrow-forward" size={18} color="#fff" />
-                  </>
-              }
+                : <><Text style={styles.aiSearchBtnText}>✨ Trouver les lieux</Text><Ionicons name="arrow-forward" size={18} color="#fff" /></>}
             </TouchableOpacity>
           </View>
         </KeyboardAvoidingView>
@@ -304,35 +289,15 @@ export default function HomeScreen({ navigation }) {
         <View style={styles.modalSheet}>
           <View style={styles.modalHandle} />
           <Text style={styles.modalTitle}>⚙️ Filtres avancés</Text>
-
           <Text style={styles.filterLabel}>💶 Prix maximum (€/heure)</Text>
-          <TextInput
-            style={styles.filterInput}
-            value={maxPrice}
-            onChangeText={setMaxPrice}
-            placeholder="Ex : 2000"
-            placeholderTextColor={colors.light}
-            keyboardType="number-pad"
-          />
-
+          <TextInput style={styles.filterInput} value={maxPrice} onChangeText={setMaxPrice} placeholder="Ex : 2000" placeholderTextColor={colors.light} keyboardType="number-pad" />
           <Text style={styles.filterLabel}>👥 Capacité minimum (personnes)</Text>
-          <TextInput
-            style={styles.filterInput}
-            value={minCapacity}
-            onChangeText={setMinCapacity}
-            placeholder="Ex : 50"
-            placeholderTextColor={colors.light}
-            keyboardType="number-pad"
-          />
-
+          <TextInput style={styles.filterInput} value={minCapacity} onChangeText={setMinCapacity} placeholder="Ex : 50" placeholderTextColor={colors.light} keyboardType="number-pad" />
           <TouchableOpacity style={styles.applyBtn} onPress={() => setFilterOpen(false)}>
             <Text style={styles.applyBtnText}>✅ Appliquer les filtres</Text>
           </TouchableOpacity>
           {!!hasFilters && (
-            <TouchableOpacity
-              style={styles.clearBtn}
-              onPress={() => { setMaxPrice(''); setMinCapacity(''); setFilterOpen(false); }}
-            >
+            <TouchableOpacity style={styles.clearBtn} onPress={() => { setMaxPrice(''); setMinCapacity(''); setFilterOpen(false); }}>
               <Text style={styles.clearBtnText}>🗑️ Réinitialiser</Text>
             </TouchableOpacity>
           )}
@@ -367,10 +332,7 @@ const styles = StyleSheet.create({
     borderWidth: 1.5, borderColor: C.primary + '44',
     borderStyle: 'dashed',
   },
-  aiBtnActive: {
-    borderStyle: 'solid', borderColor: C.primary,
-    backgroundColor: C.primaryLight || '#EEF2FF',
-  },
+  aiBtnActive: { borderStyle: 'solid', borderColor: C.primary, backgroundColor: C.primaryLight || '#EEF2FF' },
   aiBtnEmoji: { fontSize: 16 },
   aiBtnText: { flex: 1, fontSize: 13, color: C.mid, fontWeight: '500' },
 
@@ -396,36 +358,37 @@ const styles = StyleSheet.create({
     width: 8, height: 8, borderRadius: 4, backgroundColor: '#EF4444',
   },
 
-  // ── Catégories : colonne emoji + label, pill carré compact ──
+  // Pill slim — tout sur une ligne, hauteur fixe 30px
   catScroll: { flexGrow: 0, marginBottom: spacing.sm },
   catContent: {
     paddingHorizontal: spacing.lg,
-    paddingVertical: 4,
-    gap: 7,
-    alignItems: 'flex-start',
+    paddingVertical: 2,
+    gap: 6,
+    alignItems: 'center',
   },
   catBtn: {
+    flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
+    height: 30,
     backgroundColor: C.white,
-    borderRadius: 14,
-    paddingHorizontal: 11,
-    paddingVertical: 8,
-    borderWidth: 1.5,
+    borderRadius: 999,
+    paddingHorizontal: 10,
+    borderWidth: 1,
     borderColor: C.border,
-    minWidth: 60,
-    gap: 3,
+    gap: 4,
   },
-  catBtnActive: { backgroundColor: C.primary, borderColor: C.primary },
-  catEmoji: { fontSize: 18, lineHeight: 22 },
+  catBtnActive: {
+    backgroundColor: C.primary,
+    borderColor: C.primary,
+  },
+  catEmoji: { fontSize: 13, lineHeight: 16 },
   catText: {
-    fontSize: 11,
+    fontSize: 12,
     color: C.dark,
     fontWeight: '600',
-    textAlign: 'center',
-    lineHeight: 13,
+    lineHeight: 16,
   },
-  catTextActive: { color: '#fff', fontWeight: '700' },
+  catTextActive: { color: '#fff' },
 
   sectionTitle: {
     fontSize: typography.small, fontWeight: '700', color: C.mid,
@@ -449,7 +412,6 @@ const styles = StyleSheet.create({
   emptyMapBtnText: { color: '#fff', fontWeight: '700', fontSize: typography.small },
 
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.45)' },
-
   aiSheet: {
     backgroundColor: C.bg, borderTopLeftRadius: 28, borderTopRightRadius: 28,
     padding: spacing.lg, paddingBottom: 40,
