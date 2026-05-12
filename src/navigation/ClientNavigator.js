@@ -45,7 +45,7 @@ function ChatStack() {
 const TABS = [
   { name: 'Accueil',       on: 'home',       off: 'home-outline',       label: 'Accueil' },
   { name: 'Favoris',       on: 'heart',      off: 'heart-outline',      label: 'Favoris' },
-  { name: 'Reservations',  on: 'calendar',   off: 'calendar-outline',   label: 'Résas' },
+  { name: 'Reservations',  on: 'calendar',   off: 'calendar-outline',   label: 'R\u00e9sas' },
   { name: 'Messages',      on: 'chatbubble', off: 'chatbubble-outline',  label: 'Messages' },
   { name: 'Profil',        on: 'person',     off: 'person-outline',     label: 'Profil' },
 ];

@@ -1,6 +1,7 @@
 /**
- * BookingConfirmationScreen — CORRIGÉ
- * navigation.navigate('ClientRoot') au lieu de 'HomeTab'
+ * BookingConfirmationScreen
+ * Reçoit : { reservation, venue, paid }
+ * Affiche un badge vert "✅ Paiement validé" si paid === true
  */
 import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, ScrollView } from 'react-native';
@@ -8,20 +9,29 @@ import { Ionicons } from '@expo/vector-icons';
 import { COLORS } from '../../theme/colors';
 
 export default function BookingConfirmationScreen({ navigation, route }) {
-  const { reservation, venue } = route.params || {};
+  const { reservation, venue, paid } = route.params || {};
 
   return (
     <View style={styles.container}>
       <ScrollView contentContainerStyle={styles.scroll}>
+
         {/* Icône succès */}
         <View style={styles.iconWrap}>
           <Ionicons name="checkmark-circle" size={80} color={COLORS.success || '#22c55e'} />
         </View>
 
-        <Text style={styles.title}>Réservation confirmée !</Text>
+        <Text style={styles.title}>Réservation confirmée !</Text>
         <Text style={styles.subtitle}>
-          Votre demande a bien été envoyée à l'annonceur. Vous recevrez une confirmation sous 24h.
+          Votre demande a bien été envoyée à l’annonceur. Vous recevrez une confirmation sous 24h.
         </Text>
+
+        {/* Badge paiement validé */}
+        {paid && (
+          <View style={styles.paidBadge}>
+            <Ionicons name="shield-checkmark" size={16} color="#fff" />
+            <Text style={styles.paidBadgeTxt}>Paiement sécurisé validé ✔️</Text>
+          </View>
+        )}
 
         {/* Récap */}
         {(reservation || venue) && (
@@ -44,23 +54,38 @@ export default function BookingConfirmationScreen({ navigation, route }) {
                 <Text style={styles.rowText}>{reservation.start} → {reservation.end}</Text>
               </View>
             )}
-            {reservation?.total != null && (
+            {reservation?.guests != null && (
               <View style={styles.row}>
-                <Ionicons name="card" size={18} color={COLORS.primary} />
-                <Text style={styles.rowText}>{reservation.total} €</Text>
+                <Ionicons name="people" size={18} color={COLORS.primary} />
+                <Text style={styles.rowText}>
+                  {reservation.guests} personne{reservation.guests > 1 ? 's' : ''}
+                </Text>
               </View>
+            )}
+            {reservation?.eventType && (
+              <View style={styles.row}>
+                <Ionicons name="ribbon" size={18} color={COLORS.primary} />
+                <Text style={styles.rowText}>{reservation.eventType}</Text>
+              </View>
+            )}
+            {reservation?.total != null && (
+              <View style={[styles.row, styles.totalRow]}>
+                <Ionicons name="card" size={18} color={COLORS.primary} />
+                <Text style={styles.totalText}>{reservation.total} € payés</Text>
+              </View>
+            )}
+            {reservation?.payment_intent_id && (
+              <Text style={styles.intentId}>Ref : {reservation.payment_intent_id}</Text>
             )}
           </View>
         )}
 
-        {/* Boutons */}
         <TouchableOpacity
           style={styles.btnPrimary}
-          // FIX: naviguer vers ClientRoot (Stack) puis l'onglet HomeTab est actif par défaut
           onPress={() => navigation.navigate('ClientRoot')}
         >
           <Ionicons name="home" size={20} color={COLORS.white} />
-          <Text style={styles.btnPrimaryText}>Retour à l'accueil</Text>
+          <Text style={styles.btnPrimaryText}>Retour à l’accueil</Text>
         </TouchableOpacity>
 
         <TouchableOpacity
@@ -70,6 +95,7 @@ export default function BookingConfirmationScreen({ navigation, route }) {
           <Ionicons name="calendar" size={20} color={COLORS.primary} />
           <Text style={styles.btnSecondaryText}>Voir mes réservations</Text>
         </TouchableOpacity>
+
       </ScrollView>
     </View>
   );
@@ -82,8 +108,14 @@ const styles = StyleSheet.create({
   title: { fontSize: 26, fontWeight: '800', color: COLORS.text, textAlign: 'center', marginBottom: 12 },
   subtitle: {
     fontSize: 15, color: COLORS.textSecondary, textAlign: 'center',
-    lineHeight: 22, marginBottom: 32, maxWidth: 300,
+    lineHeight: 22, marginBottom: 20, maxWidth: 300,
   },
+  paidBadge: {
+    flexDirection: 'row', alignItems: 'center', gap: 8,
+    backgroundColor: '#10B981', borderRadius: 999,
+    paddingHorizontal: 18, paddingVertical: 9, marginBottom: 24,
+  },
+  paidBadgeTxt: { fontSize: 14, fontWeight: '700', color: '#fff' },
   card: {
     width: '100%', backgroundColor: COLORS.surface,
     borderRadius: 16, padding: 20,
@@ -91,7 +123,10 @@ const styles = StyleSheet.create({
     gap: 14, marginBottom: 32,
   },
   row: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  rowText: { fontSize: 15, color: COLORS.text, fontWeight: '500' },
+  rowText: { fontSize: 15, color: COLORS.text, fontWeight: '500', flex: 1 },
+  totalRow: { borderTopWidth: 1, borderTopColor: COLORS.border, paddingTop: 12, marginTop: 4 },
+  totalText: { fontSize: 17, fontWeight: '800', color: COLORS.primary },
+  intentId: { fontSize: 11, color: COLORS.textSecondary, marginTop: 4, fontStyle: 'italic' },
   btnPrimary: {
     flexDirection: 'row', alignItems: 'center', gap: 10,
     backgroundColor: COLORS.primary, borderRadius: 14,
