@@ -1,10 +1,11 @@
 /**
  * PaymentScreen — récapitulatif + paiement Stripe
- * Appelé depuis BookingScreen après validation du formulaire.
  *
- * Props attendues via navigation.navigate('Payment', { reservation, venue }):
- * - reservation : objet partiel (dates, guests, eventType, message, total…)
- * - venue        : objet lieu complet
+ * Flow :
+ * 1. Client paie → processPayment() autorise le paiement (capture manuelle).
+ * 2. Réservation créée avec status='pending' et payment_status='authorized'.
+ * 3. Annonceur accepte → capturePayment() → argent réellement prélevé.
+ * 4. Annonceur refuse → refundPayment() → remboursement automatique.
  */
 import React, { useState } from 'react';
 import {
@@ -26,6 +27,7 @@ export default function PaymentScreen({ route, navigation }) {
   const insets = useSafeAreaInsets();
   const [loading, setLoading] = useState(false);
   const [paid, setPaid] = useState(false);
+  const [paidRef, setPaidRef] = useState(null);
 
   const pricing = computePricing({
     pricePerHour: venue.price,
@@ -37,7 +39,7 @@ export default function PaymentScreen({ route, navigation }) {
   const handlePay = async () => {
     setLoading(true);
     try {
-      // 1. Process payment (démo ou Stripe réel)
+      // 1. Autoriser le paiement (capture manuelle — argent bloqué mais pas encore prélevé)
       const result = await processPayment({
         amount: pricing.total,
         reservationId: `res_${Date.now()}`,
@@ -49,23 +51,26 @@ export default function PaymentScreen({ route, navigation }) {
         return;
       }
 
-      // 2. Créer la réservation dans Supabase
-      const res = await Store.addReservation({
-        venueId: venue.id,
-        userId: user.id,
-        ownerId: venue.ownerId,
-        venueName: venue.name,
-        userName: user.name,
-        date: reservation.date,
-        start: reservation.start,
-        end: reservation.end,
-        guests: reservation.guests,
-        eventType: reservation.eventType,
-        message: reservation.message,
-        total: pricing.total,
+      // 2. Créer la réservation avec payment_status='authorized'
+      //    L'argent n'est pas encore prélevé — l'annonceur doit confirmer.
+      await Store.addReservation({
+        venueId:        venue.id,
+        userId:         user.id,
+        ownerId:        venue.ownerId,
+        venueName:      venue.name,
+        userName:       user.name,
+        date:           reservation.date,
+        start:          reservation.start,
+        end:            reservation.end,
+        guests:         reservation.guests,
+        eventType:      reservation.eventType,
+        message:        reservation.message,
+        total:          pricing.total,
         paymentIntentId: result.paymentIntentId,
+        payment_status: 'authorized',   // ← clé : autorisé mais non capté
       });
 
+      setPaidRef(result.paymentIntentId);
       setPaid(true);
     } catch (e) {
       Alert.alert('Erreur', e.message);
@@ -81,21 +86,31 @@ export default function PaymentScreen({ route, navigation }) {
         <View style={styles.successIcon}>
           <Ionicons name="checkmark" size={48} color="#fff" />
         </View>
-        <Text style={styles.successTitle}>Paiement confirmé !</Text>
+        <Text style={styles.successTitle}>Réservation confirmée !</Text>
         <Text style={styles.successSub}>
-          Votre demande de réservation pour{' '}
-          <Text style={{ fontWeight: '800' }}>{venue.name}</Text>
-          {' '}a bien été envoyée à l'annonceur.
+          Votre demande a bien été envoyée à l'annonceur.{`
+`}Vous recevrez une confirmation sous 24h.
         </Text>
         <View style={styles.successDetails}>
-          <Row label="Date" value={reservation.date} />
-          <Row label="Horaires" value={`${reservation.start} – ${reservation.end}`} />
-          <Row label="Montant payé" value={`${pricing.total.toLocaleString('fr-FR')} €`} bold />
+          <Row icon="location-outline"  label={venue.name} />
+          <Row icon="calendar-outline"  label={reservation.date} />
+          <Row icon="time-outline"      label={`${reservation.start} → ${reservation.end}`} />
+          <Row icon="people-outline"    label={`${reservation.guests} personnes`} />
+          <Row icon="pricetag-outline"  label={reservation.eventType} />
+          <View style={styles.paidBadge}>
+            <Ionicons name="shield-checkmark" size={16} color="#10B981" />
+            <Text style={styles.paidBadgeText}>
+              Paiement sécurisé validé ✓
+            </Text>
+          </View>
+          <Text style={styles.paidAmount}>{pricing.total.toLocaleString('fr-FR')} € payés</Text>
+          {paidRef ? <Text style={styles.paidRef}>Ref : {paidRef}</Text> : null}
         </View>
         <TouchableOpacity
           style={styles.successBtn}
           onPress={() => navigation.navigate('Reservations')}
         >
+          <Ionicons name="calendar-outline" size={18} color="#10B981" />
           <Text style={styles.successBtnText}>Voir mes réservations</Text>
         </TouchableOpacity>
         <TouchableOpacity
@@ -112,7 +127,6 @@ export default function PaymentScreen({ route, navigation }) {
     <View style={[styles.container, { paddingTop: insets.top }]}>
       <StatusBar barStyle="dark-content" />
 
-      {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
           <Ionicons name="arrow-back" size={22} color={C.dark} />
@@ -121,36 +135,38 @@ export default function PaymentScreen({ route, navigation }) {
         <View style={{ width: 36 }} />
       </View>
 
-      <ScrollView
-        contentContainerStyle={styles.scroll}
-        showsVerticalScrollIndicator={false}
-      >
-        {/* Récap lieu */}
+      <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
         <View style={styles.venueCard}>
           <Text style={styles.venueName}>{venue.name}</Text>
           <Text style={styles.venueMeta}>{venue.city} · {venue.type}</Text>
         </View>
 
-        {/* Détail réservation */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Détails de la réservation</Text>
-          <Row label="Date" value={reservation.date} />
-          <Row label="Horaires" value={`${reservation.start} – ${reservation.end}`} />
-          <Row label="Durée" value={`${pricing.hours}h`} />
-          <Row label="Invités" value={`${reservation.guests} personnes`} />
-          <Row label="Type d'événement" value={reservation.eventType} />
+          <RowDetail label="Date"            value={reservation.date} />
+          <RowDetail label="Horaires"         value={`${reservation.start} – ${reservation.end}`} />
+          <RowDetail label="Durée"            value={`${pricing.hours}h`} />
+          <RowDetail label="Invités"          value={`${reservation.guests} personnes`} />
+          <RowDetail label="Type d'événement" value={reservation.eventType} />
         </View>
 
-        {/* Récap financier */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Récapitulatif financier</Text>
-          <Row label={`Prix (${venue.price} €/h × ${pricing.hours}h)`} value={`${pricing.subtotal.toLocaleString('fr-FR')} €`} />
-          <Row label="Frais de service" value="Inclus" muted />
+          <RowDetail label={`Prix (${venue.price} €/h × ${pricing.hours}h)`} value={`${pricing.subtotal.toLocaleString('fr-FR')} €`} />
+          <RowDetail label="Frais de service" value="Inclus" muted />
           <View style={styles.divider} />
-          <Row label="Total à payer" value={`${pricing.total.toLocaleString('fr-FR')} €`} bold big />
+          <RowDetail label="Total à payer" value={`${pricing.total.toLocaleString('fr-FR')} €`} bold big />
         </View>
 
-        {/* Moyen de paiement */}
+        {/* Explication du flow */}
+        <View style={styles.flowInfo}>
+          <Ionicons name="information-circle-outline" size={18} color={C.primary} />
+          <Text style={styles.flowInfoText}>
+            Votre paiement est autorisé mais ne sera prélevé qu'après confirmation de l'annonceur.
+            En cas de refus, vous serez remboursé automatiquement.
+          </Text>
+        </View>
+
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Moyen de paiement</Text>
           <View style={styles.cardMock}>
@@ -167,13 +183,12 @@ export default function PaymentScreen({ route, navigation }) {
           </View>
         </View>
 
-        {/* Conditions */}
         <Text style={styles.terms}>
-          En confirmant, vous acceptez les CGU d'EventSpace. L'annonceur a 24h pour confirmer votre réservation. En cas de refus, vous serez remboursé intégralement.
+          En confirmant, vous acceptez les CGU d'EventSpace. L'annonceur a 24h pour confirmer.
+          En cas de refus, vous serez remboursé intégralement et automatiquement.
         </Text>
       </ScrollView>
 
-      {/* Bouton paiement */}
       <View style={[styles.footer, { paddingBottom: insets.bottom + 12 }]}>
         <TouchableOpacity
           style={[styles.payBtn, loading && styles.payBtnDisabled]}
@@ -197,7 +212,16 @@ export default function PaymentScreen({ route, navigation }) {
   );
 }
 
-function Row({ label, value, bold, big, muted }) {
+function Row({ icon, label }) {
+  return (
+    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+      <Ionicons name={icon} size={16} color="rgba(255,255,255,0.75)" />
+      <Text style={{ color: '#fff', fontSize: 14, fontWeight: '500' }}>{label}</Text>
+    </View>
+  );
+}
+
+function RowDetail({ label, value, bold, big, muted }) {
   return (
     <View style={rowStyles.row}>
       <Text style={[rowStyles.label, muted && rowStyles.muted]}>{label}</Text>
@@ -224,9 +248,7 @@ const styles = StyleSheet.create({
   backBtn: { width: 36, height: 36, alignItems: 'center', justifyContent: 'center' },
   headerTitle: { fontSize: typography.h3, fontWeight: '800', color: C.dark },
   scroll: { padding: spacing.lg, paddingBottom: 20 },
-  venueCard: {
-    backgroundColor: C.primary, borderRadius: 16, padding: spacing.lg, marginBottom: spacing.lg,
-  },
+  venueCard: { backgroundColor: C.primary, borderRadius: 16, padding: spacing.lg, marginBottom: spacing.lg },
   venueName: { fontSize: 18, fontWeight: '900', color: '#fff' },
   venueMeta: { fontSize: 13, color: 'rgba(255,255,255,0.75)', marginTop: 4 },
   section: {
@@ -235,6 +257,12 @@ const styles = StyleSheet.create({
   },
   sectionTitle: { fontSize: 14, fontWeight: '800', color: C.dark, marginBottom: spacing.sm },
   divider: { height: 1, backgroundColor: C.border, marginVertical: 8 },
+  flowInfo: {
+    flexDirection: 'row', gap: 8, alignItems: 'flex-start',
+    backgroundColor: '#EEF9F5', borderRadius: 12, padding: spacing.md,
+    marginBottom: spacing.md, borderWidth: 1, borderColor: '#A7F3D0',
+  },
+  flowInfoText: { flex: 1, fontSize: 12, color: '#065F46', lineHeight: 18 },
   cardMock: {
     flexDirection: 'row', alignItems: 'center', gap: 12,
     backgroundColor: C.bg, borderRadius: 12, padding: spacing.md,
@@ -242,10 +270,7 @@ const styles = StyleSheet.create({
   },
   cardMockTitle: { fontSize: 14, fontWeight: '700', color: C.dark },
   cardMockSub: { fontSize: 12, color: C.mid },
-  stripeBadge: {
-    flexDirection: 'row', alignItems: 'center', gap: 6,
-    justifyContent: 'center', marginTop: spacing.sm,
-  },
+  stripeBadge: { flexDirection: 'row', alignItems: 'center', gap: 6, justifyContent: 'center', marginTop: spacing.sm },
   stripeBadgeText: { fontSize: 12, color: '#6366F1', fontWeight: '600' },
   terms: { fontSize: 11, color: C.mid, textAlign: 'center', lineHeight: 17, marginVertical: spacing.sm },
   footer: {
@@ -273,9 +298,18 @@ const styles = StyleSheet.create({
   successSub: { fontSize: 15, color: 'rgba(255,255,255,0.85)', textAlign: 'center', lineHeight: 22, marginBottom: spacing.lg },
   successDetails: {
     backgroundColor: 'rgba(255,255,255,0.15)', borderRadius: 16,
-    padding: spacing.lg, width: '100%', marginBottom: spacing.lg,
+    padding: spacing.lg, width: '100%', marginBottom: spacing.lg, gap: 2,
   },
+  paidBadge: {
+    flexDirection: 'row', alignItems: 'center', gap: 6,
+    backgroundColor: 'rgba(255,255,255,0.2)', borderRadius: 8,
+    paddingHorizontal: 10, paddingVertical: 6, marginTop: spacing.sm, alignSelf: 'flex-start',
+  },
+  paidBadgeText: { color: '#fff', fontWeight: '700', fontSize: 13 },
+  paidAmount: { fontSize: 22, fontWeight: '900', color: '#fff', marginTop: spacing.sm },
+  paidRef: { fontSize: 10, color: 'rgba(255,255,255,0.6)', marginTop: 2 },
   successBtn: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
     backgroundColor: '#fff', borderRadius: 14, paddingVertical: 14,
     paddingHorizontal: 40, marginBottom: spacing.sm,
   },
