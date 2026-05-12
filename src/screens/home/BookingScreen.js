@@ -21,7 +21,7 @@ const EVENTS = [
 ];
 
 const STEPS = ['Date & Horaires', 'Détails', 'Récapitulatif'];
-const COMMISSION_RATE = 0.12;
+const COMMISSION_RATE = 0.15; // 15% commission EventSpace
 
 export default function BookingScreen({ route, navigation }) {
   const { venue } = route.params || {};
@@ -59,7 +59,7 @@ export default function BookingScreen({ route, navigation }) {
 
   const subtotal = calcTotal();
   const commission = Math.round(subtotal * COMMISSION_RATE);
-  const totalClient = subtotal; // Le client paie le prix affiché — la commission est prélevée sur l'annonceur
+  const totalClient = subtotal;
 
   const isStep0Valid = date.length >= 8 && start && end;
   const isStep1Valid = guests && Number(guests) > 0 && Number(guests) <= (venue.capacity || 999) && eventType;
@@ -76,6 +76,7 @@ export default function BookingScreen({ route, navigation }) {
     setStep(s => s + 1);
   };
 
+  // FIX : après création résa → redirige vers PaymentScreen (plus BookingConfirmation directement)
   const book = async () => {
     if (!user) { navigation.navigate('Login'); return; }
     setLoading(true);
@@ -93,10 +94,12 @@ export default function BookingScreen({ route, navigation }) {
         eventType,
         notes,
         status: 'pending',
+        payment_status: 'unpaid',
         total: totalClient,
         price: venue.price || 0,
       });
-      navigation.replace('BookingConfirmation', { reservation, venue });
+      // Redirection vers PaymentScreen avec résa + lieu
+      navigation.replace('Payment', { reservation, venue });
     } catch (e) {
       Alert.alert('❌ Erreur', "La réservation n'a pas pu être envoyée. Veuillez réessayer.");
     } finally {
@@ -220,7 +223,7 @@ export default function BookingScreen({ route, navigation }) {
             </View>
           )}
 
-          {/* ÉTAPE 2 — Récapitulatif avec détail commission */}
+          {/* ÉTAPE 2 — Récapitulatif */}
           {step === 2 && (
             <View>
               <Text style={styles.stepTitle}>📝 Récapitulatif</Text>
@@ -249,7 +252,6 @@ export default function BookingScreen({ route, navigation }) {
                   </View>
                 ) : null}
                 <View style={styles.divider} />
-                {/* Prix final client */}
                 <View style={styles.totalRow}>
                   <Text style={styles.totalLabel}>Total à payer</Text>
                   <Text style={styles.totalValue}>{totalClient.toLocaleString('fr-FR')} €</Text>
@@ -257,17 +259,16 @@ export default function BookingScreen({ route, navigation }) {
                 <Text style={styles.priceSub}>
                   {venue.price} €/h · {parseInt((end || '0').split(':')[0], 10) - parseInt((start || '0').split(':')[0], 10)}h
                 </Text>
-                {/* Info commission (transparence) */}
                 <View style={styles.commissionInfo}>
                   <Ionicons name="information-circle-outline" size={14} color="#6C63FF" />
                   <Text style={styles.commissionInfoTxt}>
-                    Commission plateforme de 12% ({commission.toLocaleString('fr-FR')} €) déduite du versement à l'annonceur.
+                    Commission plateforme de 15% ({commission.toLocaleString('fr-FR')} €) déduite du versement à l'annonceur.
                   </Text>
                 </View>
               </View>
               <View style={styles.infoBox}>
-                <Ionicons name="information-circle-outline" size={18} color="#3B82F6" />
-                <Text style={styles.infoTxt}>L'annonceur confirmera votre réservation sous 24h. Aucun paiement maintenant.</Text>
+                <Ionicons name="card-outline" size={18} color="#3B82F6" />
+                <Text style={styles.infoTxt}>L'étape suivante vous permettra de payer en toute sécurité via Stripe.</Text>
               </View>
             </View>
           )}
@@ -290,7 +291,7 @@ export default function BookingScreen({ route, navigation }) {
             >
               {loading
                 ? <ActivityIndicator color="#fff" />
-                : <><Ionicons name="checkmark-circle-outline" size={20} color="#fff" /><Text style={styles.btnPrimaryTxt}>Envoyer la demande</Text></>
+                : <><Ionicons name="card-outline" size={20} color="#fff" /><Text style={styles.btnPrimaryTxt}>Continuer vers le paiement</Text></>
               }
             </TouchableOpacity>
           )}
