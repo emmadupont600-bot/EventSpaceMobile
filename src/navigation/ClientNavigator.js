@@ -9,6 +9,7 @@ import HomeScreen from '../screens/home/HomeScreen';
 import MapSearchScreen from '../screens/home/MapSearchScreen';
 import VenueDetailScreen from '../screens/home/VenueDetailScreen';
 import BookingScreen from '../screens/home/BookingScreen';
+import PaymentScreen from '../screens/home/PaymentScreen';
 import BookingConfirmationScreen from '../screens/home/BookingConfirmationScreen';
 import FavoritesScreen from '../screens/favorites/FavoritesScreen';
 import ReservationsScreen from '../screens/reservations/ReservationsScreen';
@@ -26,6 +27,7 @@ function HomeStack() {
       <Stack.Screen name="MapSearch" component={MapSearchScreen} />
       <Stack.Screen name="VenueDetail" component={VenueDetailScreen} />
       <Stack.Screen name="Booking" component={BookingScreen} />
+      <Stack.Screen name="Payment" component={PaymentScreen} />
       <Stack.Screen name="BookingConfirmation" component={BookingConfirmationScreen} />
     </Stack.Navigator>
   );
@@ -41,11 +43,11 @@ function ChatStack() {
 }
 
 const TABS = [
-  { name: 'Accueil',       emoji: '🏠', on: 'home',       off: 'home-outline',       label: 'Accueil' },
-  { name: 'Favoris',       emoji: '❤️',  on: 'heart',      off: 'heart-outline',      label: 'Favoris' },
-  { name: 'Reservations',  emoji: '📅', on: 'calendar',   off: 'calendar-outline',   label: 'Résas' },
-  { name: 'Messages',      emoji: '💬', on: 'chatbubble', off: 'chatbubble-outline',  label: 'Messages' },
-  { name: 'Profil',        emoji: '👤', on: 'person',     off: 'person-outline',     label: 'Profil' },
+  { name: 'Accueil',       on: 'home',       off: 'home-outline',       label: 'Accueil' },
+  { name: 'Favoris',       on: 'heart',      off: 'heart-outline',      label: 'Favoris' },
+  { name: 'Reservations',  on: 'calendar',   off: 'calendar-outline',   label: 'Résas' },
+  { name: 'Messages',      on: 'chatbubble', off: 'chatbubble-outline',  label: 'Messages' },
+  { name: 'Profil',        on: 'person',     off: 'person-outline',     label: 'Profil' },
 ];
 
 export default function ClientNavigator() {
@@ -70,18 +72,14 @@ export default function ClientNavigator() {
             shadowRadius: 12,
             elevation: 16,
           },
-          tabBarLabel: ({ color, focused }) => (
+          tabBarLabel: ({ color }) => (
             <Text style={{ fontSize: 10, fontWeight: '600', color, marginTop: 1 }}>
               {tab.label}
             </Text>
           ),
           tabBarIcon: ({ color, focused }) => (
             <View style={focused ? styles.activeWrap : styles.inactiveWrap}>
-              <Ionicons
-                name={focused ? tab.on : tab.off}
-                size={22}
-                color={color}
-              />
+              <Ionicons name={focused ? tab.on : tab.off} size={22} color={color} />
             </View>
           ),
         };
@@ -97,14 +95,9 @@ export default function ClientNavigator() {
 }
 
 const styles = StyleSheet.create({
-  inactiveWrap: {
-    width: 40, height: 28,
-    alignItems: 'center', justifyContent: 'center',
-  },
+  inactiveWrap: { width: 40, height: 28, alignItems: 'center', justifyContent: 'center' },
   activeWrap: {
-    width: 48, height: 28,
-    alignItems: 'center', justifyContent: 'center',
-    backgroundColor: colors.primaryLight || '#EEF2FF',
-    borderRadius: 14,
+    width: 48, height: 28, alignItems: 'center', justifyContent: 'center',
+    backgroundColor: colors.primaryLight || '#EEF2FF', borderRadius: 14,
   },
 });
