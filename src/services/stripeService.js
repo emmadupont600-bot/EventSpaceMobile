@@ -7,25 +7,41 @@
  *   4000 0000 0000 9995 → carte refusée
  *   4000 0025 0000 3155 → 3D Secure requis
  */
-import { supabase } from './supabase'; // FIX: was '../lib/supabase'
+import { supabase } from './supabase';
 
 export const STRIPE_PUBLISHABLE_KEY = 'pk_test_51TSkDI1XxCdtSfY7N05oDTaJ2ASeVLF6k1bcJ4XQbKntUCJXJkU3oiitj0DXNoeREeajUMdTYVlORWH5SZIhxNyL00Fza4xqXZ';
 
 /**
- * Mode DÉMO : simule un paiement réussi sans appel Stripe réel.
+ * Mode TEST : simule un paiement réussi sans appel Stripe réel.
+ * Met à jour payment_status = 'paid' dans Supabase après succès.
  * Pour passer en production, mettre DEMO_MODE = false et déployer
  * la Edge Function 'create-payment-intent'.
  */
 const DEMO_MODE = true;
 
 export async function processPayment({ amount, reservationId, venueName }) {
-  // Mode démo : toujours succès sans appel réseau
+  // Mode test : simule latence réseau
   if (DEMO_MODE) {
-    await new Promise(r => setTimeout(r, 1200)); // simule latence
+    await new Promise(r => setTimeout(r, 1200));
+
+    const paymentIntentId = `demo_pi_${Date.now()}`;
+
+    // Mise à jour Supabase : payment_status = 'paid'
+    if (reservationId) {
+      await supabase
+        .from('reservations')
+        .update({
+          payment_status: 'paid',
+          payment_intent_id: paymentIntentId,
+          paid_at: new Date().toISOString(),
+        })
+        .eq('id', reservationId);
+    }
+
     return {
       success: true,
       clientSecret: `demo_cs_${Date.now()}`,
-      paymentIntentId: `demo_pi_${Date.now()}`,
+      paymentIntentId,
     };
   }
 
@@ -55,9 +71,9 @@ export async function processPayment({ amount, reservationId, venueName }) {
 
 /**
  * Calcule le détail financier d'une réservation.
- * commission = 12% prélevée sur le subtotal (payé par l'annonceur)
+ * commission = 15% prélevée sur le subtotal (payée par l'annonceur)
  */
-export function computePricing({ pricePerHour, startTime, endTime, commission = 0.12 }) {
+export function computePricing({ pricePerHour, startTime, endTime, commission = 0.15 }) {
   const [sh, sm] = (startTime || '10:00').split(':').map(Number);
   const [eh, em] = (endTime   || '11:00').split(':').map(Number);
   const hours = Math.max(1, (eh * 60 + em - (sh * 60 + sm)) / 60);
