@@ -1,7 +1,7 @@
 /**
- * AppNavigator — CORRIGÉ
- * - Suppression de la référence à PaymentScreen (non existant)
- * - Toutes les routes nommées correctement
+ * AppNavigator
+ * Stack principal de l’app
+ * Flow client : ClientRoot → VenueDetail → Booking → Payment → BookingConfirmation
  */
 import React from 'react';
 import { NavigationContainer } from '@react-navigation/native';
@@ -20,6 +20,7 @@ import RegisterScreen from '../screens/auth/RegisterScreen';
 import HomeScreen from '../screens/home/HomeScreen';
 import VenueDetailScreen from '../screens/home/VenueDetailScreen';
 import BookingScreen from '../screens/home/BookingScreen';
+import PaymentScreen from '../screens/home/PaymentScreen';
 import BookingConfirmationScreen from '../screens/home/BookingConfirmationScreen';
 import ReservationsScreen from '../screens/reservations/ReservationsScreen';
 import FavoritesScreen from '../screens/favorites/FavoritesScreen';
@@ -63,7 +64,7 @@ function ClientTabs() {
       })}
     >
       <Tab.Screen name="HomeTab"    component={HomeScreen}          options={{ title: 'Explorer' }} />
-      <Tab.Screen name="ReservTab"  component={ReservationsScreen}  options={{ title: 'Réservations' }} />
+      <Tab.Screen name="ReservTab"  component={ReservationsScreen}  options={{ title: 'R\u00e9servations' }} />
       <Tab.Screen name="FavTab"     component={FavoritesScreen}     options={{ title: 'Favoris' }} />
       <Tab.Screen name="ChatTab"    component={ConversationsScreen} options={{ title: 'Messages' }} />
       <Tab.Screen name="ProfileTab" component={ProfileScreen}       options={{ title: 'Profil' }} />
@@ -86,7 +87,7 @@ function AnnonceurTabs() {
       })}
     >
       <Tab.Screen name="AnnonceurTab" component={AnnonceurDashboard} options={{ title: 'Dashboard' }} />
-      <Tab.Screen name="ReservTab"    component={ReservationsScreen}  options={{ title: 'Réservations' }} />
+      <Tab.Screen name="ReservTab"    component={ReservationsScreen}  options={{ title: 'R\u00e9servations' }} />
       <Tab.Screen name="ChatTab"      component={ConversationsScreen} options={{ title: 'Messages' }} />
       <Tab.Screen name="ProfileTab"   component={ProfileScreen}       options={{ title: 'Profil' }} />
     </Tab.Navigator>
@@ -124,6 +125,7 @@ export default function AppNavigator() {
             <Stack.Screen name="ClientRoot"          component={ClientTabs} />
             <Stack.Screen name="VenueDetail"         component={VenueDetailScreen} />
             <Stack.Screen name="Booking"             component={BookingScreen} />
+            <Stack.Screen name="Payment"             component={PaymentScreen} />
             <Stack.Screen name="BookingConfirmation" component={BookingConfirmationScreen} />
             <Stack.Screen name="ChatScreen"          component={ChatScreen} />
           </>
