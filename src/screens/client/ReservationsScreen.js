@@ -1,211 +1,169 @@
-import React, { useState } from 'react';
+/**
+ * ReservationsScreen.js — mis à jour
+ * Affiche la liste des réservations du client
+ * avec bouton "Payer" si statut = 'accepted' + payment_status = 'pending_payment'
+ */
+import React, { useEffect, useState, useCallback } from 'react';
 import {
   View, Text, StyleSheet, FlatList, TouchableOpacity,
-  StatusBar,
+  SafeAreaView, StatusBar, RefreshControl, ActivityIndicator,
 } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import { supabase } from '../../utils/supabase';
 import { useApp } from '../../context/AppContext';
-import { COLORS } from '../../theme/colors';
 
-const P = COLORS.primary || '#4F46E5';
+const P = '#4F46E5';
 
-const STATUS_META = {
-  confirmed: { label: 'Confirmée', color: '#22C55E', bg: '#F0FDF4', icon: 'checkmark-circle' },
-  pending:   { label: 'En attente', color: '#F59E0B', bg: '#FFFBEB', icon: 'time' },
-  cancelled: { label: 'Annulée',   color: '#EF4444', bg: '#FEF2F2', icon: 'close-circle' },
-  past:      { label: 'Passée',    color: '#94A3B8', bg: '#F8FAFC', icon: 'checkmark-done' },
+const STATUS_CONFIG = {
+  pending:          { label: 'En attente',     color: '#F59E0B', bg: '#FEF3C7', icon: 'time-outline' },
+  accepted:         { label: 'Acceptée',       color: '#10B981', bg: '#D1FAE5', icon: 'checkmark-circle-outline' },
+  pending_payment:  { label: 'À payer',        color: P,         bg: '#EEF2FF', icon: 'card-outline' },
+  paid:             { label: 'Payée ✅',        color: '#10B981', bg: '#D1FAE5', icon: 'shield-checkmark-outline' },
+  refused:          { label: 'Refusée',        color: '#EF4444', bg: '#FEE2E2', icon: 'close-circle-outline' },
+  cancelled:        { label: 'Annulée',        color: '#6B7280', bg: '#F3F4F6', icon: 'ban-outline' },
 };
 
-const TABS = ['Toutes', 'À venir', 'Passées'];
-
-const MOCK_RESERVATIONS = [
-  {
-    id: 1, venue: 'Château de Bellevue', location: 'Paris 8e',
-    date: '14 juin 2025', guests: 80, price: 2500,
-    status: 'confirmed', emoji: '🏰',
-  },
-  {
-    id: 2, venue: 'Loft Marais', location: 'Paris 3e',
-    date: '22 juillet 2025', guests: 30, price: 900,
-    status: 'pending', emoji: '🏙️',
-  },
-  {
-    id: 3, venue: 'Villa Provence', location: 'Aix-en-Provence',
-    date: '3 mai 2025', guests: 120, price: 3200,
-    status: 'past', emoji: '🌿',
-  },
-];
-
 export default function ReservationsScreen({ navigation }) {
-  const insets = useSafeAreaInsets();
-  const [activeTab, setActiveTab] = useState(0);
+  const { user } = useApp();
+  const [reservations, setReservations] = useState([]);
+  const [loading, setLoading]           = useState(true);
+  const [refreshing, setRefreshing]     = useState(false);
 
-  const filtered = MOCK_RESERVATIONS.filter(r => {
-    if (activeTab === 0) return true;
-    if (activeTab === 1) return r.status === 'confirmed' || r.status === 'pending';
-    return r.status === 'past' || r.status === 'cancelled';
-  });
+  const fetchReservations = useCallback(async () => {
+    if (!user?.id) return;
+    try {
+      const { data, error } = await supabase
+        .from('reservations')
+        .select('*')
+        .eq('user_id', user.id)
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+      setReservations(data || []);
+    } catch (e) {
+      console.error('Erreur chargement réservations:', e.message);
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  }, [user?.id]);
+
+  useEffect(() => {
+    fetchReservations();
+
+    // Realtime Supabase — mise à jour auto si statut change
+    const channel = supabase
+      .channel('reservations-changes')
+      .on(
+        'postgres_changes',
+        { event: 'UPDATE', schema: 'public', table: 'reservations', filter: `user_id=eq.${user?.id}` },
+        () => fetchReservations()
+      )
+      .subscribe();
+
+    return () => supabase.removeChannel(channel);
+  }, [fetchReservations]);
+
+  const handlePay = (reservation) => {
+    navigation.navigate('Payment', {
+      reservation: {
+        id:        reservation.id,
+        total:     reservation.total,
+        venueName: reservation.venue_name,
+        date:      reservation.date,
+      },
+    });
+  };
+
+  const renderItem = ({ item }) => {
+    const status = STATUS_CONFIG[item.payment_status === 'pending_payment' ? 'pending_payment' : item.status] || STATUS_CONFIG.pending;
+    const canPay = item.status === 'accepted' && item.payment_status === 'pending_payment';
+
+    return (
+      <View style={styles.card}>
+        <View style={styles.cardHeader}>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.venueName}>{item.venue_name}</Text>
+            <Text style={styles.dateText}>📅 {item.date} · {item.start || ''}{item.end ? ` → ${item.end}` : ''}</Text>
+          </View>
+          <View style={[styles.statusBadge, { backgroundColor: status.bg }]}>
+            <Ionicons name={status.icon} size={13} color={status.color} />
+            <Text style={[styles.statusText, { color: status.color }]}>{status.label}</Text>
+          </View>
+        </View>
+
+        <View style={styles.cardFooter}>
+          <Text style={styles.totalText}>{item.total?.toLocaleString('fr-FR')}€</Text>
+          {canPay && (
+            <TouchableOpacity style={styles.payBtn} onPress={() => handlePay(item)} activeOpacity={0.85}>
+              <Ionicons name="card" size={16} color="#fff" />
+              <Text style={styles.payBtnText}>Payer maintenant</Text>
+            </TouchableOpacity>
+          )}
+          {item.payment_status === 'paid' && (
+            <View style={styles.paidBadge}>
+              <Ionicons name="shield-checkmark" size={14} color="#10B981" />
+              <Text style={styles.paidText}>Payée</Text>
+            </View>
+          )}
+        </View>
+      </View>
+    );
+  };
 
   return (
-    <View style={[styles.container, { paddingTop: insets.top }]}>
+    <SafeAreaView style={styles.safe}>
       <StatusBar barStyle="dark-content" />
-
       <View style={styles.header}>
         <Text style={styles.headerTitle}>Mes réservations</Text>
       </View>
 
-      {/* Tabs filtre */}
-      <View style={styles.tabsRow}>
-        {TABS.map((t, i) => (
-          <TouchableOpacity
-            key={i}
-            style={[styles.tabBtn, activeTab === i && styles.tabBtnActive]}
-            onPress={() => setActiveTab(i)}
-          >
-            <Text style={[styles.tabBtnText, activeTab === i && styles.tabBtnTextActive]}>{t}</Text>
-          </TouchableOpacity>
-        ))}
-      </View>
-
-      <FlatList
-        data={filtered}
-        keyExtractor={item => String(item.id)}
-        contentContainerStyle={styles.list}
-        showsVerticalScrollIndicator={false}
-        ListEmptyComponent={
-          <View style={styles.empty}>
-            <Ionicons name="calendar-outline" size={56} color="#CBD5E1" />
-            <Text style={styles.emptyTitle}>Aucune réservation</Text>
-            <Text style={styles.emptySub}>Vos réservations apparaîtront ici.</Text>
-            <TouchableOpacity style={[styles.exploreBtn, { backgroundColor: P }]}
-              onPress={() => navigation.navigate('Home')}>
-              <Text style={styles.exploreBtnText}>Explorer les lieux</Text>
-            </TouchableOpacity>
-          </View>
-        }
-        renderItem={({ item }) => {
-          const meta = STATUS_META[item.status] || STATUS_META.pending;
-          return (
-            <TouchableOpacity style={styles.card} activeOpacity={0.85}>
-              {/* Header carte */}
-              <View style={styles.cardHeader}>
-                <View style={styles.cardEmoji}>
-                  <Text style={{ fontSize: 26 }}>{item.emoji}</Text>
-                </View>
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.cardVenue} numberOfLines={1}>{item.venue}</Text>
-                  <Text style={styles.cardLocation}>
-                    <Ionicons name="location-outline" size={11} color="#94A3B8" />{' '}{item.location}
-                  </Text>
-                </View>
-                <View style={[styles.statusBadge, { backgroundColor: meta.bg }]}>
-                  <Ionicons name={meta.icon} size={12} color={meta.color} />
-                  <Text style={[styles.statusText, { color: meta.color }]}>{meta.label}</Text>
-                </View>
-              </View>
-
-              {/* Infos */}
-              <View style={styles.cardInfoRow}>
-                <View style={styles.cardInfo}>
-                  <Ionicons name="calendar-outline" size={13} color="#94A3B8" />
-                  <Text style={styles.cardInfoText}>{item.date}</Text>
-                </View>
-                <View style={styles.cardInfo}>
-                  <Ionicons name="people-outline" size={13} color="#94A3B8" />
-                  <Text style={styles.cardInfoText}>{item.guests} pers.</Text>
-                </View>
-                <Text style={styles.cardPrice}>{item.price}€</Text>
-              </View>
-
-              {/* Actions */}
-              {item.status === 'confirmed' && (
-                <View style={styles.cardActions}>
-                  <TouchableOpacity style={styles.actionBtn}>
-                    <Ionicons name="chatbubble-outline" size={14} color={P} />
-                    <Text style={[styles.actionBtnText, { color: P }]}>Contacter</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity style={[styles.actionBtn, styles.actionBtnOutline]}>
-                    <Ionicons name="document-text-outline" size={14} color="#64748B" />
-                    <Text style={styles.actionBtnText}>Détails</Text>
-                  </TouchableOpacity>
-                </View>
-              )}
-            </TouchableOpacity>
-          );
-        }}
-      />
-    </View>
+      {loading ? (
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color={P} />
+        </View>
+      ) : (
+        <FlatList
+          data={reservations}
+          keyExtractor={(item) => item.id}
+          renderItem={renderItem}
+          contentContainerStyle={styles.list}
+          showsVerticalScrollIndicator={false}
+          refreshControl={
+            <RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); fetchReservations(); }} tintColor={P} />
+          }
+          ListEmptyComponent={
+            <View style={styles.empty}>
+              <Ionicons name="calendar-outline" size={48} color="#CBD5E1" />
+              <Text style={styles.emptyTitle}>Aucune réservation</Text>
+              <Text style={styles.emptyText}>Vos réservations apparaîtront ici</Text>
+            </View>
+          }
+        />
+      )}
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#F8FAFC' },
-  header: {
-    paddingHorizontal: 20, paddingVertical: 14,
-    backgroundColor: '#fff', borderBottomWidth: 1, borderBottomColor: '#E2E8F0',
-  },
-  headerTitle: { fontSize: 20, fontWeight: '800', color: '#0F172A' },
-
-  tabsRow: {
-    flexDirection: 'row', paddingHorizontal: 16, paddingVertical: 10,
-    backgroundColor: '#fff', gap: 8,
-    borderBottomWidth: 1, borderBottomColor: '#E2E8F0',
-  },
-  tabBtn: {
-    paddingHorizontal: 16, paddingVertical: 7,
-    borderRadius: 999, backgroundColor: '#F1F5F9',
-  },
-  tabBtnActive: { backgroundColor: P },
-  tabBtnText: { fontSize: 13, fontWeight: '600', color: '#64748B' },
-  tabBtnTextActive: { color: '#fff' },
-
-  list: { padding: 16, gap: 12, paddingBottom: 100 },
-
-  card: {
-    backgroundColor: '#fff', borderRadius: 18,
-    padding: 16, borderWidth: 1, borderColor: '#E2E8F0',
-    shadowColor: '#000', shadowOpacity: 0.04, shadowRadius: 8, elevation: 2,
-  },
-  cardHeader: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 12 },
-  cardEmoji: {
-    width: 50, height: 50, borderRadius: 14,
-    backgroundColor: '#F1F5F9', alignItems: 'center', justifyContent: 'center',
-  },
-  cardVenue: { fontSize: 15, fontWeight: '700', color: '#0F172A', marginBottom: 2 },
-  cardLocation: { fontSize: 12, color: '#94A3B8' },
-  statusBadge: {
-    flexDirection: 'row', alignItems: 'center', gap: 4,
-    paddingHorizontal: 8, paddingVertical: 4, borderRadius: 20,
-  },
-  statusText: { fontSize: 11, fontWeight: '700' },
-
-  cardInfoRow: {
-    flexDirection: 'row', alignItems: 'center', gap: 12,
-    paddingTop: 12, borderTopWidth: 1, borderTopColor: '#F1F5F9',
-  },
-  cardInfo: { flexDirection: 'row', alignItems: 'center', gap: 4, flex: 1 },
-  cardInfoText: { fontSize: 12, color: '#64748B' },
-  cardPrice: { fontSize: 16, fontWeight: '800', color: '#0F172A' },
-
-  cardActions: {
-    flexDirection: 'row', gap: 8, marginTop: 12,
-    paddingTop: 12, borderTopWidth: 1, borderTopColor: '#F1F5F9',
-  },
-  actionBtn: {
-    flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
-    gap: 6, paddingVertical: 9, borderRadius: 12,
-    backgroundColor: P + '14',
-  },
-  actionBtnOutline: { backgroundColor: '#F8FAFC', borderWidth: 1, borderColor: '#E2E8F0' },
-  actionBtnText: { fontSize: 13, fontWeight: '600', color: '#64748B' },
-
-  empty: { alignItems: 'center', paddingTop: 80, gap: 10 },
-  emptyTitle: { fontSize: 18, fontWeight: '700', color: '#0F172A' },
-  emptySub: { fontSize: 14, color: '#94A3B8', textAlign: 'center', maxWidth: 240 },
-  exploreBtn: {
-    marginTop: 8, paddingHorizontal: 28, paddingVertical: 13,
-    borderRadius: 16,
-  },
-  exploreBtnText: { color: '#fff', fontWeight: '700', fontSize: 15 },
+  safe:             { flex: 1, backgroundColor: '#F8FAFC' },
+  header:           { paddingHorizontal: 20, paddingVertical: 16, backgroundColor: '#fff', borderBottomWidth: 1, borderBottomColor: '#E2E8F0' },
+  headerTitle:      { fontSize: 22, fontWeight: '800', color: '#0F172A' },
+  list:             { padding: 16, gap: 12, paddingBottom: 40 },
+  loadingContainer: { flex: 1, alignItems: 'center', justifyContent: 'center' },
+  card:             { backgroundColor: '#fff', borderRadius: 16, padding: 16, borderWidth: 1, borderColor: '#E2E8F0' },
+  cardHeader:       { flexDirection: 'row', alignItems: 'flex-start', gap: 12, marginBottom: 14 },
+  venueName:        { fontSize: 16, fontWeight: '700', color: '#0F172A', marginBottom: 4 },
+  dateText:         { fontSize: 13, color: '#64748B' },
+  statusBadge:      { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 10, paddingVertical: 5, borderRadius: 20 },
+  statusText:       { fontSize: 12, fontWeight: '700' },
+  cardFooter:       { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingTop: 12, borderTopWidth: 1, borderTopColor: '#F1F5F9' },
+  totalText:        { fontSize: 18, fontWeight: '800', color: '#0F172A' },
+  payBtn:           { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: P, paddingHorizontal: 16, paddingVertical: 10, borderRadius: 12 },
+  payBtnText:       { color: '#fff', fontWeight: '700', fontSize: 14 },
+  paidBadge:        { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  paidText:         { fontSize: 14, fontWeight: '600', color: '#10B981' },
+  empty:            { flex: 1, alignItems: 'center', justifyContent: 'center', paddingTop: 80, gap: 12 },
+  emptyTitle:       { fontSize: 18, fontWeight: '700', color: '#0F172A' },
+  emptyText:        { fontSize: 14, color: '#94A3B8' },
 });
