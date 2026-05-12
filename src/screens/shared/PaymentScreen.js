@@ -13,6 +13,7 @@ import {
   Alert, ActivityIndicator, StatusBar,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { CommonActions } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useApp } from '../../context/AppContext';
 import { Store } from '../../utils/store';
@@ -36,6 +37,43 @@ export default function PaymentScreen({ route, navigation }) {
     commission: COMMISSION_RATE,
   });
 
+  /**
+   * Navigue vers l'accueil de façon robuste, quelle que soit la profondeur du stack.
+   * On remonte d'abord au sommet du stack courant (popToTop),
+   * puis on dispatch un CommonActions.navigate vers la tab 'Accueil'.
+   * Si le nom de la tab n'est pas 'Accueil', change-le ici.
+   */
+  const goHome = () => {
+    try {
+      // Vide complètement le stack et retourne à la tab Accueil
+      navigation.dispatch(
+        CommonActions.reset({
+          index: 0,
+          routes: [{ name: 'ClientTabs' }],
+        })
+      );
+    } catch (_) {
+      // Fallback : remonter le stack au maximum
+      navigation.popToTop();
+    }
+  };
+
+  /**
+   * Navigue vers l'écran de réservations du client.
+   * Essaie plusieurs noms courants selon la structure du navigator.
+   */
+  const goReservations = () => {
+    const candidates = ['Reservations', 'MesReservations', 'ClientReservations', 'Réservations'];
+    for (const name of candidates) {
+      try {
+        navigation.navigate(name);
+        return;
+      } catch (_) {}
+    }
+    // Fallback : retourner à l'accueil si l'écran réservations n'est pas trouvé
+    goHome();
+  };
+
   const handlePay = async () => {
     setLoading(true);
     try {
@@ -54,20 +92,20 @@ export default function PaymentScreen({ route, navigation }) {
       // 2. Créer la réservation avec payment_status='authorized'
       //    L'argent n'est pas encore prélevé — l'annonceur doit confirmer.
       await Store.addReservation({
-        venueId:        venue.id,
-        userId:         user.id,
-        ownerId:        venue.ownerId,
-        venueName:      venue.name,
-        userName:       user.name,
-        date:           reservation.date,
-        start:          reservation.start,
-        end:            reservation.end,
-        guests:         reservation.guests,
-        eventType:      reservation.eventType,
-        message:        reservation.message,
-        total:          pricing.total,
+        venueId:         venue.id,
+        userId:          user.id,
+        ownerId:         venue.ownerId,
+        venueName:       venue.name,
+        userName:        user.name,
+        date:            reservation.date,
+        start:           reservation.start,
+        end:             reservation.end,
+        guests:          reservation.guests,
+        eventType:       reservation.eventType,
+        message:         reservation.message,
+        total:           pricing.total,
         paymentIntentId: result.paymentIntentId,
-        payment_status: 'authorized',   // ← clé : autorisé mais non capté
+        payment_status:  'authorized',   // ← autorisé mais non capté
       });
 
       setPaidRef(result.paymentIntentId);
@@ -88,7 +126,7 @@ export default function PaymentScreen({ route, navigation }) {
         </View>
         <Text style={styles.successTitle}>Réservation confirmée !</Text>
         <Text style={styles.successSub}>
-          Votre demande a bien été envoyée à l'annonceur.{`
+          Votre demande a bien été envoyée à l’annonceur.{`
 `}Vous recevrez une confirmation sous 24h.
         </Text>
         <View style={styles.successDetails}>
@@ -99,25 +137,21 @@ export default function PaymentScreen({ route, navigation }) {
           <Row icon="pricetag-outline"  label={reservation.eventType} />
           <View style={styles.paidBadge}>
             <Ionicons name="shield-checkmark" size={16} color="#10B981" />
-            <Text style={styles.paidBadgeText}>
-              Paiement sécurisé validé ✓
-            </Text>
+            <Text style={styles.paidBadgeText}>Paiement sécurisé validé ✓</Text>
           </View>
           <Text style={styles.paidAmount}>{pricing.total.toLocaleString('fr-FR')} € payés</Text>
           {paidRef ? <Text style={styles.paidRef}>Ref : {paidRef}</Text> : null}
         </View>
-        <TouchableOpacity
-          style={styles.successBtn}
-          onPress={() => navigation.navigate('Reservations')}
-        >
+
+        {/* Bouton principal : voir mes réservations */}
+        <TouchableOpacity style={styles.successBtn} onPress={goReservations}>
           <Ionicons name="calendar-outline" size={18} color="#10B981" />
           <Text style={styles.successBtnText}>Voir mes réservations</Text>
         </TouchableOpacity>
-        <TouchableOpacity
-          style={styles.successBtnSecondary}
-          onPress={() => navigation.navigate('Accueil')}
-        >
-          <Text style={styles.successBtnSecondaryText}>Retour à l'accueil</Text>
+
+        {/* Bouton secondaire : retour accueil */}
+        <TouchableOpacity style={styles.successBtnSecondary} onPress={goHome}>
+          <Text style={styles.successBtnSecondaryText}>Retour à l’accueil</Text>
         </TouchableOpacity>
       </View>
     );
@@ -158,11 +192,10 @@ export default function PaymentScreen({ route, navigation }) {
           <RowDetail label="Total à payer" value={`${pricing.total.toLocaleString('fr-FR')} €`} bold big />
         </View>
 
-        {/* Explication du flow */}
         <View style={styles.flowInfo}>
           <Ionicons name="information-circle-outline" size={18} color={C.primary} />
           <Text style={styles.flowInfoText}>
-            Votre paiement est autorisé mais ne sera prélevé qu'après confirmation de l'annonceur.
+            Votre paiement est autorisé mais ne sera prélevé qu’après confirmation de l’annonceur.
             En cas de refus, vous serez remboursé automatiquement.
           </Text>
         </View>
@@ -184,7 +217,7 @@ export default function PaymentScreen({ route, navigation }) {
         </View>
 
         <Text style={styles.terms}>
-          En confirmant, vous acceptez les CGU d'EventSpace. L'annonceur a 24h pour confirmer.
+          En confirmant, vous acceptez les CGU d’EventSpace. L’annonceur a 24h pour confirmer.
           En cas de refus, vous serez remboursé intégralement et automatiquement.
         </Text>
       </ScrollView>
@@ -284,7 +317,6 @@ const styles = StyleSheet.create({
   },
   payBtnDisabled: { opacity: 0.65 },
   payBtnText: { color: '#fff', fontSize: 17, fontWeight: '800' },
-  // Success
   successContainer: {
     flex: 1, backgroundColor: '#10B981',
     alignItems: 'center', justifyContent: 'center', padding: spacing.xl,
