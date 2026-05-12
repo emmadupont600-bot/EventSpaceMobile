@@ -1,13 +1,17 @@
 /**
  * Store — toutes les opérations de données passent par Supabase.
+ * venue_id / owner_id / user_id : envoyés comme NULL si ce ne sont pas des UUIDs valides.
+ * (La table reservations a venue_id en bigint ou uuid selon les instances —
+ *  on laisse NULL pour les réservations sur des venues de démo locales.)
  */
 import { supabase } from '../services/supabase';
 
 let _currentUser = null;
 
-// Retourne true si la valeur est un UUID v4 valide
+// Retourne true UNIQUEMENT si la valeur est un UUID v4 valide
 function isUUID(v) {
-  return typeof v === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(v);
+  if (!v || typeof v !== 'string') return false;
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(v);
 }
 
 export const Store = {
@@ -55,7 +59,7 @@ export const Store = {
     _currentUser = null;
   },
 
-  // ─── VENUES ──────────────────────────────────────────────
+  // ─── VENUES ───────────────────────────────────────────────
   async getVenues() {
     const { data, error } = await supabase
       .from('venues')
@@ -121,8 +125,8 @@ export const Store = {
   },
 
   async addReservation(res) {
-    // FIX: n'envoyer venue_id / owner_id / user_id que si ce sont des UUIDs valides
-    // Les IDs entiers (1, 2, 3...) des venues de démo locales ne sont pas des UUIDs
+    // venue_id et owner_id : NULL si ce ne sont pas des UUIDs valides
+    // (Les IDs entiers des venues de démo locales ne correspondent pas à de vraies lignes en base)
     const venueId = isUUID(res.venueId)  ? res.venueId  : null;
     const ownerId = isUUID(res.ownerId)  ? res.ownerId  : null;
     const userId  = isUUID(res.userId)   ? res.userId

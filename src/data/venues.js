@@ -1,10 +1,10 @@
-// venues.js — Données de démo avec de vrais UUIDs v4
-// Ces IDs sont utilisés quand Supabase ne retourne pas de venues
-// Les UUIDs permettent d'éviter l'erreur "invalid input syntax for type uuid"
+// venues.js — Données de démo locales (affichées si Supabase ne retourne rien)
+// Les IDs sont des entiers simples ; store.js envoie NULL pour venue_id/owner_id
+// quand ces IDs ne sont pas des UUIDs valides, évitant tout conflit de type.
 
 export const VENUES = [
   {
-    id: 'a1b2c3d4-0001-4000-8000-000000000001',
+    id: 1,
     name: 'Château de Bellevue',
     type: 'Château',
     category: 'Mariage',
@@ -26,12 +26,12 @@ export const VENUES = [
       'https://images.unsplash.com/photo-1478146896981-b80fe463b330?w=800',
       'https://images.unsplash.com/photo-1510076857177-7470076d4098?w=800',
     ],
-    ownerId: 'a1b2c3d4-0001-4000-8000-000000000099',
+    ownerId: 2,
     ownerName: 'Sophie Martin',
     published: true,
   },
   {
-    id: 'a1b2c3d4-0002-4000-8000-000000000002',
+    id: 2,
     name: 'Loft Industriel Le Marais',
     type: 'Loft',
     category: 'Soirée',
@@ -44,7 +44,7 @@ export const VENUES = [
     reviewCount: 89,
     coupDeCoeur: false,
     atypique: true,
-    description: 'Espace atypique au cœur du Marais, idéal pour séminaires, expositions et soirées privées. Lumière naturelle exceptionnelle.',
+    description: 'Espace atypique au cœur du Marais, idéal pour séminaires, expositions et soirées privées.',
     amenities: ['Projecteur', 'Wi-Fi', 'Sono', 'Bar', 'Vestiaire'],
     img: 'https://images.unsplash.com/photo-1497366216548-37526070297c?w=800',
     gallery: [
@@ -52,12 +52,12 @@ export const VENUES = [
       'https://images.unsplash.com/photo-1497366811353-6870744d04b2?w=800',
       'https://images.unsplash.com/photo-1524758631624-e2822e304c36?w=800',
     ],
-    ownerId: 'a1b2c3d4-0001-4000-8000-000000000099',
+    ownerId: 2,
     ownerName: 'Sophie Martin',
     published: true,
   },
   {
-    id: 'a1b2c3d4-0003-4000-8000-000000000003',
+    id: 3,
     name: 'Villa Provence',
     type: 'Château',
     category: 'Mariage',
@@ -78,12 +78,12 @@ export const VENUES = [
       'https://images.unsplash.com/photo-1571896349842-33c89424de2d?w=800',
       'https://images.unsplash.com/photo-1582268611958-ebfd161ef9cf?w=800',
     ],
-    ownerId: 'a1b2c3d4-0001-4000-8000-000000000099',
+    ownerId: 2,
     ownerName: 'Sophie Martin',
     published: true,
   },
   {
-    id: 'a1b2c3d4-0004-4000-8000-000000000004',
+    id: 4,
     name: 'Salle Confluence',
     type: 'Loft',
     category: 'Professionnel',
@@ -103,12 +103,12 @@ export const VENUES = [
       'https://images.unsplash.com/photo-1431540015161-0bf868a2d407?w=800',
       'https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=800',
     ],
-    ownerId: 'a1b2c3d4-0001-4000-8000-000000000099',
+    ownerId: 2,
     ownerName: 'Sophie Martin',
     published: true,
   },
   {
-    id: 'a1b2c3d4-0005-4000-8000-000000000005',
+    id: 5,
     name: 'Rooftop Sky Bar',
     type: 'Rooftop',
     category: 'Soirée',
@@ -121,7 +121,7 @@ export const VENUES = [
     reviewCount: 156,
     coupDeCoeur: true,
     atypique: true,
-    description: 'Vue panoramique sur Paris pour vos soirées inoubliables en hauteur. Tour Eiffel illuminée depuis notre terrasse.',
+    description: 'Vue panoramique sur Paris pour vos soirées inoubliables en hauteur.',
     amenities: ['Bar', 'Sonorisation', 'Éclairage', 'Chauffage extérieur', 'Vue Tour Eiffel'],
     img: 'https://images.unsplash.com/photo-1470229722913-7c0e2dbbafd3?w=800',
     gallery: [
@@ -129,12 +129,12 @@ export const VENUES = [
       'https://images.unsplash.com/photo-1540575467063-178a50c2df87?w=800',
       'https://images.unsplash.com/photo-1516450360452-9312f5e86fc7?w=800',
     ],
-    ownerId: 'a1b2c3d4-0001-4000-8000-000000000099',
+    ownerId: 2,
     ownerName: 'Sophie Martin',
     published: true,
   },
   {
-    id: 'a1b2c3d4-0006-4000-8000-000000000006',
+    id: 6,
     name: 'Domaine des Roses',
     type: 'Château',
     category: 'Mariage',
@@ -155,12 +155,12 @@ export const VENUES = [
       'https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=800',
       'https://images.unsplash.com/photo-1414235077428-338989a2e8c0?w=800',
     ],
-    ownerId: 'a1b2c3d4-0001-4000-8000-000000000099',
+    ownerId: 2,
     ownerName: 'Sophie Martin',
     published: true,
   },
   {
-    id: 'a1b2c3d4-0007-4000-8000-000000000007',
+    id: 7,
     name: 'Studio Photo Montmartre',
     type: 'Studio photo',
     category: 'Photo',
@@ -180,12 +180,12 @@ export const VENUES = [
       'https://images.unsplash.com/photo-1542038784456-1ea8e935640e?w=800',
       'https://images.unsplash.com/photo-1452587925148-ce544e77e70d?w=800',
     ],
-    ownerId: 'a1b2c3d4-0001-4000-8000-000000000099',
+    ownerId: 2,
     ownerName: 'Sophie Martin',
     published: true,
   },
   {
-    id: 'a1b2c3d4-0008-4000-8000-000000000008',
+    id: 8,
     name: 'Jardin des Arts',
     type: 'Jardin',
     category: 'Plein air',
@@ -198,19 +198,19 @@ export const VENUES = [
     reviewCount: 52,
     coupDeCoeur: false,
     atypique: true,
-    description: 'Jardin privé botanique au cœur de Lyon. Parfait pour cérémonies en plein air et réceptions.',
+    description: 'Jardin privé botanique au cœur de Lyon.',
     amenities: ['Tonnelle', 'Mobilier extérieur', 'Cuisine extérieure', 'Parking', 'Lumières féeriques'],
     img: 'https://images.unsplash.com/photo-1416879595882-3373a0480b5b?w=800',
     gallery: [
       'https://images.unsplash.com/photo-1416879595882-3373a0480b5b?w=800',
       'https://images.unsplash.com/photo-1501854140801-50d01698950b?w=800',
     ],
-    ownerId: 'a1b2c3d4-0001-4000-8000-000000000099',
+    ownerId: 2,
     ownerName: 'Sophie Martin',
     published: true,
   },
   {
-    id: 'a1b2c3d4-0009-4000-8000-000000000009',
+    id: 9,
     name: 'Péniche La Seine',
     type: 'Péniche',
     category: 'Soirée',
@@ -223,19 +223,19 @@ export const VENUES = [
     reviewCount: 34,
     coupDeCoeur: true,
     atypique: true,
-    description: 'Péniche privatisée avec vue sur la Tour Eiffel. Un lieu unique et intimiste.',
+    description: 'Péniche privatisée avec vue sur la Tour Eiffel.',
     amenities: ['Bar', 'Sonorisation', 'Terrasse', 'Vue Tour Eiffel', 'Cuisine'],
     img: 'https://images.unsplash.com/photo-1502933691298-84fc14542831?w=800',
     gallery: [
       'https://images.unsplash.com/photo-1502933691298-84fc14542831?w=800',
       'https://images.unsplash.com/photo-1499856871958-5b9627545d1a?w=800',
     ],
-    ownerId: 'a1b2c3d4-0001-4000-8000-000000000099',
+    ownerId: 2,
     ownerName: 'Sophie Martin',
     published: true,
   },
   {
-    id: 'a1b2c3d4-0010-4000-8000-000000000010',
+    id: 10,
     name: 'Cave à Vin Haussmann',
     type: 'Cave',
     category: 'Soirée',
@@ -248,14 +248,14 @@ export const VENUES = [
     reviewCount: 28,
     coupDeCoeur: false,
     atypique: true,
-    description: "Cave voûtée du XIXe siècle, idéale pour dégustations, dîners intimes et réceptions de caractère.",
+    description: "Cave voûtée du XIXe siècle, idéale pour dégustations et dîners intimes.",
     amenities: ['Dégustations', 'Éclairage tamisé', 'Climatisation', 'Catering possible'],
     img: 'https://images.unsplash.com/photo-1510812431401-41d2bd2722f3?w=800',
     gallery: [
       'https://images.unsplash.com/photo-1510812431401-41d2bd2722f3?w=800',
       'https://images.unsplash.com/photo-1474722883778-792e7990302f?w=800',
     ],
-    ownerId: 'a1b2c3d4-0001-4000-8000-000000000099',
+    ownerId: 2,
     ownerName: 'Sophie Martin',
     published: true,
   },
@@ -263,13 +263,13 @@ export const VENUES = [
 
 export const DEMO_USERS = [
   {
-    id: 'a1b2c3d4-0001-4000-8000-000000000011',
+    id: 1,
     firstName: 'Alex', lastName: 'Dupont', name: 'Alex Dupont',
     email: 'client@demo.com', password: 'demo123', role: 'particulier',
     avatar: null, phone: '06 12 34 56 78',
   },
   {
-    id: 'a1b2c3d4-0001-4000-8000-000000000099',
+    id: 2,
     firstName: 'Sophie', lastName: 'Martin', name: 'Sophie Martin',
     email: 'annonceur@demo.com', password: 'demo123', role: 'annonceur',
     avatar: null, phone: '06 98 76 54 32',
@@ -278,22 +278,18 @@ export const DEMO_USERS = [
 
 export const DEMO_RESERVATIONS = [
   {
-    id: 'a1b2c3d4-0001-4000-8000-000000000021',
-    venueId: 'a1b2c3d4-0001-4000-8000-000000000001',
-    venueName: 'Château de Bellevue',
-    userId: 'a1b2c3d4-0001-4000-8000-000000000011',
-    ownerId: 'a1b2c3d4-0001-4000-8000-000000000099',
+    id: 'res-demo-1',
+    venueId: 1, venueName: 'Château de Bellevue',
+    userId: 1, ownerId: 2,
     date: '2026-06-15', start: '18:00', end: '23:00',
     guests: 80, eventType: '💍 Mariage',
     status: 'confirmed', total: 12500,
     createdAt: '2026-04-10T10:00:00.000Z',
   },
   {
-    id: 'a1b2c3d4-0001-4000-8000-000000000022',
-    venueId: 'a1b2c3d4-0004-4000-8000-000000000004',
-    venueName: 'Salle Confluence',
-    userId: 'a1b2c3d4-0001-4000-8000-000000000011',
-    ownerId: 'a1b2c3d4-0001-4000-8000-000000000099',
+    id: 'res-demo-2',
+    venueId: 4, venueName: 'Salle Confluence',
+    userId: 1, ownerId: 2,
     date: '2026-05-20', start: '09:00', end: '17:00',
     guests: 30, eventType: '💼 Séminaire',
     status: 'pending', total: 3600,
@@ -302,12 +298,12 @@ export const DEMO_RESERVATIONS = [
 ];
 
 export const DEMO_REVIEWS = [
-  { id: 'rev-1', venueId: 'a1b2c3d4-0001-4000-8000-000000000001', userId: 'a1b2c3d4-0001-4000-8000-000000000011', author: 'Marie L.',    rating: 5, text: 'Lieu absolument magnifique, prestation parfaite !', date: '2026-03-12' },
-  { id: 'rev-2', venueId: 'a1b2c3d4-0001-4000-8000-000000000001', userId: 'a1b2c3d4-0001-4000-8000-000000000011', author: 'Thomas B.',   rating: 5, text: 'Mariage de rêve dans ce cadre exceptionnel.', date: '2026-02-20' },
-  { id: 'rev-3', venueId: 'a1b2c3d4-0002-4000-8000-000000000002', userId: 'a1b2c3d4-0001-4000-8000-000000000011', author: 'Lucie M.',    rating: 4, text: 'Super loft, très bien équipé.', date: '2026-01-15' },
-  { id: 'rev-4', venueId: 'a1b2c3d4-0005-4000-8000-000000000005', userId: 'a1b2c3d4-0001-4000-8000-000000000011', author: 'Claire D.',   rating: 5, text: 'Vue incroyable, soirée mémorable !', date: '2026-04-01' },
+  { id: 'rev-1', venueId: 1, userId: 1, author: 'Marie L.',  rating: 5, text: 'Lieu absolument magnifique !', date: '2026-03-12' },
+  { id: 'rev-2', venueId: 1, userId: 1, author: 'Thomas B.', rating: 5, text: 'Mariage de rêve dans ce cadre exceptionnel.', date: '2026-02-20' },
+  { id: 'rev-3', venueId: 2, userId: 1, author: 'Lucie M.',  rating: 4, text: 'Super loft, très bien équipé.', date: '2026-01-15' },
+  { id: 'rev-4', venueId: 5, userId: 1, author: 'Claire D.', rating: 5, text: 'Vue incroyable, soirée mémorable !', date: '2026-04-01' },
 ];
 
 export const DEMO_CONVERSATIONS = [
-  { id: 'conv_demo_1', userId: 'a1b2c3d4-0001-4000-8000-000000000011', ownerId: 'a1b2c3d4-0001-4000-8000-000000000099', venueId: 'a1b2c3d4-0001-4000-8000-000000000001', venueName: 'Château de Bellevue', ownerName: 'Sophie Martin' },
+  { id: 'conv_demo_1', userId: 1, ownerId: 2, venueId: 1, venueName: 'Château de Bellevue', ownerName: 'Sophie Martin' },
 ];
