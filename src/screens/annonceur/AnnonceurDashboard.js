@@ -1,13 +1,14 @@
 import React, { useState, useCallback } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, StyleSheet,
-  RefreshControl, StatusBar, Alert,
+  RefreshControl, StatusBar, Alert, ActivityIndicator,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
 import { useApp } from '../../context/AppContext';
 import { Store } from '../../utils/store';
+import { capturePayment, refundPayment } from '../../services/stripeService';
 import { colors, spacing, typography } from '../../theme/colors';
 
 const C = colors;
@@ -19,6 +20,7 @@ export default function AnnonceurDashboard({ navigation }) {
   const [reservations, setReservations] = useState([]);
   const [refreshing, setRefreshing] = useState(false);
   const [activeTab, setActiveTab] = useState('overview');
+  const [processingId, setProcessingId] = useState(null);
 
   const load = useCallback(async () => {
     try {
@@ -50,34 +52,105 @@ export default function AnnonceurDashboard({ navigation }) {
     );
   };
 
-  const commission = COMMISSION_RATE ?? 0.12;
+  const commission = COMMISSION_RATE ?? 0.15;
 
   const totalRevenu = reservations
     .filter(r => r.status === 'confirmed')
     .reduce((s, r) => s + (r.total || 0), 0);
   const totalNet = Math.round(totalRevenu * (1 - commission));
-  const pending = reservations.filter(r => r.status === 'pending');
+  const pending   = reservations.filter(r => r.status === 'pending');
   const confirmed = reservations.filter(r => r.status === 'confirmed');
 
+  /**
+   * Annonceur ACCEPTE :
+   * 1. capturePayment() → Stripe prélève réellement l'argent
+   * 2. updateReservation → status='confirmed', payment_status='paid'
+   */
   const handleConfirm = async (res) => {
-    await updateReservationStatus(res.id, 'confirmed');
-    await load();
+    Alert.alert(
+      'Confirmer la réservation ?',
+      `${res.userName || 'Ce client'} réserve ${res.venueName} le ${res.date}. Le paiement de ${(res.total || 0).toLocaleString('fr-FR')} € sera immédiatement prélevé.`,
+      [
+        { text: 'Annuler', style: 'cancel' },
+        {
+          text: 'Confirmer',
+          onPress: async () => {
+            setProcessingId(res.id);
+            try {
+              // 1. Capturer le paiement Stripe
+              if (res.paymentIntentId) {
+                const capture = await capturePayment(res.paymentIntentId);
+                if (!capture.success) {
+                  Alert.alert('Erreur Stripe', capture.error || 'Impossible de capturer le paiement.');
+                  return;
+                }
+              }
+              // 2. Mettre à jour la réservation
+              await Store.updateReservation(res.id, {
+                status: 'confirmed',
+                payment_status: 'paid',
+              });
+              await load();
+              Alert.alert('✅ Confirmé !', `La réservation est confirmée. ${Math.round((res.total || 0) * (1 - commission)).toLocaleString('fr-FR')} € seront versés sur votre compte.`);
+            } catch (e) {
+              Alert.alert('Erreur', e.message);
+            } finally {
+              setProcessingId(null);
+            }
+          },
+        },
+      ]
+    );
   };
+
+  /**
+   * Annonceur REFUSE :
+   * 1. refundPayment() → Stripe rembourse automatiquement le client
+   * 2. updateReservation → status='cancelled', payment_status='refunded'
+   */
   const handleCancel = async (res) => {
-    Alert.alert('Refuser la demande ?', `Refuser la réservation de ${res.userName || 'ce client'} ?`, [
-      { text: 'Annuler', style: 'cancel' },
-      {
-        text: 'Refuser', style: 'destructive',
-        onPress: async () => { await updateReservationStatus(res.id, 'cancelled'); await load(); },
-      },
-    ]);
+    Alert.alert(
+      'Refuser la demande ?',
+      `${res.userName || 'Ce client'} sera automatiquement remboursé de ${(res.total || 0).toLocaleString('fr-FR')} €.`,
+      [
+        { text: 'Annuler', style: 'cancel' },
+        {
+          text: 'Refuser et rembourser',
+          style: 'destructive',
+          onPress: async () => {
+            setProcessingId(res.id);
+            try {
+              // 1. Rembourser via Stripe
+              if (res.paymentIntentId) {
+                const refund = await refundPayment(res.paymentIntentId);
+                if (!refund.success) {
+                  Alert.alert('Erreur Stripe', refund.error || 'Impossible de rembourser.');
+                  return;
+                }
+              }
+              // 2. Mettre à jour la réservation
+              await Store.updateReservation(res.id, {
+                status: 'cancelled',
+                payment_status: 'refunded',
+              });
+              await load();
+              Alert.alert('🔄 Demand remboursement', 'Le client sera remboursé sous 3 à 5 jours ouvrables.');
+            } catch (e) {
+              Alert.alert('Erreur', e.message);
+            } finally {
+              setProcessingId(null);
+            }
+          },
+        },
+      ]
+    );
   };
 
   const tabs = [
-    { key: 'overview', label: 'Résumé', icon: 'stats-chart' },
+    { key: 'overview', label: 'Résumé',    icon: 'stats-chart' },
     { key: 'venues',   label: 'Mes lieux', icon: 'home' },
-    { key: 'requests', label: 'Demandes', icon: 'calendar', badge: pending.length },
-    { key: 'history',  label: 'Historique', icon: 'time' },
+    { key: 'requests', label: 'Demandes',  icon: 'calendar', badge: pending.length },
+    { key: 'history',  label: 'Historique',icon: 'time' },
   ];
 
   return (
@@ -91,18 +164,10 @@ export default function AnnonceurDashboard({ navigation }) {
           <Text style={styles.name}>{user?.name || 'Annonceur'}</Text>
         </View>
         <View style={styles.headerActions}>
-          {/* Bouton déconnexion */}
-          <TouchableOpacity
-            style={[styles.headerBtn, styles.logoutBtn]}
-            onPress={handleLogout}
-          >
+          <TouchableOpacity style={[styles.headerBtn, styles.logoutBtn]} onPress={handleLogout}>
             <Ionicons name="log-out-outline" size={20} color="#fff" />
           </TouchableOpacity>
-          {/* Bouton ajouter lieu */}
-          <TouchableOpacity
-            style={styles.headerBtn}
-            onPress={() => navigation.navigate('AddVenue')}
-          >
+          <TouchableOpacity style={styles.headerBtn} onPress={() => navigation.navigate('AddVenue')}>
             <Ionicons name="add" size={22} color="#fff" />
           </TouchableOpacity>
         </View>
@@ -133,9 +198,9 @@ export default function AnnonceurDashboard({ navigation }) {
         {activeTab === 'overview' && (
           <>
             <View style={styles.kpiRow}>
-              <KPI icon="home-outline" label="Lieux actifs" value={venues.length} color="#6C63FF" />
-              <KPI icon="time-outline" label="En attente" value={pending.length} color="#F59E0B" />
-              <KPI icon="checkmark-circle-outline" label="Confirmées" value={confirmed.length} color="#10B981" />
+              <KPI icon="home-outline"            label="Lieux actifs" value={venues.length}    color="#6C63FF" />
+              <KPI icon="time-outline"            label="En attente"  value={pending.length}   color="#F59E0B" />
+              <KPI icon="checkmark-circle-outline" label="Confirmées"  value={confirmed.length} color="#10B981" />
             </View>
             <View style={styles.revenueCard}>
               <Text style={styles.revenueLabel}>Revenus confirmés (brut)</Text>
@@ -161,6 +226,7 @@ export default function AnnonceurDashboard({ navigation }) {
                     key={r.id} res={r} commission={commission}
                     onConfirm={() => handleConfirm(r)}
                     onCancel={() => handleCancel(r)}
+                    processing={processingId === r.id}
                   />
                 ))}
                 {pending.length > 3 && (
@@ -176,14 +242,10 @@ export default function AnnonceurDashboard({ navigation }) {
         {/* ─── MES LIEUX ─── */}
         {activeTab === 'venues' && (
           <>
-            <TouchableOpacity
-              style={styles.addVenueBtn}
-              onPress={() => navigation.navigate('AddVenue')}
-            >
+            <TouchableOpacity style={styles.addVenueBtn} onPress={() => navigation.navigate('AddVenue')}>
               <Ionicons name="add-circle-outline" size={20} color={C.primary} />
               <Text style={styles.addVenueBtnText}>Ajouter un nouveau lieu</Text>
             </TouchableOpacity>
-
             {venues.length === 0 ? (
               <View style={styles.empty}>
                 <Text style={styles.emptyIcon}>🏠</Text>
@@ -223,8 +285,10 @@ export default function AnnonceurDashboard({ navigation }) {
                   key={r.id} res={r} commission={commission}
                   onConfirm={() => handleConfirm(r)}
                   onCancel={() => handleCancel(r)}
+                  processing={processingId === r.id}
                 />
-              ))}
+              ))
+            }
           </>
         )}
 
@@ -233,11 +297,18 @@ export default function AnnonceurDashboard({ navigation }) {
           <>
             <Text style={styles.sectionTitle}>✅ Réservations confirmées ({confirmed.length})</Text>
             {confirmed.length === 0
-              ? <EmptyState icon="📊" title="Aucune réservation" sub="Vos réservations confirmées apparaîtront ici" />
+              ? <EmptyState icon="📊" title="Aucune réservation" sub="Vos réservations confirmées apparaissent ici" />
               : confirmed.map(r => (
                 <View key={r.id} style={styles.historyCard}>
-                  <Text style={styles.historyVenue}>{r.venueName || 'Lieu inconnu'}</Text>
-                  <Text style={styles.historyMeta}>{r.date} · {r.guests} pers. · {r.eventType}</Text>
+                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.historyVenue}>{r.venueName || 'Lieu inconnu'}</Text>
+                      <Text style={styles.historyMeta}>{r.date} · {r.guests} pers. · {r.eventType}</Text>
+                    </View>
+                    <View style={[styles.statusBadge, styles.statusConfirmed]}>
+                      <Text style={styles.statusBadgeText}>Payé</Text>
+                    </View>
+                  </View>
                   <View style={styles.historyAmounts}>
                     <Text style={styles.historyTotal}>Total client : {(r.total || 0).toLocaleString('fr-FR')} €</Text>
                     <Text style={styles.historyNet}>Vous recevez : {Math.round((r.total || 0) * (1 - commission)).toLocaleString('fr-FR')} €</Text>
@@ -272,25 +343,39 @@ const kpiStyles = StyleSheet.create({
   label: { fontSize: 11, color: colors.mid, fontWeight: '600', textAlign: 'center' },
 });
 
-function ReservationCard({ res, commission, onConfirm, onCancel }) {
-  const net = Math.round((res.total || 0) * (1 - commission));
+function ReservationCard({ res, commission, onConfirm, onCancel, processing }) {
+  const net  = Math.round((res.total || 0) * (1 - commission));
   const comm = Math.round((res.total || 0) * commission);
+  const hasPayment = !!res.paymentIntentId || res.paymentStatus === 'authorized';
+
   return (
     <View style={resStyles.card}>
+      {/* En-tête */}
       <View style={resStyles.top}>
         <View style={{ flex: 1 }}>
           <Text style={resStyles.venue}>{res.venueName || 'Lieu'}</Text>
           <Text style={resStyles.meta}>{res.date} · {res.start}–{res.end} · {res.guests} pers.</Text>
           <Text style={resStyles.event}>{res.eventType}</Text>
+          {res.message ? <Text style={resStyles.message}>“{res.message}”</Text> : null}
         </View>
       </View>
+
+      {/* Badge paiement autorisé */}
+      {hasPayment && (
+        <View style={resStyles.payBadge}>
+          <Ionicons name="shield-checkmark" size={14} color="#10B981" />
+          <Text style={resStyles.payBadgeText}>Paiement autorisé — en attente de confirmation</Text>
+        </View>
+      )}
+
+      {/* Montants */}
       <View style={resStyles.amounts}>
         <View style={resStyles.amountRow}>
           <Text style={resStyles.amountLabel}>Total client</Text>
           <Text style={resStyles.amountValue}>{(res.total || 0).toLocaleString('fr-FR')} €</Text>
         </View>
         <View style={resStyles.amountRow}>
-          <Text style={resStyles.amountLabel}>Commission EventSpace (12%)</Text>
+          <Text style={resStyles.amountLabel}>Commission EventSpace ({Math.round(commission * 100)}%)</Text>
           <Text style={[resStyles.amountValue, { color: '#EF4444' }]}>- {comm.toLocaleString('fr-FR')} €</Text>
         </View>
         <View style={[resStyles.amountRow, resStyles.netRow]}>
@@ -298,16 +383,25 @@ function ReservationCard({ res, commission, onConfirm, onCancel }) {
           <Text style={[resStyles.amountValue, { color: '#10B981', fontWeight: '700' }]}>{net.toLocaleString('fr-FR')} €</Text>
         </View>
       </View>
-      <View style={resStyles.actions}>
-        <TouchableOpacity style={[resStyles.btn, resStyles.btnConfirm]} onPress={onConfirm}>
-          <Ionicons name="checkmark" size={16} color="#fff" />
-          <Text style={resStyles.btnTextConfirm}>Confirmer</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={[resStyles.btn, resStyles.btnCancel]} onPress={onCancel}>
-          <Ionicons name="close" size={16} color="#EF4444" />
-          <Text style={resStyles.btnTextCancel}>Refuser</Text>
-        </TouchableOpacity>
-      </View>
+
+      {/* Boutons action */}
+      {processing ? (
+        <View style={resStyles.loadingRow}>
+          <ActivityIndicator size="small" color={colors.primary} />
+          <Text style={resStyles.loadingText}>Traitement en cours…</Text>
+        </View>
+      ) : (
+        <View style={resStyles.actions}>
+          <TouchableOpacity style={[resStyles.btn, resStyles.btnConfirm]} onPress={onConfirm}>
+            <Ionicons name="checkmark" size={16} color="#fff" />
+            <Text style={resStyles.btnTextConfirm}>Confirmer</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={[resStyles.btn, resStyles.btnCancel]} onPress={onCancel}>
+            <Ionicons name="close" size={16} color="#EF4444" />
+            <Text style={resStyles.btnTextCancel}>Refuser</Text>
+          </TouchableOpacity>
+        </View>
+      )}
     </View>
   );
 }
@@ -321,6 +415,13 @@ const resStyles = StyleSheet.create({
   venue: { fontSize: 15, fontWeight: '700', color: colors.dark },
   meta: { fontSize: 12, color: colors.mid, marginTop: 2 },
   event: { fontSize: 12, color: colors.primary, marginTop: 2, fontWeight: '600' },
+  message: { fontSize: 11, color: colors.mid, fontStyle: 'italic', marginTop: 4 },
+  payBadge: {
+    flexDirection: 'row', alignItems: 'center', gap: 6,
+    backgroundColor: '#ECFDF5', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 6,
+    marginBottom: spacing.sm, borderWidth: 1, borderColor: '#A7F3D0',
+  },
+  payBadgeText: { fontSize: 12, color: '#065F46', fontWeight: '600' },
   amounts: { backgroundColor: '#F9FAFB', borderRadius: 10, padding: spacing.sm, marginBottom: spacing.sm, gap: 4 },
   amountRow: { flexDirection: 'row', justifyContent: 'space-between' },
   amountLabel: { fontSize: 12, color: colors.mid },
@@ -332,6 +433,8 @@ const resStyles = StyleSheet.create({
   btnCancel: { borderWidth: 1.5, borderColor: '#EF4444' },
   btnTextConfirm: { color: '#fff', fontWeight: '700', fontSize: 14 },
   btnTextCancel: { color: '#EF4444', fontWeight: '700', fontSize: 14 },
+  loadingRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingVertical: 10 },
+  loadingText: { fontSize: 13, color: colors.mid },
 });
 
 function EmptyState({ icon, title, sub }) {
@@ -368,16 +471,10 @@ const styles = StyleSheet.create({
   tabActive: { backgroundColor: C.primary, borderColor: C.primary },
   tabText: { fontSize: 13, fontWeight: '600', color: C.mid },
   tabTextActive: { color: '#fff' },
-  badge: {
-    minWidth: 18, height: 18, borderRadius: 9, backgroundColor: '#EF4444',
-    alignItems: 'center', justifyContent: 'center', paddingHorizontal: 4,
-  },
+  badge: { minWidth: 18, height: 18, borderRadius: 9, backgroundColor: '#EF4444', alignItems: 'center', justifyContent: 'center', paddingHorizontal: 4 },
   badgeText: { color: '#fff', fontSize: 10, fontWeight: '700' },
   kpiRow: { flexDirection: 'row', marginBottom: spacing.lg },
-  revenueCard: {
-    backgroundColor: C.white, borderRadius: 16, padding: spacing.lg,
-    marginBottom: spacing.lg, borderWidth: 1.5, borderColor: C.border,
-  },
+  revenueCard: { backgroundColor: C.white, borderRadius: 16, padding: spacing.lg, marginBottom: spacing.lg, borderWidth: 1.5, borderColor: C.border },
   revenueLabel: { fontSize: 12, color: C.mid, marginBottom: 4 },
   revenueAmount: { fontSize: 32, fontWeight: '900', color: C.dark, marginBottom: spacing.md },
   revenueSplit: { gap: 8 },
@@ -391,8 +488,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row', alignItems: 'center', gap: 8,
     backgroundColor: C.primaryLight || '#EEF2FF', borderRadius: 14,
     paddingVertical: 14, paddingHorizontal: spacing.lg,
-    marginBottom: spacing.lg, borderWidth: 1.5, borderColor: C.primary,
-    borderStyle: 'dashed',
+    marginBottom: spacing.lg, borderWidth: 1.5, borderColor: C.primary, borderStyle: 'dashed',
   },
   addVenueBtnText: { fontSize: 15, fontWeight: '700', color: C.primary },
   venueRow: {
@@ -408,10 +504,10 @@ const styles = StyleSheet.create({
   publishedBadge: { backgroundColor: '#D1FAE5', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 999 },
   publishedBadgeOff: { backgroundColor: '#FEF3C7' },
   publishedBadgeText: { fontSize: 11, fontWeight: '700', color: '#065F46' },
-  historyCard: {
-    backgroundColor: C.white, borderRadius: 14, padding: spacing.md,
-    marginBottom: spacing.sm, borderWidth: 1, borderColor: C.border,
-  },
+  statusBadge: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 999 },
+  statusConfirmed: { backgroundColor: '#D1FAE5' },
+  statusBadgeText: { fontSize: 11, fontWeight: '700', color: '#065F46' },
+  historyCard: { backgroundColor: C.white, borderRadius: 14, padding: spacing.md, marginBottom: spacing.sm, borderWidth: 1, borderColor: C.border },
   historyVenue: { fontSize: 14, fontWeight: '700', color: C.dark },
   historyMeta: { fontSize: 12, color: C.mid, marginTop: 2 },
   historyAmounts: { marginTop: 8, flexDirection: 'row', justifyContent: 'space-between' },
