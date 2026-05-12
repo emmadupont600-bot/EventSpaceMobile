@@ -94,13 +94,13 @@ export default function PaymentScreen({ route, navigation }) {
         </View>
         <TouchableOpacity
           style={styles.successBtn}
-          onPress={() => navigation.navigate('ClientTab')}
+          onPress={() => navigation.navigate('Reservations')}
         >
           <Text style={styles.successBtnText}>Voir mes réservations</Text>
         </TouchableOpacity>
         <TouchableOpacity
           style={styles.successBtnSecondary}
-          onPress={() => navigation.navigate('HomeTab')}
+          onPress={() => navigation.navigate('Accueil')}
         >
           <Text style={styles.successBtnSecondaryText}>Retour à l'accueil</Text>
         </TouchableOpacity>
