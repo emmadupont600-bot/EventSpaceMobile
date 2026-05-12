@@ -3,29 +3,21 @@
  */
 import { supabase } from '../services/supabase';
 
-// FIX: plus de cache module-level, on récupère toujours depuis la session en cours
 let _currentUser = null;
 
 export const Store = {
 
-  // ─── AUTH ─────────────────────────────────────────────────────────
+  // ─── AUTH ──────────────────────────────────────────────────
   async getCurrentUser() {
-    // FIX: on vérifie toujours la session Supabase pour éviter un cache stale
     const { data: { session } } = await supabase.auth.getSession();
-    if (!session?.user) {
-      _currentUser = null;
-      return null;
-    }
-    // Si le cache correspond au bon utilisateur, on le retourne directement
+    if (!session?.user) { _currentUser = null; return null; }
     if (_currentUser && _currentUser.id === session.user.id) return _currentUser;
     const { data } = await supabase.from('users').select('*').eq('id', session.user.id).maybeSingle();
     _currentUser = data || { id: session.user.id, email: session.user.email, role: 'client' };
     return _currentUser;
   },
 
-  async setCurrentUser(user) {
-    _currentUser = user;
-  },
+  async setCurrentUser(user) { _currentUser = user; },
 
   async login(email, password) {
     const { data, error } = await supabase.auth.signInWithPassword({
@@ -45,9 +37,8 @@ export const Store = {
       password: userData.password,
       options: { data: { name: userData.name, role: userData.role || 'client' } },
     });
-    if (error || !data?.user) throw new Error(error?.message || 'Erreur lors de l\'inscription');
+    if (error || !data?.user) throw new Error(error?.message || "Erreur lors de l'inscription");
     const profile = { id: data.user.id, email: emailNorm, name: userData.name, role: userData.role || 'client', phone: userData.phone || null };
-    // FIX: upsert au lieu de insert pour éviter un doublon si profil existe déjà
     const { error: profileError } = await supabase.from('users').upsert(profile, { onConflict: 'id' });
     if (profileError) console.warn('[Store.register] profil insert warning:', profileError.message);
     _currentUser = profile;
@@ -59,7 +50,7 @@ export const Store = {
     _currentUser = null;
   },
 
-  // ─── VENUES ─────────────────────────────────────────────────────────
+  // ─── VENUES ──────────────────────────────────────────────
   async getVenues() {
     const { data, error } = await supabase
       .from('venues')
@@ -114,45 +105,67 @@ export const Store = {
     return updated;
   },
 
-  // ─── RESERVATIONS ──────────────────────────────────────────────────────────
+  // ─── RESERVATIONS ──────────────────────────────────────────────────────
   async getReservations() {
-    const { data, error } = await supabase.from('reservations').select('*').order('created_at', { ascending: false });
+    const { data, error } = await supabase
+      .from('reservations')
+      .select('*')
+      .order('created_at', { ascending: false });
     if (error) throw new Error(error.message);
     return (data || []).map(normalizeReservation);
   },
 
   async addReservation(res) {
+    // FIX: owner_id peut être null si le lieu n'a pas d'annonceur enregistré
+    // (utile pendant les tests avec des venues de démo)
+    const ownerId = res.ownerId && res.ownerId !== '' ? res.ownerId : null;
+    const userId  = res.userId  && res.userId  !== '' ? res.userId  : _currentUser?.id || null;
+
     const row = {
-      venue_id:      res.venueId,
-      user_id:       res.userId,
-      owner_id:      res.ownerId,
-      venue_name:    res.venueName,
-      user_name:     res.userName,
-      date:          res.date,
-      start_time:    res.start,
-      end_time:      res.end,
-      guests:        res.guests,
-      event_type:    res.eventType,
-      message:       res.notes || res.message || null,
-      total:         res.total,
-      status:        'pending',
+      venue_id:       res.venueId       || null,
+      user_id:        userId,
+      owner_id:       ownerId,
+      venue_name:     res.venueName     || '',
+      user_name:      res.userName      || '',
+      date:           res.date          || null,
+      start_time:     res.start         || null,
+      end_time:       res.end           || null,
+      guests:         res.guests        || null,
+      event_type:     res.eventType     || null,
+      message:        res.notes || res.message || null,
+      total:          res.total         || 0,
+      status:         'pending',
       payment_status: 'unpaid',
     };
-    const { data, error } = await supabase.from('reservations').insert(row).select().single();
-    if (error) throw new Error(error.message);
+
+    console.log('[Store.addReservation] row à insérer :', JSON.stringify(row));
+
+    const { data, error } = await supabase
+      .from('reservations')
+      .insert(row)
+      .select()
+      .single();
+
+    if (error) {
+      console.error('[Store.addReservation] Supabase error:', error.message, error.details, error.hint);
+      throw new Error(error.message);
+    }
     return normalizeReservation(data);
   },
 
   async updateReservation(id, changes) {
     const row = {};
-    if (changes.status !== undefined)             row.status = changes.status;
-    if (changes.payment_status !== undefined)     row.payment_status = changes.payment_status;
-    if (changes.payment_intent_id !== undefined)  row.payment_intent_id = changes.payment_intent_id;
+    if (changes.status !== undefined)            row.status             = changes.status;
+    if (changes.payment_status !== undefined)    row.payment_status     = changes.payment_status;
+    if (changes.payment_intent_id !== undefined) row.payment_intent_id  = changes.payment_intent_id;
+    if (changes.paymentIntentId !== undefined)   row.payment_intent_id  = changes.paymentIntentId;
+    if (changes.commission_amount !== undefined) row.commission_amount  = changes.commission_amount;
+    if (changes.net_owner !== undefined)         row.net_owner          = changes.net_owner;
     const { error } = await supabase.from('reservations').update(row).eq('id', id);
     if (error) throw new Error(error.message);
   },
 
-  // ─── MESSAGES / CONVERSATIONS ────────────────────────────────────────────
+  // ─── MESSAGES / CONVERSATIONS ──────────────────────────────────────────
   async getOrCreateConv(userId, ownerId, venueId, venueName) {
     const convId = `conv_${userId}_${venueId}`;
     const { data: existing } = await supabase.from('conversations').select('*').eq('id', convId).maybeSingle();
@@ -166,7 +179,10 @@ export const Store = {
   },
 
   async getAllConversations(userId) {
-    const { data, error } = await supabase.from('conversations').select('*').or(`user_id.eq.${userId},owner_id.eq.${userId}`);
+    const { data, error } = await supabase
+      .from('conversations')
+      .select('*')
+      .or(`user_id.eq.${userId},owner_id.eq.${userId}`);
     if (error) return [];
     return data || [];
   },
@@ -190,20 +206,19 @@ export const Store = {
     return { ...data, senderId: data.sender_id };
   },
 
-  // ─── REVIEWS ───────────────────────────────────────────────────────────────
+  // ─── REVIEWS ──────────────────────────────────────────────────────────
   async getReviews(venueId) {
     let query = supabase.from('reviews').select('*').order('created_at', { ascending: false });
     if (venueId !== undefined) query = query.eq('venue_id', venueId);
     const { data, error } = await query;
     if (error) return [];
-    // FIX: normalise 'user_name'→'author' et 'comment'→'text' pour VenueDetailScreen
     return (data || []).map(r => ({
       ...r,
       venueId:  r.venue_id,
       userId:   r.user_id,
       userName: r.user_name,
-      author:   r.user_name || 'Anonyme',   // alias pour l'affichage
-      text:     r.comment   || '',           // alias pour l'affichage
+      author:   r.user_name || 'Anonyme',
+      text:     r.comment   || '',
     }));
   },
 
@@ -222,7 +237,7 @@ export const Store = {
     return data;
   },
 
-  // ─── FAVORITES ────────────────────────────────────────────────────────────
+  // ─── FAVORITES ──────────────────────────────────────────────────────────
   async getFavorites(userId) {
     const { data } = await supabase.from('favorites').select('venue_id').eq('user_id', userId);
     return (data || []).map(f => f.venue_id);
@@ -249,11 +264,11 @@ export const Store = {
   },
 
   async resetDemo() {
-    console.warn('[Store] resetDemo() n\'a pas d\'effet en mode Supabase.');
+    console.warn("[Store] resetDemo() n'a pas d'effet en mode Supabase.");
   },
 };
 
-// ─── Normaliseurs ───────────────────────────────────────────────────────────────
+// ─── Normaliseurs ───────────────────────────────────────────────────────────────────────────────
 function normalizeVenue(v) {
   return {
     id: v.id, ownerId: v.owner_id, name: v.name, type: v.type,
