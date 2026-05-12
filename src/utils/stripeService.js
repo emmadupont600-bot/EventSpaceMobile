@@ -6,8 +6,8 @@
  */
 import { supabase } from './supabase';
 
-// Clé publique Stripe TEST — à remplacer par ta vraie clé pk_test_...
-export const STRIPE_PUBLISHABLE_KEY = 'pk_test_51XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX';
+// Clé publique Stripe TEST
+export const STRIPE_PUBLISHABLE_KEY = 'pk_test_51TSkDI1XxCdtSfY7N05oDTaJ2ASeVLF6k1bcJ4XQbKntUCJXJkU3oiitj0DXNoeREeajUMdTYVlORWH5SZIhxNyL00Fza4xqXZ';
 
 /**
  * Crée un PaymentIntent côté serveur (Edge Function Supabase)
