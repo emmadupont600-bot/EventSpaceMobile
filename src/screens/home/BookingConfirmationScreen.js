@@ -6,10 +6,32 @@
 import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, ScrollView } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { CommonActions } from '@react-navigation/native';
 import { COLORS } from '../../theme/colors';
 
 export default function BookingConfirmationScreen({ navigation, route }) {
   const { reservation, venue, paid } = route.params || {};
+
+  /**
+   * Retourne à l'écran d'accueil (HomeMain) dans la tab Accueil.
+   * On utilise popToTop() pour vider le stack HomeStack,
+   * ce qui ramène automatiquement à HomeMain.
+   */
+  const goHome = () => {
+    navigation.popToTop();
+  };
+
+  /**
+   * Navigue vers la tab Reservations.
+   * On dispatch depuis le parent (tab navigator) via navigation.getParent().
+   */
+  const goReservations = () => {
+    try {
+      navigation.getParent()?.navigate('Reservations');
+    } catch (_) {
+      navigation.popToTop();
+    }
+  };
 
   return (
     <View style={styles.container}>
@@ -20,9 +42,9 @@ export default function BookingConfirmationScreen({ navigation, route }) {
           <Ionicons name="checkmark-circle" size={80} color={COLORS.success || '#22c55e'} />
         </View>
 
-        <Text style={styles.title}>Réservation confirmée !</Text>
+        <Text style={styles.title}>Réservation confirmée !</Text>
         <Text style={styles.subtitle}>
-          Votre demande a bien été envoyée à l’annonceur. Vous recevrez une confirmation sous 24h.
+          Votre demande a bien été envoyée à l'annonceur. Vous recevrez une confirmation sous 24h.
         </Text>
 
         {/* Badge paiement validé */}
@@ -75,22 +97,24 @@ export default function BookingConfirmationScreen({ navigation, route }) {
               </View>
             )}
             {reservation?.payment_intent_id && (
-              <Text style={styles.intentId}>Ref : {reservation.payment_intent_id}</Text>
+              <Text style={styles.intentId}>Ref : {reservation.payment_intent_id}</Text>
             )}
           </View>
         )}
 
+        {/* Bouton principal : retour accueil */}
         <TouchableOpacity
           style={styles.btnPrimary}
-          onPress={() => navigation.navigate('ClientRoot')}
+          onPress={goHome}
         >
           <Ionicons name="home" size={20} color={COLORS.white} />
-          <Text style={styles.btnPrimaryText}>Retour à l’accueil</Text>
+          <Text style={styles.btnPrimaryText}>Retour à l'accueil</Text>
         </TouchableOpacity>
 
+        {/* Bouton secondaire : voir mes réservations */}
         <TouchableOpacity
           style={styles.btnSecondary}
-          onPress={() => navigation.navigate('ClientRoot', { screen: 'ReservTab' })}
+          onPress={goReservations}
         >
           <Ionicons name="calendar" size={20} color={COLORS.primary} />
           <Text style={styles.btnSecondaryText}>Voir mes réservations</Text>

@@ -29,7 +29,8 @@ export default function ReservationScreen({ navigation, route }) {
     Alert.alert(
       '✅ Réservation envoyée !',
       `Votre demande pour ${lieu.nom} le ${date} a été envoyée. L\'annonceur vous répondra sous 24h.`,
-      [{ text: 'OK', onPress: () => navigation.navigate('HomeMain') }]
+      // ✅ FIX : goBack() au lieu de navigate('HomeMain') — fonctionne dans tous les contextes
+      [{ text: 'OK', onPress: () => navigation.goBack() }]
     );
   };
 
