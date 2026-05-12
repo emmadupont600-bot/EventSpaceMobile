@@ -16,7 +16,7 @@ function isUUID(v) {
 
 export const Store = {
 
-  // ─── AUTH ──────────────────────────────────────────────────
+  // ─── AUTH ───────────────────────────────────────────────────────────
   async getCurrentUser() {
     const { data: { session } } = await supabase.auth.getSession();
     if (!session?.user) { _currentUser = null; return null; }
@@ -59,7 +59,7 @@ export const Store = {
     _currentUser = null;
   },
 
-  // ─── VENUES ───────────────────────────────────────────────
+  // ─── VENUES ─────────────────────────────────────────────────────
   async getVenues() {
     const { data, error } = await supabase
       .from('venues')
@@ -114,7 +114,7 @@ export const Store = {
     return updated;
   },
 
-  // ─── RESERVATIONS ──────────────────────────────────────────────────────
+  // ─── RESERVATIONS ──────────────────────────────────────────────────────────
   async getReservations() {
     const { data, error } = await supabase
       .from('reservations')
@@ -124,29 +124,42 @@ export const Store = {
     return (data || []).map(normalizeReservation);
   },
 
+  /**
+   * addReservation
+   *
+   * BUG FIX : on respecte maintenant payment_status et paymentIntentId
+   * tels que passés par l'appelant (PaymentScreen).
+   * - payment_status = 'authorized' quand le paiement est autorisé (capture manuelle)
+   * - payment_intent_id = l'ID Stripe du PaymentIntent
+   *
+   * L'ancien code écrasait toujours payment_status par 'unpaid'
+   * et ignorait complètement paymentIntentId.
+   */
   async addReservation(res) {
-    // venue_id et owner_id : NULL si ce ne sont pas des UUIDs valides
-    // (Les IDs entiers des venues de démo locales ne correspondent pas à de vraies lignes en base)
-    const venueId = isUUID(res.venueId)  ? res.venueId  : null;
-    const ownerId = isUUID(res.ownerId)  ? res.ownerId  : null;
-    const userId  = isUUID(res.userId)   ? res.userId
+    const venueId = isUUID(res.venueId) ? res.venueId : null;
+    const ownerId = isUUID(res.ownerId) ? res.ownerId : null;
+    const userId  = isUUID(res.userId)  ? res.userId
                   : isUUID(_currentUser?.id) ? _currentUser.id : null;
 
     const row = {
-      venue_id:       venueId,
-      user_id:        userId,
-      owner_id:       ownerId,
-      venue_name:     res.venueName     || '',
-      user_name:      res.userName      || '',
-      date:           res.date          || null,
-      start_time:     res.start         || null,
-      end_time:       res.end           || null,
-      guests:         res.guests        || null,
-      event_type:     res.eventType     || null,
-      message:        res.notes || res.message || null,
-      total:          res.total         || 0,
-      status:         'pending',
-      payment_status: 'unpaid',
+      venue_id:           venueId,
+      user_id:            userId,
+      owner_id:           ownerId,
+      venue_name:         res.venueName         || '',
+      user_name:          res.userName          || '',
+      date:               res.date              || null,
+      start_time:         res.start             || null,
+      end_time:           res.end               || null,
+      guests:             res.guests            || null,
+      event_type:         res.eventType         || null,
+      message:            res.notes || res.message || null,
+      total:              res.total             || 0,
+      status:             'pending',
+      // FIX: respecter le payment_status fourni par l'appelant (ex: 'authorized')
+      // Fallback sur 'unpaid' seulement si rien n'est passé
+      payment_status:     res.payment_status    || res.paymentStatus || 'unpaid',
+      // FIX: sauvegarder le paymentIntentId Stripe
+      payment_intent_id:  res.paymentIntentId   || res.payment_intent_id || null,
     };
 
     console.log('[Store.addReservation] row à insérer :', JSON.stringify(row));
@@ -176,7 +189,7 @@ export const Store = {
     if (error) throw new Error(error.message);
   },
 
-  // ─── MESSAGES / CONVERSATIONS ──────────────────────────────────────────
+  // ─── MESSAGES / CONVERSATIONS ───────────────────────────────────────────
   async getOrCreateConv(userId, ownerId, venueId, venueName) {
     const convId = `conv_${userId}_${venueId}`;
     const { data: existing } = await supabase.from('conversations').select('*').eq('id', convId).maybeSingle();
@@ -217,7 +230,7 @@ export const Store = {
     return { ...data, senderId: data.sender_id };
   },
 
-  // ─── REVIEWS ──────────────────────────────────────────────────────────
+  // ─── REVIEWS ─────────────────────────────────────────────────────────
   async getReviews(venueId) {
     let query = supabase.from('reviews').select('*').order('created_at', { ascending: false });
     if (venueId !== undefined) query = query.eq('venue_id', venueId);
@@ -279,7 +292,7 @@ export const Store = {
   },
 };
 
-// ─── Normaliseurs ───────────────────────────────────────────────────────────────────────────────
+// ─── Normaliseurs ───────────────────────────────────────────────────────────────────────────────────────
 function normalizeVenue(v) {
   return {
     id: v.id, ownerId: v.owner_id, name: v.name, type: v.type,
@@ -317,7 +330,9 @@ function normalizeReservation(r) {
     venueName: r.venue_name, userName: r.user_name, date: r.date,
     start: r.start_time, end: r.end_time, guests: r.guests,
     eventType: r.event_type, message: r.message, notes: r.message, total: r.total,
-    status: r.status, paymentStatus: r.payment_status,
+    status: r.status,
+    paymentStatus: r.payment_status,
+    payment_status: r.payment_status,
     paymentIntentId: r.payment_intent_id,
     commissionAmount: r.commission_amount,
     netOwner: r.net_owner, createdAt: r.created_at,
