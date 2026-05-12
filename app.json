@@ -22,6 +22,14 @@
       },
       "package": "com.eventspace.app"
     },
-    "plugins": []
+    "plugins": [
+      [
+        "@stripe/stripe-react-native",
+        {
+          "merchantIdentifier": "merchant.com.eventspace.app",
+          "enableGooglePay": false
+        }
+      ]
+    ]
   }
 }
