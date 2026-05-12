@@ -5,6 +5,11 @@ import { supabase } from '../services/supabase';
 
 let _currentUser = null;
 
+// Retourne true si la valeur est un UUID v4 valide
+function isUUID(v) {
+  return typeof v === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(v);
+}
+
 export const Store = {
 
   // ─── AUTH ──────────────────────────────────────────────────
@@ -116,13 +121,15 @@ export const Store = {
   },
 
   async addReservation(res) {
-    // FIX: owner_id peut être null si le lieu n'a pas d'annonceur enregistré
-    // (utile pendant les tests avec des venues de démo)
-    const ownerId = res.ownerId && res.ownerId !== '' ? res.ownerId : null;
-    const userId  = res.userId  && res.userId  !== '' ? res.userId  : _currentUser?.id || null;
+    // FIX: n'envoyer venue_id / owner_id / user_id que si ce sont des UUIDs valides
+    // Les IDs entiers (1, 2, 3...) des venues de démo locales ne sont pas des UUIDs
+    const venueId = isUUID(res.venueId)  ? res.venueId  : null;
+    const ownerId = isUUID(res.ownerId)  ? res.ownerId  : null;
+    const userId  = isUUID(res.userId)   ? res.userId
+                  : isUUID(_currentUser?.id) ? _currentUser.id : null;
 
     const row = {
-      venue_id:       res.venueId       || null,
+      venue_id:       venueId,
       user_id:        userId,
       owner_id:       ownerId,
       venue_name:     res.venueName     || '',
