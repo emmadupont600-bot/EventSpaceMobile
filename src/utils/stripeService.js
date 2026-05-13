@@ -3,6 +3,12 @@
  * Service Stripe côté client — mode TEST
  * Crée un PaymentIntent via l'Edge Function Supabase
  * puis confirme le paiement avec @stripe/stripe-react-native
+ *
+ * CONVENTION MONTANTS :
+ *   - venue.price est stocké en CENTIMES dans Supabase (ex: 60000 = 600€)
+ *   - total dans reservations est donc aussi en CENTIMES
+ *   - On envoie le montant tel quel à l'Edge Function (déjà en centimes)
+ *   - NE PAS multiplier par 100 ici
  */
 import { supabase } from '../lib/supabase';
 
@@ -12,13 +18,15 @@ export const STRIPE_PUBLISHABLE_KEY = 'pk_test_51TSkDI1XxCdtSfY7N05oDTaJ2ASeVLF6
 /**
  * Crée un PaymentIntent côté serveur (Edge Function Supabase)
  * et retourne le clientSecret
- * @param {number} amount - Montant en euros (ex: 150)
+ * @param {number} amount - Montant en CENTIMES (ex: 60000 pour 600€)
  * @param {string} reservationId - ID de la réservation dans Supabase
  * @param {string} currency - Devise (défaut: 'eur')
  * @returns {Promise<{clientSecret: string, paymentIntentId: string}>}
  */
 export async function createPaymentIntent(amount, reservationId, currency = 'eur') {
-  const amountInCents = Math.round(amount * 100);
+  // amount est déjà en centimes (venue.price stocké en centimes dans Supabase)
+  // Ne PAS multiplier par 100 ici — sinon 60000 (600€) devient 6 000 000 (60 000€)
+  const amountInCents = Math.round(amount);
 
   const { data, error } = await supabase.functions.invoke('create-payment-intent', {
     body: {
@@ -47,13 +55,11 @@ export async function createPaymentIntent(amount, reservationId, currency = 'eur
  * paid_at n'est mis à jour que si la colonne existe (évite les crashes de schema).
  */
 export async function updateReservationPaymentStatus(reservationId, paymentIntentId, status) {
-  // Champs de base toujours présents
   const updatePayload = {
     payment_status: status,
     payment_intent_id: paymentIntentId,
   };
 
-  // paid_at : seulement quand statut = 'paid' pour éviter un null inutile
   if (status === 'paid') {
     updatePayload.paid_at = new Date().toISOString();
   }
