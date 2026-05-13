@@ -4,7 +4,7 @@
  * Crée un PaymentIntent via l'Edge Function Supabase
  * puis confirme le paiement avec @stripe/stripe-react-native
  */
-import { supabase } from './supabase';
+import { supabase } from '../lib/supabase';
 
 // Clé publique Stripe TEST
 export const STRIPE_PUBLISHABLE_KEY = 'pk_test_51TSkDI1XxCdtSfY7N05oDTaJ2ASeVLF6k1bcJ4XQbKntUCJXJkU3oiitj0DXNoeREeajUMdTYVlORWH5SZIhxNyL00Fza4xqXZ';
