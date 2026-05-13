@@ -4,6 +4,12 @@
  *
  * Navigation params attendus :
  *   - reservation: { id, total, venueName, date }
+ *
+ * CONVENTION MONTANTS :
+ *   - reservation.total est en EUROS (ex: 150)
+ *   - createPaymentIntent() du utils/stripeService convertit en centimes avant d'appeler
+ *     l'Edge Function create-payment-intent.
+ *   - Ne jamais passer des centimes ici.
  */
 import React, { useState, useEffect } from 'react';
 import {
@@ -19,6 +25,13 @@ import { createPaymentIntent, updateReservationPaymentStatus } from '../../utils
 
 const P = '#4F46E5';
 
+// Formate un montant en euros proprement (ex: 150 → "150,00")
+function formatEuros(amount) {
+  const n = parseFloat(amount);
+  if (isNaN(n)) return '0,00';
+  return n.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
 export default function PaymentScreen({ route, navigation }) {
   const { reservation } = route.params || {};
   const { confirmPayment } = useStripe();
@@ -29,13 +42,22 @@ export default function PaymentScreen({ route, navigation }) {
   const [paymentIntentId, setPaymentIntentId] = useState(null);
   const [initError, setInitError]       = useState(null);
 
+  // Sécurise le montant total — doit être > 0 en euros
+  const totalEuros = parseFloat(reservation?.total) || 0;
+
   // Crée le PaymentIntent dès l'ouverture de l'écran
   useEffect(() => {
-    if (!reservation?.id || !reservation?.total) return;
+    if (!reservation?.id) return;
+    if (totalEuros <= 0) {
+      setInitError('Montant de réservation invalide (0 ou manquant).');
+      return;
+    }
     (async () => {
       try {
+        // createPaymentIntent attend des EUROS — la conversion en centimes
+        // est faite à l'intérieur de utils/stripeService.js
         const result = await createPaymentIntent(
-          reservation.total,
+          totalEuros,
           reservation.id
         );
         setClientSecret(result.clientSecret);
@@ -68,7 +90,7 @@ export default function PaymentScreen({ route, navigation }) {
         return;
       }
 
-      // FIX: Stripe retourne 'Succeeded' avec majuscule — comparaison insensible à la casse
+      // Stripe retourne 'Succeeded' avec majuscule — comparaison insensible à la casse
       if (paymentIntent?.status?.toLowerCase() === 'succeeded') {
         await updateReservationPaymentStatus(
           reservation.id,
@@ -78,7 +100,7 @@ export default function PaymentScreen({ route, navigation }) {
 
         Alert.alert(
           '🎉 Paiement réussi !',
-          `Votre réservation pour "${reservation.venueName}" est confirmée.\n\nMontant débité : ${reservation.total}€`,
+          `Votre réservation pour "${reservation.venueName}" est confirmée.\n\nMontant débité : ${formatEuros(totalEuros)}€`,
           [{ text: 'Voir mes réservations', onPress: () => navigation.navigate('ReservationsTab') }]
         );
       }
@@ -135,7 +157,8 @@ export default function PaymentScreen({ route, navigation }) {
           </View>
           <View style={[styles.orderRow, styles.totalRow]}>
             <Text style={styles.totalLabel}>Total à payer</Text>
-            <Text style={styles.totalValue}>{reservation?.total || 0}€</Text>
+            {/* FIX: formatage propre avec 2 décimales */}
+            <Text style={styles.totalValue}>{formatEuros(totalEuros)}€</Text>
           </View>
         </View>
 
@@ -204,7 +227,8 @@ export default function PaymentScreen({ route, navigation }) {
           ) : (
             <>
               <Ionicons name="lock-closed" size={18} color="#fff" />
-              <Text style={styles.payBtnText}>Payer {reservation?.total || 0}€</Text>
+              {/* FIX: affichage formaté du montant */}
+              <Text style={styles.payBtnText}>Payer {formatEuros(totalEuros)}€</Text>
             </>
           )}
         </TouchableOpacity>

@@ -18,8 +18,10 @@ export default function ReservationScreen({ navigation, route }) {
   const [message, setMessage] = useState('');
   const [step, setStep] = useState(1);
 
-  const commission = Math.round(lieu.prix * 0.12);
-  const total = lieu.prix + commission;
+  // FIX: sécurise lieu.prix — peut être undefined si venue mal formatée
+  const prixBase = parseFloat(lieu?.prix) || 0;
+  const commission = Math.round(prixBase * 0.12 * 100) / 100;
+  const total = Math.round((prixBase + commission) * 100) / 100;
 
   const handleConfirm = () => {
     if (!date || !heureDebut || !heureFin || !invites || !type) {
@@ -29,7 +31,6 @@ export default function ReservationScreen({ navigation, route }) {
     Alert.alert(
       '✅ Réservation envoyée !',
       `Votre demande pour ${lieu.nom} le ${date} a été envoyée. L\'annonceur vous répondra sous 24h.`,
-      // ✅ FIX : goBack() au lieu de navigate('HomeMain') — fonctionne dans tous les contextes
       [{ text: 'OK', onPress: () => navigation.goBack() }]
     );
   };
@@ -62,7 +63,8 @@ export default function ReservationScreen({ navigation, route }) {
             <Text style={styles.lieuNom}>{lieu.nom}</Text>
             <Text style={styles.lieuVille}>{lieu.ville}</Text>
           </View>
-          <Text style={styles.lieuPrix}>{lieu.prix.toLocaleString()}€</Text>
+          {/* FIX: affiche prixBase (sécurisé) au lieu de lieu.prix brut */}
+          <Text style={styles.lieuPrix}>{prixBase.toLocaleString('fr-FR')}€</Text>
         </View>
 
         {step === 1 && (
@@ -115,7 +117,7 @@ export default function ReservationScreen({ navigation, route }) {
               { label: 'Date', value: date },
               { label: 'Horaires', value: `${heureDebut} - ${heureFin}` },
               { label: 'Type', value: type },
-              { label: 'Invités', value: `${invites} personnes` },
+              { label: 'Invités', value: `${invites} personne${parseInt(invites) > 1 ? 's' : ''}` },
             ].map((r, i) => (
               <View key={i} style={styles.recapRow}>
                 <Text style={styles.recapLabel}>{r.label}</Text>
@@ -125,15 +127,15 @@ export default function ReservationScreen({ navigation, route }) {
             <View style={styles.divider} />
             <View style={styles.recapRow}>
               <Text style={styles.recapLabel}>Location</Text>
-              <Text style={styles.recapValue}>{lieu.prix.toLocaleString()}€</Text>
+              <Text style={styles.recapValue}>{prixBase.toLocaleString('fr-FR')}€</Text>
             </View>
             <View style={styles.recapRow}>
               <Text style={styles.recapLabel}>Commission (12%)</Text>
-              <Text style={styles.recapValue}>{commission.toLocaleString()}€</Text>
+              <Text style={styles.recapValue}>{commission.toLocaleString('fr-FR')}€</Text>
             </View>
             <View style={[styles.recapRow, styles.totalRow]}>
               <Text style={styles.totalLabel}>Total</Text>
-              <Text style={styles.totalValue}>{total.toLocaleString()}€</Text>
+              <Text style={styles.totalValue}>{total.toLocaleString('fr-FR')}€</Text>
             </View>
           </View>
         )}

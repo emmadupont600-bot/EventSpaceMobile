@@ -9,6 +9,15 @@
  *    → argent réellement débité (en test)
  * 3. Annonceur refuse → refundPayment() appelle Edge Function stripe-refund
  *    → PaymentIntent annulé ou remboursé automatiquement
+ *
+ * ⚠️  CONVENTION MONTANTS :
+ *   - Ce fichier envoie TOUJOURS des centimes à l'Edge Function stripe-create-payment.
+ *   - L'Edge Function stripe-create-payment passe l'amount DIRECTEMENT à Stripe
+ *     (elle ne refait PAS ×100).
+ *   - Donc : si le prix est 150 €  →  on envoie 15000 (centimes).
+ *
+ * ⚠️  NE PAS CONFONDRE avec src/utils/stripeService.js (utilisé par PaymentScreen)
+ *   qui lui appelle l'Edge Function create-payment-intent — même logique centimes.
  */
 
 import { supabase } from './supabase';
@@ -19,23 +28,34 @@ export const STRIPE_PUBLISHABLE_KEY = 'pk_test_51TSkDI1XxCdtSfY7N05oDTaJ2ASeVLF6
  * Crée un vrai PaymentIntent Stripe en mode test via Edge Function.
  * Le paiement apparaît immédiatement dans le dashboard Stripe (test mode).
  *
+ * @param {number} amount - Montant EN EUROS (ex: 150 pour 150 €)
  * @returns {Promise<{ success: boolean, paymentIntentId?: string, clientSecret?: string, error?: string }>}
  */
 export async function processPayment({ amount, reservationId, venueName }) {
   try {
+    // Validation : amount doit être un nombre positif en euros
+    const amountEuros = parseFloat(amount);
+    if (!amountEuros || isNaN(amountEuros) || amountEuros <= 0) {
+      return { success: false, error: 'Montant invalide' };
+    }
+
+    // Conversion en centimes — l'Edge Function stripe-create-payment attend des centimes
+    // et les passe DIRECTEMENT à Stripe sans retraitement.
+    const amountCents = Math.round(amountEuros * 100);
+
     const { data, error } = await supabase.functions.invoke('stripe-create-payment', {
-      body: { amount, reservationId, venueName },
+      body: { amount: amountCents, reservationId, venueName },
     });
 
     if (error) throw new Error(error.message);
     if (!data?.success) throw new Error(data?.error ?? 'Erreur Stripe inconnue');
 
-    console.log('[Stripe] PaymentIntent créé:', data.paymentIntentId);
+    console.log('[Stripe] PaymentIntent créé:', data.paymentIntentId, `(${amountEuros} € = ${amountCents} centimes)`);
     return {
       success: true,
       paymentIntentId: data.paymentIntentId,
       clientSecret: data.clientSecret,
-      amount,
+      amount: amountEuros,
       reservationId,
       venueName,
     };
@@ -95,17 +115,24 @@ export async function refundPayment(paymentIntentId) {
 
 /**
  * Calcule la commission EventSpace (15%) et le net versé à l'annonceur.
+ * @param {number} totalEuros - Montant total en euros
  */
 export function calcCommission(totalEuros) {
-  const commission = Math.round(totalEuros * 0.15 * 100) / 100;
-  const net = Math.round((totalEuros - commission) * 100) / 100;
-  return { total: totalEuros, commission, net };
+  const total = parseFloat(totalEuros) || 0;
+  const commission = Math.round(total * 0.15 * 100) / 100;
+  const net = Math.round((total - commission) * 100) / 100;
+  return { total, commission, net };
 }
 
 export const calculateFees = calcCommission;
 
 /**
  * Calcul des prix avec durée.
+ * @param {object} params
+ * @param {number} params.pricePerHour - Prix par heure en euros
+ * @param {string} params.startTime    - Heure début "HH:MM"
+ * @param {string} params.endTime      - Heure fin "HH:MM"
+ * @param {number} [params.commission] - Taux commission (défaut 0.15)
  */
 export function computePricing({ pricePerHour, startTime, endTime, commission = 0.15 }) {
   const toMinutes = t => {
@@ -114,6 +141,6 @@ export function computePricing({ pricePerHour, startTime, endTime, commission = 
   };
   const diffMin = toMinutes(endTime) - toMinutes(startTime);
   const hours = Math.max(diffMin / 60, 0);
-  const subtotal = Math.round(pricePerHour * hours * 100) / 100;
+  const subtotal = Math.round((parseFloat(pricePerHour) || 0) * hours * 100) / 100;
   return { hours, subtotal, total: subtotal };
 }
