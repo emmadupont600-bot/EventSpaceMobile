@@ -3,13 +3,14 @@ import { View, ActivityIndicator, StyleSheet } from 'react-native';
 import { NavigationContainer } from '@react-navigation/native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
+import { StripeProvider } from '@stripe/stripe-react-native';
 import { AppProvider, useApp } from './src/context/AppContext';
 import AuthNavigator from './src/navigation/AuthNavigator';
 import ClientNavigator from './src/navigation/ClientNavigator';
 import AnnonceurNavigator from './src/navigation/AnnonceurNavigator';
+import { STRIPE_PUBLISHABLE_KEY } from './src/utils/stripeService';
 
 // FIX: attend que loading soit false avant d'afficher un navigator
-// → évite le flash écran login au démarrage quand l'user est déjà connecté
 function RootNavigator() {
   const { user, loading } = useApp();
 
@@ -30,11 +31,13 @@ export default function App() {
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <SafeAreaProvider>
-        <AppProvider>
-          <NavigationContainer>
-            <RootNavigator />
-          </NavigationContainer>
-        </AppProvider>
+        <StripeProvider publishableKey={STRIPE_PUBLISHABLE_KEY}>
+          <AppProvider>
+            <NavigationContainer>
+              <RootNavigator />
+            </NavigationContainer>
+          </AppProvider>
+        </StripeProvider>
       </SafeAreaProvider>
     </GestureHandlerRootView>
   );

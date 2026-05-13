@@ -4,10 +4,6 @@
  *
  * Navigation params attendus :
  *   - reservation: { id, total, venueName, date }
- *
- * Prérequis :
- *   npm install @stripe/stripe-react-native
- *   Dans App.js : wrap avec <StripeProvider publishableKey={STRIPE_PUBLISHABLE_KEY}>
  */
 import React, { useState, useEffect } from 'react';
 import {
@@ -18,7 +14,6 @@ import { Ionicons } from '@expo/vector-icons';
 import {
   useStripe,
   CardField,
-  createPaymentMethod,
 } from '@stripe/stripe-react-native';
 import { createPaymentIntent, updateReservationPaymentStatus } from '../../utils/stripeService';
 
@@ -28,11 +23,11 @@ export default function PaymentScreen({ route, navigation }) {
   const { reservation } = route.params || {};
   const { confirmPayment } = useStripe();
 
-  const [loading, setLoading]       = useState(false);
+  const [loading, setLoading]           = useState(false);
   const [cardComplete, setCardComplete] = useState(false);
   const [clientSecret, setClientSecret] = useState(null);
   const [paymentIntentId, setPaymentIntentId] = useState(null);
-  const [initError, setInitError]   = useState(null);
+  const [initError, setInitError]       = useState(null);
 
   // Crée le PaymentIntent dès l'ouverture de l'écran
   useEffect(() => {
@@ -73,8 +68,8 @@ export default function PaymentScreen({ route, navigation }) {
         return;
       }
 
-      if (paymentIntent?.status === 'Succeeded') {
-        // Met à jour Supabase
+      // FIX: Stripe retourne 'Succeeded' avec majuscule — comparaison insensible à la casse
+      if (paymentIntent?.status?.toLowerCase() === 'succeeded') {
         await updateReservationPaymentStatus(
           reservation.id,
           paymentIntentId,
