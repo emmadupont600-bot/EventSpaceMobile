@@ -1,6 +1,8 @@
 /**
  * Edge Function Supabase : create-payment-intent
- * Crée un PaymentIntent Stripe en mode TEST
+ * Crée un PaymentIntent Stripe en mode TEST avec capture manuelle
+ * (l'argent est réservé mais PAS débité tant que l'annonceur n'accepte pas)
+ *
  * Deploy: supabase functions deploy create-payment-intent
  *
  * Variables d'environnement à configurer dans Supabase Dashboard :
@@ -36,8 +38,11 @@ serve(async (req) => {
     }
 
     const paymentIntent = await stripe.paymentIntents.create({
-      amount,          // en centimes
+      amount,                    // en centimes
       currency,
+      // FIX: capture_method manual → argent réservé mais débité seulement quand
+      // l'annonceur accepte (via stripe-capture) ou annulé si refus (via stripe-refund)
+      capture_method: 'manual',
       automatic_payment_methods: { enabled: true },
       metadata: {
         ...metadata,

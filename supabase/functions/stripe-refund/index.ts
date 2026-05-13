@@ -19,20 +19,44 @@ serve(async (req) => {
       });
     }
 
-    // Si le PI est en requires_capture → on l'annule (pas de débit = pas de remboursement nécessaire)
-    // Si déjà capturé → on crée un refund
-    const cancelRes = await fetch(`https://api.stripe.com/v1/payment_intents/${paymentIntentId}/cancel`, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${STRIPE_SECRET_KEY}`,
-        'Content-Type': 'application/x-www-form-urlencoded',
-      },
+    // Étape 1 : récupérer le statut actuel du PI
+    const piRes = await fetch(`https://api.stripe.com/v1/payment_intents/${paymentIntentId}`, {
+      headers: { 'Authorization': `Bearer ${STRIPE_SECRET_KEY}` },
     });
+    const piData = await piRes.json();
 
-    const cancelData = await cancelRes.json();
+    if (!piRes.ok) {
+      return new Response(JSON.stringify({ error: piData.error?.message ?? 'PI introuvable' }), {
+        status: 400, headers: { ...CORS, 'Content-Type': 'application/json' },
+      });
+    }
 
-    // Si déjà capturé, on fait un vrai remboursement
-    if (!cancelRes.ok && cancelData.error?.code === 'payment_intent_unexpected_state') {
+    // Étape 2 : selon le statut, on annule ou on rembourse
+    const piStatus = piData.status;
+
+    // requires_capture → argent réservé mais pas débité → simple annulation
+    if (piStatus === 'requires_capture' || piStatus === 'requires_payment_method' || piStatus === 'requires_confirmation' || piStatus === 'requires_action') {
+      const cancelRes = await fetch(`https://api.stripe.com/v1/payment_intents/${paymentIntentId}/cancel`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${STRIPE_SECRET_KEY}`,
+          'Content-Type': 'application/x-www-form-urlencoded',
+        },
+      });
+      const cancelData = await cancelRes.json();
+      if (!cancelRes.ok) {
+        return new Response(JSON.stringify({ error: cancelData.error?.message ?? 'Erreur annulation Stripe' }), {
+          status: 400, headers: { ...CORS, 'Content-Type': 'application/json' },
+        });
+      }
+      return new Response(
+        JSON.stringify({ success: true, type: 'cancel', status: cancelData.status }),
+        { headers: { ...CORS, 'Content-Type': 'application/json' } },
+      );
+    }
+
+    // succeeded → déjà débité → remboursement
+    if (piStatus === 'succeeded') {
       const refundRes = await fetch('https://api.stripe.com/v1/refunds', {
         method: 'POST',
         headers: {
@@ -53,16 +77,12 @@ serve(async (req) => {
       );
     }
 
-    if (!cancelRes.ok) {
-      return new Response(JSON.stringify({ error: cancelData.error?.message ?? 'Erreur annulation Stripe' }), {
-        status: 400, headers: { ...CORS, 'Content-Type': 'application/json' },
-      });
-    }
-
+    // Cas déjà annulé ou état inattendu
     return new Response(
-      JSON.stringify({ success: true, type: 'cancel', status: cancelData.status }),
+      JSON.stringify({ success: true, type: 'noop', status: piStatus }),
       { headers: { ...CORS, 'Content-Type': 'application/json' } },
     );
+
   } catch (e) {
     return new Response(JSON.stringify({ error: e.message }), {
       status: 500, headers: { ...CORS, 'Content-Type': 'application/json' },

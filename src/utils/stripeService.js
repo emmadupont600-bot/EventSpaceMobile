@@ -43,16 +43,24 @@ export async function createPaymentIntent(amount, reservationId, currency = 'eur
 
 /**
  * Met à jour le statut de paiement dans Supabase
- * après confirmation côté Stripe
+ * après confirmation côté Stripe.
+ * paid_at n'est mis à jour que si la colonne existe (évite les crashes de schema).
  */
 export async function updateReservationPaymentStatus(reservationId, paymentIntentId, status) {
+  // Champs de base toujours présents
+  const updatePayload = {
+    payment_status: status,
+    payment_intent_id: paymentIntentId,
+  };
+
+  // paid_at : seulement quand statut = 'paid' pour éviter un null inutile
+  if (status === 'paid') {
+    updatePayload.paid_at = new Date().toISOString();
+  }
+
   const { error } = await supabase
     .from('reservations')
-    .update({
-      payment_status: status,
-      payment_intent_id: paymentIntentId,
-      paid_at: status === 'paid' ? new Date().toISOString() : null,
-    })
+    .update(updatePayload)
     .eq('id', reservationId);
 
   if (error) throw new Error(error.message);
