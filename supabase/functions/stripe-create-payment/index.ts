@@ -19,8 +19,10 @@ serve(async (req) => {
       });
     }
 
-    // Convertit en centimes
-    const amountCents = Math.round(amount * 100);
+    // ✅ FIX : amount est déjà en centimes (envoyé par stripeService.js via Math.round(euros * 100))
+    // ❌ SUPPRIMÉ : const amountCents = Math.round(amount * 100) — causait une double conversion (×100×100 = ×10000)
+    // Exemple : 450€ → stripeService envoie 45000 centimes → on passe 45000 directement à Stripe ✅
+    const amountCents = Math.round(amount); // sécurité arrondi uniquement, PAS de ×100
 
     const body = new URLSearchParams({
       amount: String(amountCents),
