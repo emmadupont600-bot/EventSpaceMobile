@@ -2,25 +2,33 @@
   "expo": {
     "name": "EventSpace",
     "slug": "eventspacemobile",
-    "version": "1.0.0",
+    "version": "1.1.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
     "splash": {
       "image": "./assets/splash.png",
       "resizeMode": "contain",
-      "backgroundColor": "#2d5be3"
+      "backgroundColor": "#4F46E5"
     },
     "ios": {
       "supportsTablet": false,
-      "bundleIdentifier": "com.eventspace.app"
+      "bundleIdentifier": "com.eventspace.app",
+      "infoPlist": {
+        "NSPhotoLibraryUsageDescription": "EventSpace a besoin d'accéder à vos photos pour ajouter des photos de profil et de vos lieux.",
+        "NSCameraUsageDescription": "EventSpace utilise la caméra pour prendre des photos de vos lieux."
+      }
     },
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
-        "backgroundColor": "#2d5be3"
+        "backgroundColor": "#4F46E5"
       },
-      "package": "com.eventspace.app"
+      "package": "com.eventspace.app",
+      "permissions": [
+        "READ_EXTERNAL_STORAGE",
+        "WRITE_EXTERNAL_STORAGE"
+      ]
     },
     "plugins": [
       [
@@ -29,7 +37,15 @@
           "merchantIdentifier": "merchant.com.eventspace.app",
           "enableGooglePay": false
         }
-      ]
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "EventSpace a besoin d'accéder à vos photos pour ajouter des photos de profil et de vos lieux."
+        }
+      ],
+      "@react-native-community/datetimepicker",
+      "expo-font"
     ]
   }
 }
