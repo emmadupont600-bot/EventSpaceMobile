@@ -1,37 +1,95 @@
 /**
- * EditVenueScreen — modifier ou supprimer une salle existante.
- * Utilise Store.updateVenue / Store.deleteVenue (Supabase).
+ * EditVenueScreen — Modify or delete an existing venue.
+ *
+ * Built on the same UI primitives as AddVenueScreen: section headers,
+ * cover/gallery picker, chip grid, sticky CTA. Adds destructive delete flow.
  */
-import React, { useState } from 'react';
+import React, { useState, useCallback, useMemo } from 'react';
 import {
-  View, Text, TextInput, TouchableOpacity, ScrollView,
-  StyleSheet, Alert, ActivityIndicator, KeyboardAvoidingView, Platform,
+  View, Text, TextInput, TouchableOpacity, ScrollView, StyleSheet,
+  ActivityIndicator, Image, Alert, KeyboardAvoidingView, Platform,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Store } from '../../utils/store';
-import { colors, spacing, typography } from '../../theme/colors';
 
-const TYPES = ['Château', 'Loft', 'Rooftop', 'Studio photo', 'Jardin', 'Péniche', 'Cave', 'Salle de réception', 'Autre'];
+import { Store } from '../../utils/store';
+import { pickAndUpload } from '../../services/uploadService';
+import { useToast } from '../../components/Toast';
+import { colors, spacing, typography, radius, shadow } from '../../theme/colors';
+
+const TYPES = ['Loft', 'Salle', 'Studio', 'Rooftop', 'Domaine', 'Bureau', 'Château', 'Jardin', 'Autre'];
+const CATEGORIES = ['Soirée', 'Mariage', 'Professionnel', 'Anniversaire', 'Shooting'];
+const AMENITIES_LIST = ['WiFi', 'Parking', 'Cuisine', 'Sono', 'Climatisation', 'Terrasse', 'Vidéoprojecteur', 'Catering', 'PMR', 'Piscine'];
 
 export default function EditVenueScreen({ route, navigation }) {
   const { venue } = route.params;
   const insets = useSafeAreaInsets();
+  const toast = useToast();
 
-  const [name, setName]           = useState(venue.name || '');
-  const [type, setType]           = useState(venue.type || '');
-  const [city, setCity]           = useState(venue.city || '');
-  const [address, setAddress]     = useState(venue.address || '');
-  const [price, setPrice]         = useState(String(venue.price || ''));
-  const [capacity, setCapacity]   = useState(String(venue.capacity || ''));
+  const [name, setName]               = useState(venue.name || '');
+  const [type, setType]               = useState(venue.type || '');
+  const [category, setCategory]       = useState(venue.category || '');
+  const [city, setCity]               = useState(venue.city || '');
+  const [address, setAddress]         = useState(venue.address || '');
+  const [price, setPrice]             = useState(String(venue.price || ''));
+  const [capacity, setCapacity]       = useState(String(venue.capacity || ''));
   const [description, setDescription] = useState(venue.description || '');
-  const [img, setImg]             = useState(venue.img || '');
-  const [saving, setSaving]       = useState(false);
-  const [deleting, setDeleting]   = useState(false);
+  const [cover, setCover]             = useState(venue.img || venue.cover_url || null);
+  const [gallery, setGallery]         = useState(Array.isArray(venue.gallery) ? venue.gallery : []);
+  const [amenities, setAmenities]     = useState(Array.isArray(venue.tags) ? venue.tags : []);
+
+  const [coverUploading, setCoverUploading] = useState(false);
+  const [galleryUploading, setGalleryUploading] = useState(false);
+  const [saving, setSaving]                 = useState(false);
+  const [deleting, setDeleting]             = useState(false);
+
+  const handlePickCover = useCallback(async () => {
+    setCoverUploading(true);
+    try {
+      const url = await pickAndUpload(`venues/${venue.id}/cover`);
+      if (url) {
+        setCover(url);
+        toast.success('Photo de couverture mise à jour');
+      }
+    } catch (e) {
+      toast.error(e.message || 'Erreur upload');
+    } finally {
+      setCoverUploading(false);
+    }
+  }, [toast, venue.id]);
+
+  const handlePickGalleryPhoto = useCallback(async () => {
+    setGalleryUploading(true);
+    try {
+      const url = await pickAndUpload(`venues/${venue.id}/gallery`);
+      if (url) {
+        setGallery(prev => [...prev, url]);
+        toast.success('Photo ajoutée');
+      }
+    } catch (e) {
+      toast.error(e.message || 'Erreur upload');
+    } finally {
+      setGalleryUploading(false);
+    }
+  }, [toast, venue.id]);
+
+  const removeGalleryPhoto = useCallback((idx) => {
+    setGallery(prev => prev.filter((_, i) => i !== idx));
+  }, []);
+
+  const missing = useMemo(() => {
+    const m = [];
+    if (!name.trim()) m.push('nom');
+    if (!city.trim()) m.push('ville');
+    if (!price) m.push('prix');
+    if (!capacity) m.push('capacité');
+    return m;
+  }, [name, city, price, capacity]);
 
   const handleSave = async () => {
-    if (!name.trim() || !city.trim() || !price || !capacity) {
-      Alert.alert('Champs manquants', 'Nom, ville, prix et capacité sont obligatoires.');
+    if (missing.length > 0) {
+      toast.error(`Manque : ${missing.join(', ')}`);
       return;
     }
     setSaving(true);
@@ -39,18 +97,22 @@ export default function EditVenueScreen({ route, navigation }) {
       await Store.updateVenue(venue.id, {
         name: name.trim(),
         type,
+        category,
         city: city.trim(),
         address: address.trim(),
         price: Number(price),
         capacity: Number(capacity),
         description: description.trim(),
-        img: img.trim() || venue.img,
+        img: cover,
+        cover_url: cover,
+        gallery,
+        gallery_urls: gallery,
+        tags: amenities,
       });
-      Alert.alert('✅ Sauvegardé', 'Les modifications ont été enregistrées.', [
-        { text: 'OK', onPress: () => navigation.goBack() },
-      ]);
+      toast.success('Modifications enregistrées');
+      navigation.goBack();
     } catch (e) {
-      Alert.alert('Erreur', e.message);
+      toast.error(e.message || 'Erreur');
     } finally {
       setSaving(false);
     }
@@ -58,7 +120,7 @@ export default function EditVenueScreen({ route, navigation }) {
 
   const handleDelete = () => {
     Alert.alert(
-      '🗑️ Supprimer ce lieu',
+      'Supprimer ce lieu',
       `Êtes-vous sûr de vouloir supprimer « ${venue.name} » ? Cette action est irréversible.`,
       [
         { text: 'Annuler', style: 'cancel' },
@@ -69,9 +131,10 @@ export default function EditVenueScreen({ route, navigation }) {
             setDeleting(true);
             try {
               await Store.deleteVenue(venue.id);
+              toast.success('Lieu supprimé');
               navigation.goBack();
             } catch (e) {
-              Alert.alert('Erreur', e.message);
+              toast.error(e.message || 'Erreur suppression');
             } finally {
               setDeleting(false);
             }
@@ -82,130 +145,418 @@ export default function EditVenueScreen({ route, navigation }) {
   };
 
   return (
-    <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+    <KeyboardAvoidingView
+      style={{ flex: 1 }}
+      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+    >
       <View style={[styles.container, { paddingTop: insets.top }]}>
-        <View style={styles.header}>
-          <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
+        {/* HEADER */}
+        <View style={styles.headerBar}>
+          <TouchableOpacity onPress={() => navigation.goBack()} style={styles.iconBtn}>
             <Ionicons name="arrow-back" size={22} color={colors.dark} />
           </TouchableOpacity>
-          <Text style={styles.headerTitle}>Modifier le lieu</Text>
-          <TouchableOpacity onPress={handleDelete} style={styles.deleteHeaderBtn} disabled={deleting}>
+          <View style={{ flex: 1, alignItems: 'center' }}>
+            <Text style={styles.headerTitle} numberOfLines={1}>Modifier</Text>
+            <Text style={styles.headerSub} numberOfLines={1}>{venue.name}</Text>
+          </View>
+          <TouchableOpacity
+            onPress={handleDelete}
+            style={[styles.iconBtn, { backgroundColor: '#FEE2E2' }]}
+            disabled={deleting}
+          >
             {deleting
-              ? <ActivityIndicator size="small" color="#EF4444" />
-              : <Ionicons name="trash-outline" size={22} color="#EF4444" />}
+              ? <ActivityIndicator size="small" color={colors.error} />
+              : <Ionicons name="trash-outline" size={20} color={colors.error} />}
           </TouchableOpacity>
         </View>
 
         <ScrollView
-          style={styles.scroll}
-          contentContainerStyle={styles.scrollContent}
-          keyboardShouldPersistTaps="handled"
+          contentContainerStyle={styles.scroll}
           showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
         >
-          <Field label="Nom du lieu *" value={name} onChangeText={setName} placeholder="Ex: Loft du Marais" />
+          {/* COVER */}
+          <SectionHeader icon="image-outline" title="Photo de couverture" />
+          <TouchableOpacity
+            style={styles.coverPickerBox}
+            onPress={handlePickCover}
+            activeOpacity={0.85}
+            disabled={coverUploading}
+          >
+            {cover ? (
+              <>
+                <Image source={{ uri: cover }} style={styles.coverImg} />
+                <LinearGradient
+                  colors={['transparent', 'rgba(0,0,0,0.7)']}
+                  style={styles.coverOverlay}
+                />
+                <View style={styles.coverEditPill}>
+                  {coverUploading ? (
+                    <ActivityIndicator size="small" color="#fff" />
+                  ) : (
+                    <>
+                      <Ionicons name="camera" size={14} color="#fff" />
+                      <Text style={styles.coverEditText}>Changer</Text>
+                    </>
+                  )}
+                </View>
+              </>
+            ) : (
+              <View style={styles.coverEmpty}>
+                {coverUploading ? (
+                  <ActivityIndicator color={colors.primary} size="large" />
+                ) : (
+                  <View style={styles.coverEmptyIcon}>
+                    <Ionicons name="cloud-upload-outline" size={28} color={colors.primary} />
+                  </View>
+                )}
+                <Text style={styles.coverEmptyText}>
+                  {coverUploading ? 'Envoi…' : 'Ajouter une photo de couverture'}
+                </Text>
+              </View>
+            )}
+          </TouchableOpacity>
 
-          <Text style={styles.label}>Type de lieu *</Text>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.typeRow}>
-            {TYPES.map(t => (
-              <TouchableOpacity
-                key={t}
-                style={[styles.typeChip, type === t && styles.typeChipActive]}
-                onPress={() => setType(t)}
-              >
-                <Text style={[styles.typeChipText, type === t && styles.typeChipTextActive]}>{t}</Text>
-              </TouchableOpacity>
+          {/* GALLERY */}
+          <SectionHeader
+            icon="images-outline"
+            title="Galerie"
+            subtitle={`${gallery.length} photo${gallery.length > 1 ? 's' : ''}`}
+          />
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.galleryRow}
+          >
+            {gallery.map((uri, idx) => (
+              <View key={uri + idx} style={styles.galleryItem}>
+                <Image source={{ uri }} style={styles.galleryImg} />
+                <TouchableOpacity
+                  style={styles.galleryRemoveBtn}
+                  onPress={() => removeGalleryPhoto(idx)}
+                >
+                  <Ionicons name="close" size={14} color="#fff" />
+                </TouchableOpacity>
+              </View>
             ))}
+            <TouchableOpacity
+              style={styles.galleryAdd}
+              onPress={handlePickGalleryPhoto}
+              disabled={galleryUploading}
+              activeOpacity={0.8}
+            >
+              {galleryUploading ? (
+                <ActivityIndicator color={colors.primary} />
+              ) : (
+                <>
+                  <Ionicons name="add" size={26} color={colors.primary} />
+                  <Text style={styles.galleryAddText}>Ajouter</Text>
+                </>
+              )}
+            </TouchableOpacity>
           </ScrollView>
 
-          <Field label="Ville *" value={city} onChangeText={setCity} placeholder="Ex: Paris" />
-          <Field label="Adresse complète" value={address} onChangeText={setAddress} placeholder="Ex: 34 Rue de Bretagne, 75003" />
-          <Field label="Prix / heure (€) *" value={price} onChangeText={setPrice} placeholder="Ex: 800" keyboardType="number-pad" />
-          <Field label="Capacité max (personnes) *" value={capacity} onChangeText={setCapacity} placeholder="Ex: 80" keyboardType="number-pad" />
+          {/* INFOS */}
+          <SectionHeader icon="information-circle-outline" title="Informations" />
+          <Field label="Nom du lieu" required value={name} onChangeText={setName} placeholder="Ex: Loft du Marais" />
+          <Row>
+            <Field flex label="Ville" required value={city} onChangeText={setCity} placeholder="Paris" />
+            <Field flex label="Prix / heure (€)" required value={price} onChangeText={setPrice} placeholder="800" keyboardType="number-pad" prefix="€" />
+          </Row>
+          <Row>
+            <Field flex label="Capacité" required value={capacity} onChangeText={setCapacity} placeholder="80" keyboardType="number-pad" suffix="pers." />
+            <View style={{ flex: 1 }} />
+          </Row>
           <Field
-            label="Description"
-            value={description} onChangeText={setDescription}
-            placeholder="Décrivez votre lieu..."
-            multiline numberOfLines={4}
-          />
-          <Field
-            label="URL de la photo principale"
-            value={img} onChangeText={setImg}
-            placeholder="https://images.unsplash.com/..."
-            autoCapitalize="none"
+            label="Adresse complète"
+            value={address}
+            onChangeText={setAddress}
+            placeholder="34 Rue de Bretagne, 75003"
           />
 
+          {/* TYPE / CATEGORY / AMENITIES */}
+          <SectionHeader icon="business-outline" title="Type de lieu" />
+          <ChipGrid items={TYPES} value={type} onChange={setType} />
+
+          <SectionHeader icon="sparkles-outline" title="Catégorie" />
+          <ChipGrid items={CATEGORIES} value={category} onChange={setCategory} />
+
+          <SectionHeader icon="construct-outline" title="Équipements" />
+          <ChipGrid items={AMENITIES_LIST} multi value={amenities} onChange={setAmenities} />
+
+          {/* DESCRIPTION */}
+          <SectionHeader icon="document-text-outline" title="Description" />
+          <TextInput
+            style={[styles.input, styles.textarea]}
+            placeholder="Décris ton lieu : ambiance, points forts…"
+            value={description}
+            onChangeText={setDescription}
+            multiline
+            numberOfLines={5}
+            placeholderTextColor={colors.light}
+            textAlignVertical="top"
+          />
+
+          {/* DELETE LARGE */}
           <TouchableOpacity
-            style={[styles.saveBtn, saving && styles.saveBtnDisabled]}
-            onPress={handleSave}
-            disabled={saving}
+            style={styles.deleteBtn}
+            onPress={handleDelete}
+            disabled={deleting}
+            activeOpacity={0.85}
           >
-            {saving
-              ? <ActivityIndicator color="#fff" />
-              : <Text style={styles.saveBtnText}>💾 Enregistrer les modifications</Text>}
+            {deleting
+              ? <ActivityIndicator color={colors.error} />
+              : (
+                <>
+                  <Ionicons name="trash-outline" size={18} color={colors.error} />
+                  <Text style={styles.deleteBtnText}>Supprimer ce lieu</Text>
+                </>
+              )}
           </TouchableOpacity>
 
-          <TouchableOpacity style={styles.deleteBtn} onPress={handleDelete} disabled={deleting}>
-            {deleting
-              ? <ActivityIndicator color="#EF4444" />
-              : <Text style={styles.deleteBtnText}>🗑️ Supprimer ce lieu</Text>}
-          </TouchableOpacity>
+          <View style={{ height: 100 }} />
         </ScrollView>
+
+        {/* STICKY SUBMIT */}
+        <View style={[styles.submitWrap, { paddingBottom: Math.max(insets.bottom, 16) }]}>
+          <TouchableOpacity
+            style={[styles.submitBtn, (saving || missing.length > 0) && { opacity: 0.55 }]}
+            onPress={handleSave}
+            disabled={saving || missing.length > 0}
+            activeOpacity={0.85}
+          >
+            <LinearGradient
+              colors={[colors.primary, '#7C3AED']}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={styles.submitGradient}
+            >
+              {saving ? (
+                <ActivityIndicator color="#fff" />
+              ) : (
+                <>
+                  <Ionicons name="checkmark-circle" size={20} color="#fff" />
+                  <Text style={styles.submitText}>
+                    {missing.length === 0 ? 'Enregistrer les modifications' : `Encore ${missing.length} champ${missing.length > 1 ? 's' : ''}`}
+                  </Text>
+                </>
+              )}
+            </LinearGradient>
+          </TouchableOpacity>
+        </View>
       </View>
     </KeyboardAvoidingView>
   );
 }
 
-function Field({ label, ...props }) {
+// ─── Subcomponents ─────────────────────────────────────────────────────
+
+function SectionHeader({ icon, title, subtitle }) {
   return (
-    <>
-      <Text style={styles.label}>{label}</Text>
-      <TextInput
-        style={[styles.input, props.multiline && styles.inputMulti]}
-        placeholderTextColor={colors.light}
-        autoCorrect={false}
-        {...props}
-      />
-    </>
+    <View style={styles.sectionHeader}>
+      <View style={styles.sectionIcon}>
+        <Ionicons name={icon} size={16} color={colors.primary} />
+      </View>
+      <View style={{ flex: 1 }}>
+        <Text style={styles.sectionTitle}>{title}</Text>
+        {subtitle ? <Text style={styles.sectionSub}>{subtitle}</Text> : null}
+      </View>
+    </View>
   );
 }
 
-const C = colors;
+function Row({ children }) {
+  return <View style={styles.row}>{children}</View>;
+}
+
+function Field({ label, required, prefix, suffix, flex, ...input }) {
+  return (
+    <View style={[styles.fieldWrap, flex && { flex: 1 }]}>
+      <Text style={styles.fieldLabel}>
+        {label}{required ? <Text style={{ color: colors.error }}> *</Text> : null}
+      </Text>
+      <View style={styles.inputBox}>
+        {prefix ? <Text style={styles.affix}>{prefix}</Text> : null}
+        <TextInput
+          style={styles.fieldInput}
+          placeholderTextColor={colors.light}
+          {...input}
+        />
+        {suffix ? <Text style={styles.affix}>{suffix}</Text> : null}
+      </View>
+    </View>
+  );
+}
+
+function ChipGrid({ items, value, onChange, multi = false }) {
+  const isActive = (it) => multi ? value.includes(it) : value === it;
+  const handle = (it) => {
+    if (multi) {
+      onChange(value.includes(it) ? value.filter(x => x !== it) : [...value, it]);
+    } else {
+      onChange(value === it ? '' : it);
+    }
+  };
+  return (
+    <View style={styles.chipGrid}>
+      {items.map(it => {
+        const active = isActive(it);
+        return (
+          <TouchableOpacity
+            key={it}
+            style={[styles.chip, active && styles.chipActive]}
+            onPress={() => handle(it)}
+            activeOpacity={0.8}
+          >
+            {active ? (
+              <Ionicons name="checkmark" size={13} color="#fff" style={{ marginRight: 4 }} />
+            ) : null}
+            <Text style={[styles.chipText, active && styles.chipTextActive]}>{it}</Text>
+          </TouchableOpacity>
+        );
+      })}
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: C.bg },
-  header: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+  container: { flex: 1, backgroundColor: colors.bg },
+
+  headerBar: {
+    flexDirection: 'row', alignItems: 'center',
     paddingHorizontal: spacing.lg, paddingVertical: spacing.md,
-    borderBottomWidth: 1, borderBottomColor: C.border,
+    backgroundColor: colors.white,
+    borderBottomWidth: 1, borderBottomColor: colors.borderLight,
   },
-  backBtn: { width: 36, height: 36, alignItems: 'center', justifyContent: 'center' },
-  headerTitle: { fontSize: typography.h3, fontWeight: '700', color: C.dark },
-  deleteHeaderBtn: { width: 36, height: 36, alignItems: 'center', justifyContent: 'center' },
-  scroll: { flex: 1 },
-  scrollContent: { padding: spacing.lg, paddingBottom: 60 },
-  label: { fontSize: 13, fontWeight: '700', color: C.mid, marginBottom: 6, marginTop: 14 },
+  iconBtn: {
+    width: 42, height: 42, borderRadius: 21,
+    backgroundColor: colors.bg, justifyContent: 'center', alignItems: 'center',
+  },
+  headerTitle: { fontSize: typography.h2, fontWeight: '800', color: colors.dark },
+  headerSub: { fontSize: typography.tiny, color: colors.mid, marginTop: 2 },
+
+  scroll: { padding: spacing.lg, paddingBottom: 40 },
+
+  sectionHeader: {
+    flexDirection: 'row', alignItems: 'center', gap: 10,
+    marginTop: spacing.xl, marginBottom: spacing.md,
+  },
+  sectionIcon: {
+    width: 32, height: 32, borderRadius: radius.md,
+    backgroundColor: colors.primaryLight,
+    justifyContent: 'center', alignItems: 'center',
+  },
+  sectionTitle: { fontSize: typography.h3, fontWeight: '800', color: colors.dark },
+  sectionSub: { fontSize: typography.tiny, color: colors.mid, marginTop: 2 },
+
+  // Cover / Gallery
+  coverPickerBox: {
+    height: 200, borderRadius: radius.lg, overflow: 'hidden',
+    backgroundColor: colors.white,
+    borderWidth: 2, borderColor: colors.border, borderStyle: 'dashed',
+    justifyContent: 'center', alignItems: 'center',
+  },
+  coverImg: { ...StyleSheet.absoluteFillObject, width: '100%', height: '100%' },
+  coverOverlay: { ...StyleSheet.absoluteFillObject },
+  coverEditPill: {
+    position: 'absolute', bottom: 12, right: 12,
+    flexDirection: 'row', alignItems: 'center', gap: 4,
+    paddingHorizontal: 12, paddingVertical: 6,
+    backgroundColor: 'rgba(0,0,0,0.55)', borderRadius: radius.full,
+  },
+  coverEditText: { color: '#fff', fontSize: 12, fontWeight: '700' },
+  coverEmpty: { alignItems: 'center', justifyContent: 'center', padding: 16 },
+  coverEmptyIcon: {
+    width: 56, height: 56, borderRadius: 28,
+    backgroundColor: colors.primaryLight,
+    justifyContent: 'center', alignItems: 'center', marginBottom: 8,
+  },
+  coverEmptyText: { fontSize: typography.body, fontWeight: '700', color: colors.dark },
+
+  galleryRow: { gap: 10, paddingRight: 4, paddingVertical: 4 },
+  galleryItem: {
+    width: 110, height: 110, borderRadius: radius.md, overflow: 'hidden',
+    backgroundColor: colors.white,
+  },
+  galleryImg: { width: '100%', height: '100%' },
+  galleryRemoveBtn: {
+    position: 'absolute', top: 6, right: 6,
+    width: 24, height: 24, borderRadius: 12,
+    backgroundColor: 'rgba(0,0,0,0.65)',
+    justifyContent: 'center', alignItems: 'center',
+  },
+  galleryAdd: {
+    width: 110, height: 110, borderRadius: radius.md,
+    borderWidth: 2, borderColor: colors.primary, borderStyle: 'dashed',
+    backgroundColor: colors.primaryLight,
+    justifyContent: 'center', alignItems: 'center',
+  },
+  galleryAddText: { fontSize: 12, fontWeight: '700', color: colors.primary, marginTop: 4 },
+
+  // Form
+  row: { flexDirection: 'row', gap: spacing.md },
+  fieldWrap: { marginTop: spacing.md },
+  fieldLabel: {
+    fontSize: typography.small, fontWeight: '700',
+    color: colors.dark, marginBottom: 6,
+  },
+  inputBox: {
+    flexDirection: 'row', alignItems: 'center',
+    backgroundColor: colors.white, borderRadius: radius.md,
+    borderWidth: 1.5, borderColor: colors.border,
+    paddingHorizontal: 14,
+    ...shadow.xs,
+  },
+  fieldInput: {
+    flex: 1, paddingVertical: 14,
+    fontSize: typography.body, color: colors.dark,
+  },
+  affix: { fontSize: typography.body, fontWeight: '700', color: colors.mid, paddingHorizontal: 4 },
+
   input: {
-    backgroundColor: C.white, borderRadius: 12, borderWidth: 1.5, borderColor: C.border,
-    paddingHorizontal: spacing.md, paddingVertical: 12,
-    fontSize: typography.body, color: C.dark,
+    backgroundColor: colors.white, borderRadius: radius.md,
+    borderWidth: 1.5, borderColor: colors.border,
+    paddingHorizontal: 14, paddingVertical: 14,
+    fontSize: typography.body, color: colors.dark,
+    ...shadow.xs,
   },
-  inputMulti: { minHeight: 90, textAlignVertical: 'top' },
-  typeRow: { flexGrow: 0, marginBottom: 4 },
-  typeChip: {
-    paddingHorizontal: 14, paddingVertical: 8, borderRadius: 999, marginRight: 8, marginBottom: 8,
-    borderWidth: 1.5, borderColor: C.border, backgroundColor: C.white,
+  textarea: { minHeight: 130 },
+
+  // Chips
+  chipGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  chip: {
+    flexDirection: 'row', alignItems: 'center',
+    paddingHorizontal: 14, paddingVertical: 10,
+    borderRadius: radius.full,
+    borderWidth: 1.5, borderColor: colors.border,
+    backgroundColor: colors.white,
   },
-  typeChipActive: { backgroundColor: C.primary, borderColor: C.primary },
-  typeChipText: { fontSize: 13, fontWeight: '600', color: C.dark },
-  typeChipTextActive: { color: '#fff' },
-  saveBtn: {
-    backgroundColor: C.primary, borderRadius: 14,
-    paddingVertical: 15, alignItems: 'center', marginTop: 28, marginBottom: 12,
-  },
-  saveBtnDisabled: { opacity: 0.6 },
-  saveBtnText: { color: '#fff', fontWeight: '700', fontSize: typography.body },
+  chipActive: { backgroundColor: colors.primary, borderColor: colors.primary },
+  chipText: { fontSize: 13, fontWeight: '600', color: colors.dark },
+  chipTextActive: { color: '#fff' },
+
+  // Delete
   deleteBtn: {
-    borderRadius: 14, paddingVertical: 15, alignItems: 'center',
-    borderWidth: 1.5, borderColor: '#EF4444',
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+    gap: 8, paddingVertical: 14,
+    borderRadius: radius.lg,
+    borderWidth: 1.5, borderColor: '#FECACA',
+    backgroundColor: '#FEF2F2',
+    marginTop: spacing.xl,
   },
-  deleteBtnText: { color: '#EF4444', fontWeight: '700', fontSize: typography.body },
+  deleteBtnText: { fontSize: typography.body, fontWeight: '700', color: colors.error },
+
+  // Submit
+  submitWrap: {
+    paddingHorizontal: spacing.lg,
+    paddingTop: spacing.md,
+    backgroundColor: colors.white,
+    borderTopWidth: 1, borderTopColor: colors.borderLight,
+  },
+  submitBtn: { borderRadius: radius.lg, overflow: 'hidden', ...shadow.md },
+  submitGradient: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+    gap: 10, paddingVertical: 17,
+  },
+  submitText: { fontSize: 16, fontWeight: '800', color: '#fff' },
 });
