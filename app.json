@@ -25,7 +25,10 @@
         "backgroundColor": "#4F46E5"
       },
       "package": "com.eventspace.app",
-      "permissions": ["READ_EXTERNAL_STORAGE", "WRITE_EXTERNAL_STORAGE"]
+      "permissions": [
+        "READ_EXTERNAL_STORAGE",
+        "WRITE_EXTERNAL_STORAGE"
+      ]
     },
     "plugins": [
       [
@@ -40,7 +43,9 @@
         {
           "photosPermission": "EventSpace a besoin d'accéder à vos photos pour ajouter des photos de profil et de vos lieux."
         }
-      ]
+      ],
+      "@react-native-community/datetimepicker",
+      "expo-font"
     ]
   }
 }
