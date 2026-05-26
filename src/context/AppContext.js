@@ -4,7 +4,7 @@ import { initNotifications } from '../utils/notifications';
 
 const AppContext = createContext(null);
 
-export const COMMISSION_RATE = 0.12;
+export const COMMISSION_RATE = 0.15;
 
 export function AppProvider({ children }) {
   const [user, setUser]           = useState(null);

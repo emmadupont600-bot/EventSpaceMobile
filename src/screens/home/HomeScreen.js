@@ -12,20 +12,19 @@ import { VENUES } from '../../data/venues';
 import { aiSearchVenues } from '../../utils/aiSearch';
 import VenueCard from '../../components/VenueCard';
 import { HomeScreenSkeleton } from '../../components/SkeletonLoader';
-import { colors, spacing, typography, radius } from '../../theme/colors';
+import { colors, spacing, radius, shadow } from '../../theme/colors';
 
 const CATEGORIES = [
-  { label: 'Tous',      value: null,                 emoji: '✨' },
-  { label: 'Mariage',   value: 'Château',            emoji: '💍' },
-  { label: 'Soirée',    value: 'Rooftop',            emoji: '🌙' },
-  { label: 'Séminaire', value: 'Loft',               emoji: '💼' },
-  { label: 'Anniv.',    value: 'Salle de réception', emoji: '🎂' },
-  { label: 'Atypique',  value: '__atypique__',        emoji: '🦋' },
-  { label: 'Photo',     value: 'Studio photo',       emoji: '📸' },
-  { label: 'Plein air', value: 'Jardin',             emoji: '🌿' },
+  { label: 'Tous',      value: null,                  emoji: '✨' },
+  { label: 'Mariage',   value: 'Château',             emoji: '💍' },
+  { label: 'Soirée',    value: 'Rooftop',             emoji: '🌙' },
+  { label: 'Séminaire', value: 'Loft',                emoji: '💼' },
+  { label: 'Anniv.',    value: 'Salle de réception',  emoji: '🎂' },
+  { label: 'Atypique',  value: '__atypique__',         emoji: '🦋' },
+  { label: 'Photo',     value: 'Studio photo',        emoji: '📸' },
+  { label: 'Plein air', value: 'Jardin',              emoji: '🌿' },
 ];
 
-// Toutes les villes disponibles extraites des VENUES
 const CITIES = ['Toutes', ...new Set((VENUES || []).map(v => v.city).filter(Boolean).sort())];
 
 export default function HomeScreen({ navigation }) {
@@ -45,7 +44,7 @@ export default function HomeScreen({ navigation }) {
   const insets = useSafeAreaInsets();
 
   useFocusEffect(useCallback(() => {
-    const t = setTimeout(() => setLoading(false), 400);
+    const t = setTimeout(() => setLoading(false), 300);
     return () => clearTimeout(t);
   }, []));
 
@@ -59,10 +58,11 @@ export default function HomeScreen({ navigation }) {
   const filtered = useMemo(() => {
     if (aiResults) return aiResults.results;
     return venues.filter(v => {
+      const q = search.toLowerCase();
       const matchSearch = !search ||
-        (v.name || '').toLowerCase().includes(search.toLowerCase()) ||
-        (v.city || '').toLowerCase().includes(search.toLowerCase()) ||
-        (v.location || '').toLowerCase().includes(search.toLowerCase());
+        (v.name || '').toLowerCase().includes(q) ||
+        (v.city || '').toLowerCase().includes(q) ||
+        (v.location || '').toLowerCase().includes(q);
       const matchCat = !cat
         ? true
         : cat === '__atypique__'
@@ -75,7 +75,7 @@ export default function HomeScreen({ navigation }) {
     });
   }, [venues, search, cat, maxPrice, minCapacity, selectedCity, aiResults]);
 
-  const hasFilters = maxPrice || minCapacity || selectedCity !== 'Toutes';
+  const hasFilters = !!(maxPrice || minCapacity || selectedCity !== 'Toutes');
   const firstName = user?.name?.split(' ')[0] || '';
 
   const handleAiSearch = () => {
@@ -91,7 +91,7 @@ export default function HomeScreen({ navigation }) {
       setMaxPrice('');
       setMinCapacity('');
       setSelectedCity('Toutes');
-    }, 900);
+    }, 700);
   };
 
   const clearAi = () => { setAiResults(null); setAiQuery(''); };
@@ -102,15 +102,19 @@ export default function HomeScreen({ navigation }) {
 
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
-      <StatusBar barStyle="dark-content" backgroundColor={colors.bg} />
+      <StatusBar barStyle="dark-content" backgroundColor={colors.background} />
 
       <View style={styles.header}>
-        <View>
-          <Text style={styles.greeting}>Bonjour{firstName ? `, ${firstName}` : ''} 👋</Text>
+        <View style={{ flex: 1 }}>
+          <Text style={styles.greeting}>{getGreeting()}{firstName ? `, ${firstName}` : ' 👋'}</Text>
           <Text style={styles.logo}>Event<Text style={styles.logoAccent}>Space</Text></Text>
         </View>
-        <TouchableOpacity style={styles.iconBtn} onPress={() => navigation.navigate('MapSearch')}>
-          <Text style={styles.iconBtnEmoji}>🗺️</Text>
+        <TouchableOpacity
+          style={styles.iconBtn}
+          onPress={() => navigation.navigate('MapSearch')}
+          activeOpacity={0.85}
+        >
+          <Ionicons name="compass-outline" size={22} color={colors.primary} />
         </TouchableOpacity>
       </View>
 
@@ -119,47 +123,52 @@ export default function HomeScreen({ navigation }) {
         onPress={aiResults ? clearAi : () => setAiOpen(true)}
         activeOpacity={0.85}
       >
-        <Text style={styles.aiBtnEmoji}>✨</Text>
+        <View style={styles.aiIconWrap}>
+          <Text style={styles.aiBtnEmoji}>✨</Text>
+        </View>
         <Text style={styles.aiBtnText} numberOfLines={1}>
-          {aiResults ? aiResults.summary : 'Décrivez votre événement en texte libre...'}
+          {aiResults ? aiResults.summary : 'Décrivez votre événement à l\'IA...'}
         </Text>
         {aiResults
-          ? <Ionicons name="close-circle" size={18} color={colors.primary} />
-          : <Ionicons name="arrow-forward-circle" size={18} color={colors.primary} />}
+          ? <Ionicons name="close-circle" size={20} color={colors.primary} />
+          : <Ionicons name="arrow-forward-circle" size={20} color={colors.primary} />}
       </TouchableOpacity>
 
       {!aiResults && (
         <View style={styles.searchRow}>
           <View style={styles.searchBar}>
-            <Ionicons name="search-outline" size={16} color={colors.mid} />
+            <Ionicons name="search-outline" size={16} color={colors.textSecondary} />
             <TextInput
               style={styles.searchInput}
               placeholder="Ville, nom, type d'espace..."
-              placeholderTextColor={colors.light}
+              placeholderTextColor={colors.textLight}
               value={search}
               onChangeText={setSearch}
               returnKeyType="search"
             />
             {!!search && (
               <TouchableOpacity onPress={() => setSearch('')} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-                <Ionicons name="close-circle" size={16} color={colors.mid} />
+                <Ionicons name="close-circle" size={16} color={colors.textSecondary} />
               </TouchableOpacity>
             )}
           </View>
           <TouchableOpacity
             style={[styles.filterBtn, hasFilters && styles.filterBtnActive]}
             onPress={() => setFilterOpen(true)}
+            activeOpacity={0.85}
           >
-            <Text style={{ fontSize: 18 }}>⚙️</Text>
-            {!!hasFilters && <View style={styles.filterDot} />}
+            <Ionicons name="options-outline" size={20} color={hasFilters ? colors.primary : colors.text} />
+            {hasFilters && <View style={styles.filterDot} />}
           </TouchableOpacity>
         </View>
       )}
 
       {!aiResults && (
         <ScrollView
-          horizontal showsHorizontalScrollIndicator={false}
-          style={styles.catScroll} contentContainerStyle={styles.catContent}
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          style={styles.catScroll}
+          contentContainerStyle={styles.catContent}
         >
           {CATEGORIES.map(c => {
             const active = cat === c.value;
@@ -193,8 +202,12 @@ export default function HomeScreen({ navigation }) {
           contentContainerStyle={{ paddingHorizontal: spacing.lg, paddingBottom: 120 }}
           showsVerticalScrollIndicator={false}
           refreshControl={
-            <RefreshControl refreshing={refreshing} onRefresh={onRefresh}
-              tintColor={colors.primary} colors={[colors.primary]} />
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={onRefresh}
+              tintColor={colors.primary}
+              colors={[colors.primary]}
+            />
           }
           ListHeaderComponent={
             <Text style={[styles.sectionTitle, aiResults && styles.sectionTitleAi]}>
@@ -203,7 +216,9 @@ export default function HomeScreen({ navigation }) {
           }
           ListEmptyComponent={
             <View style={styles.empty}>
-              <Text style={styles.emptyIco}>🔍</Text>
+              <View style={styles.emptyIcoBox}>
+                <Ionicons name="search-outline" size={32} color={colors.primary} />
+              </View>
               <Text style={styles.emptyTitle}>Aucun résultat</Text>
               <Text style={styles.emptySubtitle}>
                 {aiResults
@@ -212,12 +227,13 @@ export default function HomeScreen({ navigation }) {
               </Text>
               {aiResults ? (
                 <TouchableOpacity style={styles.emptyMapBtn} onPress={clearAi}>
-                  <Text style={styles.emptyMapBtnText}>↩ Retour à la liste</Text>
+                  <Ionicons name="arrow-back" size={14} color="#fff" />
+                  <Text style={styles.emptyMapBtnText}>Retour à la liste</Text>
                 </TouchableOpacity>
               ) : (
                 <TouchableOpacity style={styles.emptyMapBtn} onPress={() => navigation.navigate('MapSearch')}>
-                  <Text>🗺️</Text>
-                  <Text style={styles.emptyMapBtnText}>Explorer la carte</Text>
+                  <Ionicons name="compass" size={14} color="#fff" />
+                  <Text style={styles.emptyMapBtnText}>Découvrir par ville</Text>
                 </TouchableOpacity>
               )}
             </View>
@@ -237,29 +253,40 @@ export default function HomeScreen({ navigation }) {
             </View>
             <View style={styles.aiExamples}>
               {[
-                '"Anniversaire 30 ans, 40 personnes, Paris, budget 800€"',
-                '"Mariage champêtre 150 invités en Provence"',
-                '"Soirée atypique sur une péniche à Paris"',
+                'Anniversaire 30 ans, 40 personnes, Paris, budget 800€',
+                'Mariage champêtre 150 invités en Provence',
+                'Soirée atypique sur une péniche à Paris',
               ].map((ex, i) => (
-                <TouchableOpacity key={i} style={styles.aiExampleBtn} onPress={() => setAiQuery(ex.replace(/"/g, ''))}>
-                  <Text style={styles.aiExampleText}>{ex}</Text>
+                <TouchableOpacity key={i} style={styles.aiExampleBtn} onPress={() => setAiQuery(ex)}>
+                  <Ionicons name="sparkles" size={12} color={colors.primary} />
+                  <Text style={styles.aiExampleText}>"{ex}"</Text>
                 </TouchableOpacity>
               ))}
             </View>
             <TextInput
               style={styles.aiInput}
               placeholder="Ex: anniversaire 30 ans pour 40 personnes à Paris, budget 800€..."
-              placeholderTextColor={colors.light}
-              value={aiQuery} onChangeText={setAiQuery}
-              multiline numberOfLines={3} textAlignVertical="top" autoFocus
+              placeholderTextColor={colors.textLight}
+              value={aiQuery}
+              onChangeText={setAiQuery}
+              multiline
+              numberOfLines={3}
+              textAlignVertical="top"
+              autoFocus
             />
             <TouchableOpacity
               style={[styles.aiSearchBtn, (!aiQuery.trim() || aiLoading) && styles.aiSearchBtnDisabled]}
-              onPress={handleAiSearch} disabled={!aiQuery.trim() || aiLoading}
+              onPress={handleAiSearch}
+              disabled={!aiQuery.trim() || aiLoading}
+              activeOpacity={0.9}
             >
               {aiLoading
                 ? <ActivityIndicator color="#fff" size="small" />
-                : <><Text style={styles.aiSearchBtnText}>✨ Trouver les lieux</Text><Ionicons name="arrow-forward" size={18} color="#fff" /></>}
+                : <>
+                    <Ionicons name="sparkles" size={18} color="#fff" />
+                    <Text style={styles.aiSearchBtnText}>Trouver les lieux</Text>
+                    <Ionicons name="arrow-forward" size={18} color="#fff" />
+                  </>}
             </TouchableOpacity>
           </View>
         </KeyboardAvoidingView>
@@ -270,24 +297,27 @@ export default function HomeScreen({ navigation }) {
         <TouchableOpacity style={styles.modalOverlay} activeOpacity={1} onPress={() => setFilterOpen(false)} />
         <View style={styles.modalSheet}>
           <View style={styles.modalHandle} />
-          <Text style={styles.modalTitle}>⚙️ Filtres avancés</Text>
+          <View style={styles.modalHeader}>
+            <Text style={styles.modalTitle}>Filtres avancés</Text>
+            {hasFilters && (
+              <TouchableOpacity onPress={() => {
+                setMaxPrice(''); setMinCapacity(''); setSelectedCity('Toutes');
+              }}>
+                <Text style={styles.resetTxt}>Réinitialiser</Text>
+              </TouchableOpacity>
+            )}
+          </View>
 
-          {/* Filtre ville */}
           <Text style={styles.filterLabel}>📍 Ville</Text>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: spacing.lg }}>
             <View style={{ flexDirection: 'row', gap: 8, paddingVertical: 4 }}>
               {CITIES.map(city => (
                 <TouchableOpacity
                   key={city}
-                  style={[
-                    styles.cityChip,
-                    selectedCity === city && styles.cityChipActive,
-                  ]}
+                  style={[styles.cityChip, selectedCity === city && styles.cityChipActive]}
                   onPress={() => setSelectedCity(city)}
                 >
-                  <Text style={[styles.cityChipText, selectedCity === city && styles.cityChipTextActive]}>
-                    {city}
-                  </Text>
+                  <Text style={[styles.cityChipText, selectedCity === city && styles.cityChipTextActive]}>{city}</Text>
                 </TouchableOpacity>
               ))}
             </View>
@@ -295,153 +325,184 @@ export default function HomeScreen({ navigation }) {
 
           <Text style={styles.filterLabel}>💶 Prix maximum (€/heure)</Text>
           <TextInput
-            style={styles.filterInput} value={maxPrice} onChangeText={setMaxPrice}
-            placeholder="Ex : 2000" placeholderTextColor={colors.light} keyboardType="number-pad"
+            style={styles.filterInput}
+            value={maxPrice}
+            onChangeText={setMaxPrice}
+            placeholder="Ex : 2000"
+            placeholderTextColor={colors.textLight}
+            keyboardType="number-pad"
           />
           <Text style={styles.filterLabel}>👥 Capacité minimum (personnes)</Text>
           <TextInput
-            style={styles.filterInput} value={minCapacity} onChangeText={setMinCapacity}
-            placeholder="Ex : 50" placeholderTextColor={colors.light} keyboardType="number-pad"
+            style={styles.filterInput}
+            value={minCapacity}
+            onChangeText={setMinCapacity}
+            placeholder="Ex : 50"
+            placeholderTextColor={colors.textLight}
+            keyboardType="number-pad"
           />
-          <TouchableOpacity style={styles.applyBtn} onPress={() => setFilterOpen(false)}>
-            <Text style={styles.applyBtnText}>✅ Appliquer les filtres</Text>
+
+          <TouchableOpacity style={styles.applyBtn} onPress={() => setFilterOpen(false)} activeOpacity={0.9}>
+            <Text style={styles.applyBtnText}>Voir les {filtered.length} résultat{filtered.length > 1 ? 's' : ''}</Text>
           </TouchableOpacity>
-          {!!hasFilters && (
-            <TouchableOpacity style={styles.clearBtn} onPress={() => {
-              setMaxPrice(''); setMinCapacity(''); setSelectedCity('Toutes'); setFilterOpen(false);
-            }}>
-              <Text style={styles.clearBtnText}>🗑️ Réinitialiser</Text>
-            </TouchableOpacity>
-          )}
         </View>
       </Modal>
     </View>
   );
 }
 
-const C = colors;
+function getGreeting() {
+  const h = new Date().getHours();
+  if (h < 5)  return 'Bonne nuit';
+  if (h < 12) return 'Bonjour';
+  if (h < 18) return 'Bel après-midi';
+  return 'Bonsoir';
+}
+
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: C.bg },
+  container: { flex: 1, backgroundColor: colors.background },
   header: {
-    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
+    flexDirection: 'row', alignItems: 'center',
     paddingHorizontal: spacing.lg, paddingTop: spacing.md, paddingBottom: spacing.sm,
   },
-  greeting: { fontSize: typography.small, color: C.mid, fontWeight: '500' },
-  logo: { fontSize: 26, fontWeight: '900', color: C.dark, letterSpacing: -0.5 },
-  logoAccent: { color: C.primary },
+  greeting: { fontSize: 13, color: colors.textSecondary, fontWeight: '500' },
+  logo: { fontSize: 28, fontWeight: '900', color: colors.text, letterSpacing: -0.5 },
+  logoAccent: { color: colors.primary },
   iconBtn: {
-    width: 38, height: 38, borderRadius: 11,
-    backgroundColor: C.primaryLight || '#EEF2FF',
+    width: 44, height: 44, borderRadius: 14,
+    backgroundColor: colors.primaryLight,
     alignItems: 'center', justifyContent: 'center',
   },
-  iconBtnEmoji: { fontSize: 18 },
+
   aiBtn: {
     marginHorizontal: spacing.lg, marginBottom: spacing.sm,
-    flexDirection: 'row', alignItems: 'center', gap: 8,
-    backgroundColor: C.white, borderRadius: 14,
+    flexDirection: 'row', alignItems: 'center', gap: 10,
+    backgroundColor: colors.surface, borderRadius: radius.lg,
     paddingHorizontal: spacing.md, paddingVertical: 11,
-    borderWidth: 1.5, borderColor: C.primary + '44', borderStyle: 'dashed',
+    borderWidth: 1.5, borderColor: colors.primary + '40', borderStyle: 'dashed',
   },
-  aiBtnActive: { borderStyle: 'solid', borderColor: C.primary, backgroundColor: C.primaryLight || '#EEF2FF' },
-  aiBtnEmoji: { fontSize: 16 },
-  aiBtnText: { flex: 1, fontSize: 13, color: C.mid, fontWeight: '500' },
+  aiBtnActive: { borderStyle: 'solid', borderColor: colors.primary, backgroundColor: colors.primaryLight },
+  aiIconWrap: {
+    width: 28, height: 28, borderRadius: 14,
+    backgroundColor: colors.primaryLight,
+    alignItems: 'center', justifyContent: 'center',
+  },
+  aiBtnEmoji: { fontSize: 14 },
+  aiBtnText: { flex: 1, fontSize: 13, color: colors.text, fontWeight: '600' },
+
   searchRow: {
     flexDirection: 'row', alignItems: 'center',
     paddingHorizontal: spacing.lg, marginBottom: spacing.sm, gap: spacing.sm,
   },
   searchBar: {
     flex: 1, flexDirection: 'row', alignItems: 'center',
-    backgroundColor: C.white, borderRadius: 14,
+    backgroundColor: colors.surface, borderRadius: radius.lg,
     paddingHorizontal: spacing.md, paddingVertical: 10,
-    borderWidth: 1.5, borderColor: C.border, gap: spacing.sm,
+    borderWidth: 1.5, borderColor: colors.border, gap: spacing.sm,
   },
-  searchInput: { flex: 1, fontSize: typography.body, color: C.dark },
+  searchInput: { flex: 1, fontSize: 15, color: colors.text },
   filterBtn: {
-    width: 44, height: 44, borderRadius: 12,
-    backgroundColor: C.white, alignItems: 'center', justifyContent: 'center',
-    borderWidth: 1.5, borderColor: C.border, position: 'relative',
+    width: 46, height: 46, borderRadius: radius.lg,
+    backgroundColor: colors.surface, alignItems: 'center', justifyContent: 'center',
+    borderWidth: 1.5, borderColor: colors.border, position: 'relative',
   },
-  filterBtnActive: { borderColor: C.primary, backgroundColor: C.primaryLight || '#EEF2FF' },
+  filterBtnActive: { borderColor: colors.primary, backgroundColor: colors.primaryLight },
   filterDot: {
     position: 'absolute', top: 6, right: 6,
-    width: 8, height: 8, borderRadius: 4, backgroundColor: '#EF4444',
+    width: 9, height: 9, borderRadius: 5, backgroundColor: colors.error,
+    borderWidth: 1.5, borderColor: colors.surface,
   },
+
   catScroll: { flexGrow: 0, marginBottom: spacing.sm },
-  catContent: { paddingHorizontal: spacing.lg, paddingVertical: 2, gap: 6, alignItems: 'center' },
+  catContent: { paddingHorizontal: spacing.lg, paddingVertical: 4, gap: 8 },
   catBtn: {
-    flexDirection: 'row', alignItems: 'center', height: 30,
-    backgroundColor: C.white, borderRadius: 999, paddingHorizontal: 10,
-    borderWidth: 1, borderColor: C.border, gap: 4,
+    flexDirection: 'row', alignItems: 'center', height: 36,
+    backgroundColor: colors.surface, borderRadius: 999, paddingHorizontal: 14,
+    borderWidth: 1, borderColor: colors.border, gap: 6,
   },
-  catBtnActive: { backgroundColor: C.primary, borderColor: C.primary },
-  catEmoji: { fontSize: 13, lineHeight: 16 },
-  catText: { fontSize: 12, color: C.dark, fontWeight: '600', lineHeight: 16 },
+  catBtnActive: { backgroundColor: colors.primary, borderColor: colors.primary, ...shadow.primary },
+  catEmoji: { fontSize: 14 },
+  catText: { fontSize: 13, color: colors.text, fontWeight: '700' },
   catTextActive: { color: '#fff' },
+
   sectionTitle: {
-    fontSize: typography.small, fontWeight: '700', color: C.mid,
-    marginBottom: spacing.md, marginTop: spacing.xs,
-    letterSpacing: 0.5, textTransform: 'uppercase',
+    fontSize: 12, fontWeight: '800', color: colors.textSecondary,
+    marginBottom: spacing.md, letterSpacing: 0.5, textTransform: 'uppercase',
   },
-  sectionTitleAi: { color: C.primary, textTransform: 'none', fontSize: 13, fontWeight: '700', letterSpacing: 0 },
+  sectionTitleAi: { color: colors.primary, textTransform: 'none', fontSize: 13, fontWeight: '700', letterSpacing: 0 },
+
   empty: { alignItems: 'center', paddingTop: 60, gap: spacing.md },
-  emptyIco: { fontSize: 44 },
-  emptyTitle: { fontSize: typography.h3, fontWeight: '700', color: C.dark },
-  emptySubtitle: { fontSize: typography.small, color: C.light, textAlign: 'center', maxWidth: 260 },
+  emptyIcoBox: {
+    width: 72, height: 72, borderRadius: 36,
+    backgroundColor: colors.primaryLight,
+    alignItems: 'center', justifyContent: 'center',
+  },
+  emptyTitle: { fontSize: 18, fontWeight: '800', color: colors.text },
+  emptySubtitle: { fontSize: 13, color: colors.textSecondary, textAlign: 'center', maxWidth: 280, lineHeight: 18 },
   emptyMapBtn: {
     flexDirection: 'row', alignItems: 'center', gap: 6,
-    backgroundColor: C.primary, borderRadius: 20,
-    paddingHorizontal: spacing.xl, paddingVertical: spacing.md, marginTop: spacing.sm,
+    backgroundColor: colors.primary, borderRadius: radius.full,
+    paddingHorizontal: spacing.xl, paddingVertical: 12, marginTop: spacing.sm,
+    ...shadow.primary,
   },
-  emptyMapBtnText: { color: '#fff', fontWeight: '700', fontSize: typography.small },
-  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.45)' },
+  emptyMapBtnText: { color: '#fff', fontWeight: '700', fontSize: 13 },
+
+  modalOverlay: { flex: 1, backgroundColor: colors.overlay },
+  modalHandle: {
+    width: 40, height: 4, borderRadius: 2,
+    backgroundColor: colors.border, alignSelf: 'center', marginBottom: spacing.lg,
+  },
+  modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: spacing.lg },
+  modalTitle: { fontSize: 22, fontWeight: '900', color: colors.text, letterSpacing: -0.3 },
+  resetTxt: { fontSize: 13, color: colors.error, fontWeight: '700' },
+
   aiSheet: {
-    backgroundColor: C.bg, borderTopLeftRadius: 28, borderTopRightRadius: 28,
+    backgroundColor: colors.surface, borderTopLeftRadius: 28, borderTopRightRadius: 28,
     padding: spacing.lg, paddingBottom: 40,
   },
   aiSheetHeader: { marginBottom: spacing.md },
-  aiSheetTitle: { fontSize: typography.h2, fontWeight: '900', color: C.dark, marginBottom: 4 },
-  aiSheetSub: { fontSize: typography.small, color: C.mid, lineHeight: 18 },
+  aiSheetTitle: { fontSize: 22, fontWeight: '900', color: colors.text, marginBottom: 4, letterSpacing: -0.3 },
+  aiSheetSub: { fontSize: 13, color: colors.textSecondary, lineHeight: 18 },
   aiExamples: { marginBottom: spacing.md, gap: 6 },
-  aiExampleBtn: { backgroundColor: C.primaryLight || '#EEF2FF', borderRadius: 10, paddingHorizontal: 12, paddingVertical: 8 },
-  aiExampleText: { fontSize: 12, color: C.primary, fontStyle: 'italic' },
+  aiExampleBtn: {
+    flexDirection: 'row', alignItems: 'center', gap: 8,
+    backgroundColor: colors.primaryLight, borderRadius: radius.md,
+    paddingHorizontal: spacing.md, paddingVertical: 10,
+  },
+  aiExampleText: { fontSize: 12, color: colors.primary, fontStyle: 'italic', flex: 1 },
   aiInput: {
-    backgroundColor: C.white, borderRadius: 14, borderWidth: 1.5, borderColor: C.primary,
+    backgroundColor: colors.background, borderRadius: radius.md, borderWidth: 1.5, borderColor: colors.primary,
     paddingHorizontal: spacing.md, paddingVertical: 12,
-    fontSize: typography.body, color: C.dark, minHeight: 80, marginBottom: spacing.md,
+    fontSize: 15, color: colors.text, minHeight: 80, marginBottom: spacing.md,
   },
   aiSearchBtn: {
-    backgroundColor: C.primary, borderRadius: 14, paddingVertical: spacing.md,
+    backgroundColor: colors.primary, borderRadius: radius.md, paddingVertical: 14,
     alignItems: 'center', flexDirection: 'row', justifyContent: 'center', gap: 8,
+    ...shadow.primary,
   },
-  aiSearchBtnDisabled: { opacity: 0.5 },
-  aiSearchBtnText: { color: '#fff', fontWeight: '700', fontSize: typography.body },
+  aiSearchBtnDisabled: { opacity: 0.5, shadowOpacity: 0 },
+  aiSearchBtnText: { color: '#fff', fontWeight: '800', fontSize: 15 },
+
   modalSheet: {
-    backgroundColor: C.bg, borderTopLeftRadius: 24, borderTopRightRadius: 24,
+    backgroundColor: colors.surface, borderTopLeftRadius: 24, borderTopRightRadius: 24,
     padding: spacing.lg, paddingBottom: 40,
   },
-  modalHandle: {
-    width: 40, height: 4, borderRadius: 2,
-    backgroundColor: C.border, alignSelf: 'center', marginBottom: spacing.lg,
-  },
-  modalTitle: { fontSize: typography.h2, fontWeight: '900', color: C.dark, marginBottom: spacing.lg },
-  filterLabel: { fontSize: typography.small, fontWeight: '700', color: C.mid, marginBottom: spacing.sm },
+  filterLabel: { fontSize: 13, fontWeight: '700', color: colors.text, marginBottom: spacing.sm },
   filterInput: {
-    backgroundColor: C.white, borderRadius: 12, borderWidth: 1.5, borderColor: C.border,
+    backgroundColor: colors.background, borderRadius: radius.md, borderWidth: 1.5, borderColor: colors.border,
     paddingHorizontal: spacing.md, paddingVertical: 12,
-    fontSize: typography.body, color: C.dark, marginBottom: spacing.lg,
+    fontSize: 15, color: colors.text, marginBottom: spacing.lg,
   },
   cityChip: {
-    paddingHorizontal: 14, paddingVertical: 7, borderRadius: 999,
-    borderWidth: 1.5, borderColor: C.border, backgroundColor: C.white,
+    paddingHorizontal: 14, paddingVertical: 8, borderRadius: 999,
+    borderWidth: 1.5, borderColor: colors.border, backgroundColor: colors.surface,
   },
-  cityChipActive: { backgroundColor: C.primary, borderColor: C.primary },
-  cityChipText: { fontSize: 13, fontWeight: '600', color: C.dark },
+  cityChipActive: { backgroundColor: colors.primary, borderColor: colors.primary },
+  cityChipText: { fontSize: 13, fontWeight: '600', color: colors.text },
   cityChipTextActive: { color: '#fff' },
   applyBtn: {
-    backgroundColor: C.primary, borderRadius: 14,
-    paddingVertical: spacing.md, alignItems: 'center', marginBottom: spacing.sm,
+    backgroundColor: colors.primary, borderRadius: radius.md,
+    paddingVertical: 15, alignItems: 'center', ...shadow.primary,
   },
-  applyBtnText: { color: '#fff', fontWeight: '700', fontSize: typography.body },
-  clearBtn: { borderRadius: 14, paddingVertical: spacing.md, alignItems: 'center', borderWidth: 1.5, borderColor: C.border },
-  clearBtnText: { color: C.mid, fontWeight: '600', fontSize: typography.body },
+  applyBtnText: { color: '#fff', fontWeight: '800', fontSize: 15 },
 });
