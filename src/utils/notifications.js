@@ -7,6 +7,7 @@
  */
 import * as Notifications from 'expo-notifications';
 import * as Device from 'expo-device';
+import Constants from 'expo-constants';
 import { Platform } from 'react-native';
 import { supabase } from '../services/supabase';
 
@@ -54,7 +55,7 @@ export async function initNotifications(userId) {
 
   // Récupération du token Expo Push
   const tokenData = await Notifications.getExpoPushTokenAsync({
-    projectId: process.env.EXPO_PUBLIC_PROJECT_ID, // défini dans app.json / .env
+    projectId: Constants.expoConfig?.extra?.eas?.projectId || process.env.EXPO_PUBLIC_PROJECT_ID,
   });
   const token = tokenData.data;
   console.log('[Notif] Expo push token:', token);

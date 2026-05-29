@@ -6,13 +6,15 @@
 import React, { useState, useEffect } from 'react';
 import {
   View, Text, ScrollView, StyleSheet,
-  TouchableOpacity, ActivityIndicator, Alert,
+  TouchableOpacity, ActivityIndicator, Alert, TextInput,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useStripe, CardField } from '@stripe/stripe-react-native';
 import { createPaymentIntent, updateReservationPaymentStatus } from '../../services/stripeService';
 import { COMMISSION_RATE } from '../../constants/app';
+import { Store } from '../../utils/store';
+import { applyDiscount, formatMoney, toStripeCents } from '../../utils/currency';
 import { colors, spacing, radius } from '../../theme/colors';
 
 export default function PaymentScreen({ route, navigation }) {
@@ -20,29 +22,46 @@ export default function PaymentScreen({ route, navigation }) {
   const insets = useSafeAreaInsets();
   const { confirmPayment } = useStripe();
 
-  const [loading, setLoading]           = useState(false);
+  const [loading, setLoading] = useState(false);
   const [cardComplete, setCardComplete] = useState(false);
   const [clientSecret, setClientSecret] = useState(null);
   const [paymentIntentId, setPaymentIntentId] = useState(null);
-  const [initError, setInitError]       = useState(null);
+  const [initError, setInitError] = useState(null);
+  const [promoInput, setPromoInput] = useState('');
+  const [promo, setPromo] = useState(null);
+  const [promoError, setPromoError] = useState('');
 
-  const total      = reservation?.total ?? 0;
-  const commission = Math.round(total * COMMISSION_RATE);
-  const netOwner   = total - commission;
+  const currency = venue?.currency || reservation?.currency || 'eur';
+  const baseTotal = reservation?.total ?? 0;
+  const { total: finalTotal, discount } = promo
+    ? applyDiscount(baseTotal, promo)
+    : { total: baseTotal, discount: 0 };
+  const commission = Math.round(finalTotal * COMMISSION_RATE);
+  const netOwner = finalTotal - commission;
 
-  // Crée le PaymentIntent dès l'ouverture
+  const initPayment = async (amount) => {
+    if (!reservation?.id || !amount) return;
+    const result = await createPaymentIntent(toStripeCents(amount), reservation.id, currency);
+    setClientSecret(result.clientSecret);
+    setPaymentIntentId(result.paymentIntentId);
+  };
+
   useEffect(() => {
-    if (!reservation?.id || !total) return;
-    (async () => {
-      try {
-        const result = await createPaymentIntent(total, reservation.id);
-        setClientSecret(result.clientSecret);
-        setPaymentIntentId(result.paymentIntentId);
-      } catch (e) {
-        setInitError(e.message);
-      }
-    })();
-  }, []);
+    if (!reservation?.id || !finalTotal) return;
+    initPayment(finalTotal).catch(e => setInitError(e.message));
+  }, [finalTotal]);
+
+  const applyPromo = async () => {
+    setPromoError('');
+    try {
+      const p = await Store.validatePromoCode(promoInput);
+      setPromo(p);
+      Alert.alert('Code appliqué', `Réduction : ${p.discount_type === 'percent' ? p.discount_value + '%' : p.discount_value + ' €'}`);
+    } catch (e) {
+      setPromoError(e.message);
+      setPromo(null);
+    }
+  };
 
   const handlePay = async () => {
     if (!clientSecret) { Alert.alert('Erreur', 'Session de paiement non initialisée.'); return; }
@@ -58,6 +77,14 @@ export default function PaymentScreen({ route, navigation }) {
       if (error) { Alert.alert('Paiement refusé', error.message); return; }
 
       if (paymentIntent?.status?.toLowerCase() === 'succeeded') {
+        if (promo) await Store.incrementPromoUse(promo.code);
+        await Store.updateReservation(reservation.id, {
+          payment_status: 'paid',
+          paymentIntentId,
+          promo_code: promo?.code || null,
+          discount_amount: discount,
+          currency,
+        });
         await updateReservationPaymentStatus(reservation.id, paymentIntentId, 'paid');
         navigation.replace('BookingConfirmation', {
           reservation: { ...reservation, payment_status: 'paid', payment_intent_id: paymentIntentId },
@@ -129,23 +156,49 @@ export default function PaymentScreen({ route, navigation }) {
           <View style={styles.row}>
             <Ionicons name="pricetag-outline" size={16} color={colors.primary} />
             <Text style={styles.rowLabel}>Sous-total</Text>
-            <Text style={styles.rowValue}>{total} €</Text>
+            <Text style={styles.rowValue}>{formatMoney(baseTotal, currency)}</Text>
           </View>
+          {discount > 0 && (
+            <View style={styles.row}>
+              <Ionicons name="gift-outline" size={16} color="#10B981" />
+              <Text style={[styles.rowLabel, { color: '#10B981' }]}>Promo {promo?.code}</Text>
+              <Text style={[styles.rowValue, { color: '#10B981' }]}>−{formatMoney(discount, currency)}</Text>
+            </View>
+          )}
           <View style={styles.row}>
             <Ionicons name="information-circle-outline" size={16} color="#7C3AED" />
-            <Text style={[styles.rowLabel, { color: '#7C3AED' }]}>Commission (15%)</Text>
-            <Text style={[styles.rowValue, { color: '#7C3AED' }]}>−{commission} €</Text>
+            <Text style={[styles.rowLabel, { color: '#7C3AED' }]}>Commission ({Math.round(COMMISSION_RATE * 100)}%)</Text>
+            <Text style={[styles.rowValue, { color: '#7C3AED' }]}>−{formatMoney(commission, currency)}</Text>
           </View>
           <View style={styles.row}>
             <Ionicons name="wallet-outline" size={16} color="#10B981" />
             <Text style={[styles.rowLabel, { color: '#10B981' }]}>Net annonceur</Text>
-            <Text style={[styles.rowValue, { color: '#10B981' }]}>{netOwner} €</Text>
+            <Text style={[styles.rowValue, { color: '#10B981' }]}>{formatMoney(netOwner, currency)}</Text>
           </View>
           <View style={styles.divider} />
           <View style={styles.totalRow}>
             <Text style={styles.totalLabel}>Total à payer</Text>
-            <Text style={styles.totalValue}>{total} €</Text>
+            <Text style={styles.totalValue}>{formatMoney(finalTotal, currency)}</Text>
           </View>
+        </View>
+
+        {/* Code promo */}
+        <View style={styles.card}>
+          <Text style={styles.cardTitle}>Code promo</Text>
+          <View style={{ flexDirection: 'row', gap: 8 }}>
+            <TextInput
+              style={[styles.promoInput, { flex: 1, borderColor: colors.border, color: colors.dark }]}
+              placeholder="EVENTSPACE10"
+              placeholderTextColor={colors.light}
+              value={promoInput}
+              onChangeText={setPromoInput}
+              autoCapitalize="characters"
+            />
+            <TouchableOpacity style={[styles.promoBtn, { backgroundColor: colors.primary }]} onPress={applyPromo}>
+              <Text style={{ color: '#fff', fontWeight: '700' }}>Appliquer</Text>
+            </TouchableOpacity>
+          </View>
+          {promoError ? <Text style={{ color: '#EF4444', fontSize: 12, marginTop: 6 }}>{promoError}</Text> : null}
         </View>
 
         {/* CardField Stripe */}
@@ -204,7 +257,7 @@ export default function PaymentScreen({ route, navigation }) {
           {loading ? <ActivityIndicator color="#fff" /> : (
             <>
               <Ionicons name="lock-closed" size={18} color="#fff" />
-              <Text style={styles.btnPayTxt}>Payer {total} €</Text>
+              <Text style={styles.btnPayTxt}>Payer {formatMoney(finalTotal, currency)}</Text>
             </>
           )}
         </TouchableOpacity>
@@ -249,4 +302,6 @@ const styles = StyleSheet.create({
   errorText:    { fontSize: 14, color: '#64748B', textAlign: 'center' },
   retryBtn:     { backgroundColor: colors.primary, paddingHorizontal: 32, paddingVertical: 14, borderRadius: 12 },
   retryTxt:     { color: '#fff', fontWeight: '700' },
+  promoInput:   { borderWidth: 1.5, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10, fontSize: 14 },
+  promoBtn:     { borderRadius: 10, paddingHorizontal: 16, justifyContent: 'center' },
 });

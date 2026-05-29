@@ -9,6 +9,7 @@ import { useFocusEffect } from '@react-navigation/native';
 import { useApp } from '../../context/AppContext';
 import { Store } from '../../utils/store';
 import { capturePayment, refundPayment } from '../../services/stripeService';
+import SimpleBarChart from '../../components/SimpleBarChart';
 import { colors, spacing, typography } from '../../theme/colors';
 
 const C = colors;
@@ -21,20 +22,24 @@ export default function AnnonceurDashboard({ navigation }) {
   const [refreshing, setRefreshing] = useState(false);
   const [activeTab, setActiveTab] = useState('overview');
   const [processingId, setProcessingId] = useState(null);
+  const [stats, setStats] = useState(null);
+  const [statsPeriod, setStatsPeriod] = useState(30);
 
   const load = useCallback(async () => {
     if (!user?.id) return;
     try {
-      const [myVenues, myRes] = await Promise.all([
+      const [myVenues, myRes, ownerStats] = await Promise.all([
         Store.getVenuesByOwner(user.id),
         Store.getReservationsByOwner(user.id),
+        Store.getOwnerStats(user.id, statsPeriod),
       ]);
       setVenues(myVenues);
       setReservations(myRes);
+      setStats(ownerStats);
     } catch (e) {
       console.error('[Dashboard]', e);
     }
-  }, [user?.id]);
+  }, [user?.id, statsPeriod]);
 
   useFocusEffect(useCallback(() => { load(); }, [load]));
 
@@ -216,6 +221,20 @@ export default function AnnonceurDashboard({ navigation }) {
                 </View>
               </View>
             </View>
+
+            <Text style={styles.sectionTitle}>📈 Revenus ({statsPeriod} derniers jours)</Text>
+            <View style={{ flexDirection: 'row', gap: 8, marginBottom: 12 }}>
+              {[7, 30, 90].map(d => (
+                <TouchableOpacity
+                  key={d}
+                  style={[styles.periodChip, statsPeriod === d && styles.periodChipActive]}
+                  onPress={() => setStatsPeriod(d)}
+                >
+                  <Text style={[styles.periodChipText, statsPeriod === d && styles.periodChipTextActive]}>{d}j</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+            <SimpleBarChart data={stats?.chartData || []} labelKey="label" valueKey="value" />
 
             {pending.length > 0 && (
               <>
@@ -516,4 +535,11 @@ const styles = StyleSheet.create({
   emptyIcon: { fontSize: 44 },
   emptyTitle: { fontSize: 16, fontWeight: '700', color: C.dark },
   emptySubtitle: { fontSize: 13, color: C.mid, textAlign: 'center' },
+  periodChip: {
+    paddingHorizontal: 14, paddingVertical: 6, borderRadius: 999,
+    borderWidth: 1.5, borderColor: C.border, backgroundColor: C.white,
+  },
+  periodChipActive: { backgroundColor: C.primary, borderColor: C.primary },
+  periodChipText: { fontSize: 12, fontWeight: '600', color: C.mid },
+  periodChipTextActive: { color: '#fff' },
 });

@@ -6,6 +6,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useApp } from '../../context/AppContext';
+import { Store } from '../../utils/store';
 import { COMMISSION_RATE } from '../../constants/app';
 import { colors, spacing, typography, radius, shadow } from '../../theme/colors';
 
@@ -81,6 +82,12 @@ export default function BookingScreen({ route, navigation }) {
     if (!user) { navigation.navigate('Login'); return; }
     setLoading(true);
     try {
+      const available = await Store.isVenueAvailable(venue.id, date, start, end);
+      if (!available) {
+        Alert.alert('Indisponible', 'Ce créneau est déjà réservé ou la date est bloquée par l\'annonceur.');
+        setLoading(false);
+        return;
+      }
       const reservation = await addReservation({
         venueId: venue.id,
         venueName: venue.name,

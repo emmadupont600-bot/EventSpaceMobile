@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useMemo } from 'react';
+import React, { useState, useCallback, useMemo, useEffect } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, StyleSheet,
   FlatList, TextInput, RefreshControl, StatusBar, Modal,
@@ -39,6 +39,8 @@ export default function HomeScreen({ navigation }) {
   const [filterOpen, setFilterOpen] = useState(false);
   const [maxPrice, setMaxPrice] = useState('');
   const [minCapacity, setMinCapacity] = useState('');
+  const [selectedDate, setSelectedDate] = useState('');
+  const [availableIds, setAvailableIds] = useState(null);
   const [selectedCity, setSelectedCity] = useState('Toutes');
   const [aiOpen, setAiOpen] = useState(false);
   const [aiQuery, setAiQuery] = useState('');
@@ -70,6 +72,11 @@ export default function HomeScreen({ navigation }) {
 
   const CITIES = useMemo(() => buildCities(venues), [venues]);
 
+  useEffect(() => {
+    if (!selectedDate) { setAvailableIds(null); return; }
+    Store.getAvailableVenueIds(selectedDate).then(setAvailableIds).catch(() => setAvailableIds([]));
+  }, [selectedDate]);
+
   const filtered = useMemo(() => {
     if (aiResults) return aiResults.results;
     return venues.filter(v => {
@@ -85,11 +92,12 @@ export default function HomeScreen({ navigation }) {
       const matchPrice = !maxPrice || (v.price || 0) <= Number(maxPrice);
       const matchCap = !minCapacity || (v.capacity || 0) >= Number(minCapacity);
       const matchCity = selectedCity === 'Toutes' || (v.city || '') === selectedCity;
-      return matchSearch && matchCat && matchPrice && matchCap && matchCity;
+      const matchDate = !selectedDate || !availableIds || availableIds.includes(v.id);
+      return matchSearch && matchCat && matchPrice && matchCap && matchCity && matchDate;
     });
-  }, [venues, search, cat, maxPrice, minCapacity, selectedCity, aiResults]);
+  }, [venues, search, cat, maxPrice, minCapacity, selectedCity, selectedDate, availableIds, aiResults]);
 
-  const hasFilters = maxPrice || minCapacity || selectedCity !== 'Toutes';
+  const hasFilters = maxPrice || minCapacity || selectedCity !== 'Toutes' || selectedDate;
   const firstName = user?.name?.split(' ')[0] || '';
 
   const handleAiSearch = () => {
@@ -317,12 +325,17 @@ export default function HomeScreen({ navigation }) {
             style={styles.filterInput} value={minCapacity} onChangeText={setMinCapacity}
             placeholder="Ex : 50" placeholderTextColor={colors.light} keyboardType="number-pad"
           />
+          <Text style={styles.filterLabel}>📅 Date de disponibilité (AAAA-MM-JJ)</Text>
+          <TextInput
+            style={styles.filterInput} value={selectedDate} onChangeText={setSelectedDate}
+            placeholder="Ex : 2026-06-15" placeholderTextColor={colors.light}
+          />
           <TouchableOpacity style={styles.applyBtn} onPress={() => setFilterOpen(false)}>
             <Text style={styles.applyBtnText}>✅ Appliquer les filtres</Text>
           </TouchableOpacity>
           {!!hasFilters && (
             <TouchableOpacity style={styles.clearBtn} onPress={() => {
-              setMaxPrice(''); setMinCapacity(''); setSelectedCity('Toutes'); setFilterOpen(false);
+              setMaxPrice(''); setMinCapacity(''); setSelectedCity('Toutes'); setSelectedDate(''); setFilterOpen(false);
             }}>
               <Text style={styles.clearBtnText}>🗑️ Réinitialiser</Text>
             </TouchableOpacity>

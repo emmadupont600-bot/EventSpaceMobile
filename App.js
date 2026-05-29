@@ -1,75 +1,100 @@
-import React from 'react';
-import { View, Image, Text, StyleSheet } from 'react-native';
+import React, { useRef, useState, useEffect } from 'react';
+import { View, Image, Text, StyleSheet, StatusBar } from 'react-native';
 import { NavigationContainer } from '@react-navigation/native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { StripeProvider } from '@stripe/stripe-react-native';
 import { AppProvider, useApp } from './src/context/AppContext';
+import { ThemeProvider, useTheme } from './src/context/ThemeContext';
 import AuthNavigator from './src/navigation/AuthNavigator';
 import ClientNavigator from './src/navigation/ClientNavigator';
 import AnnonceurNavigator from './src/navigation/AnnonceurNavigator';
+import OnboardingScreen, { shouldShowOnboarding, markOnboardingComplete } from './src/screens/onboarding/OnboardingScreen';
 import { STRIPE_PUBLISHABLE_KEY } from './src/constants/app';
+import { linking, navigateFromNotification } from './src/navigation/linking';
+import { useNotificationListener } from './src/utils/notifications';
 
 function RootNavigator() {
   const { user, loading } = useApp();
+  const { colors, isDark } = useTheme();
+  const navigationRef = useRef(null);
+  const [showOnboarding, setShowOnboarding] = useState(false);
+  const [checkingOnboarding, setCheckingOnboarding] = useState(true);
 
-  if (loading) {
+  useEffect(() => {
+    if (!user) { setCheckingOnboarding(false); return; }
+    shouldShowOnboarding(user).then(show => {
+      setShowOnboarding(show);
+      setCheckingOnboarding(false);
+    });
+  }, [user?.id]);
+
+  useNotificationListener(null, (response) => {
+    const data = response?.notification?.request?.content?.data;
+    navigateFromNotification(navigationRef.current, data, user);
+  });
+
+  if (loading || checkingOnboarding) {
     return (
-      <View style={styles.splash}>
+      <View style={[styles.splash, { backgroundColor: colors.bg }]}>
+        <StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} />
         <Image source={require('./assets/icon.png')} style={styles.logo} />
-        <Text style={styles.brand}>Event<Text style={styles.brandAccent}>Space</Text></Text>
-        <Text style={styles.tagline}>Trouvez le lieu parfait</Text>
+        <Text style={[styles.brand, { color: colors.dark }]}>
+          Event<Text style={[styles.brandAccent, { color: colors.primary }]}>Space</Text>
+        </Text>
+        <Text style={[styles.tagline, { color: colors.mid }]}>Trouvez le lieu parfait</Text>
       </View>
     );
   }
 
   if (!user) return <AuthNavigator />;
-  if (user.role === 'annonceur') return <AnnonceurNavigator />;
-  return <ClientNavigator />;
+
+  if (showOnboarding) {
+    return (
+      <OnboardingScreen onComplete={async () => {
+        await markOnboardingComplete(user.id);
+        setShowOnboarding(false);
+      }} />
+    );
+  }
+
+  return (
+    <NavigationContainer ref={navigationRef} linking={linking}>
+      {user.role === 'annonceur' ? <AnnonceurNavigator /> : <ClientNavigator />}
+    </NavigationContainer>
+  );
+}
+
+function AppInner() {
+  const { isDark } = useTheme();
+  return (
+    <>
+      <StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} />
+      <RootNavigator />
+    </>
+  );
 }
 
 export default function App() {
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <SafeAreaProvider>
-        <StripeProvider publishableKey={STRIPE_PUBLISHABLE_KEY}>
-          <AppProvider>
-            <NavigationContainer>
-              <RootNavigator />
-            </NavigationContainer>
-          </AppProvider>
-        </StripeProvider>
+        <ThemeProvider>
+          <StripeProvider publishableKey={STRIPE_PUBLISHABLE_KEY}>
+            <AppProvider>
+              <AppInner />
+            </AppProvider>
+          </StripeProvider>
+        </ThemeProvider>
       </SafeAreaProvider>
     </GestureHandlerRootView>
   );
 }
 
 const styles = StyleSheet.create({
-  splash: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#f7f6f2',
-    gap: 12,
-  },
-  logo: {
-    width: 96,
-    height: 96,
-    borderRadius: 24,
-    marginBottom: 8,
-  },
-  brand: {
-    fontSize: 32,
-    fontWeight: '900',
-    color: '#1a1a2e',
-    letterSpacing: -0.5,
-  },
-  brandAccent: {
-    color: '#01696f',
-  },
-  tagline: {
-    fontSize: 14,
-    color: '#6b7280',
-    fontWeight: '500',
-  },
+  splash: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 12 },
+  logo: { width: 96, height: 96, borderRadius: 24, marginBottom: 8 },
+  brand: { fontSize: 32, fontWeight: '900', letterSpacing: -0.5 },
+  brandAccent: {},
+  tagline: { fontSize: 14, fontWeight: '500' },
 });
