@@ -1,5 +1,6 @@
 import React, { useEffect, useRef } from 'react';
 import { Animated, StyleSheet, View } from 'react-native';
+import { colors, radius } from '../theme/colors';
 
 export function SkeletonBox({ width, height, borderRadius = 8, style }) {
   const anim = useRef(new Animated.Value(0)).current;
@@ -17,7 +18,7 @@ export function SkeletonBox({ width, height, borderRadius = 8, style }) {
 
   return (
     <Animated.View
-      style={[{ width, height, borderRadius, backgroundColor: '#E2E8F0', opacity }, style]}
+      style={[{ width, height, borderRadius, backgroundColor: colors.surfaceSecondary, opacity }, style]}
     />
   );
 }
@@ -73,11 +74,13 @@ export function ProfileSkeleton() {
 
 const styles = StyleSheet.create({
   card: {
-    backgroundColor: '#fff',
-    borderRadius: 16,
+    backgroundColor: colors.white,
+    borderRadius: radius.xl,
     overflow: 'hidden',
     marginBottom: 16,
-    shadowColor: '#000',
+    borderWidth: 1,
+    borderColor: colors.borderLight,
+    shadowColor: colors.primary,
     shadowOpacity: 0.06,
     shadowRadius: 8,
     elevation: 3,
@@ -87,6 +90,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     padding: 16,
     borderBottomWidth: 1,
-    borderBottomColor: '#F1F5F9',
+    borderBottomColor: colors.borderLight,
   },
 });

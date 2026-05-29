@@ -4,6 +4,7 @@ import { createStackNavigator } from '@react-navigation/stack';
 import { View, Platform, Text, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { colors } from '../theme/colors';
+import { hapticSelection } from '../utils/haptics';
 
 import HomeScreen from '../screens/home/HomeScreen';
 import MapSearchScreen from '../screens/home/MapSearchScreen';
@@ -53,6 +54,7 @@ const TABS = [
 export default function ClientNavigator() {
   return (
     <Tab.Navigator
+      screenListeners={{ tabPress: () => hapticSelection() }}
       screenOptions={({ route }) => {
         const tab = TABS.find(t => t.name === route.name) || TABS[0];
         return {

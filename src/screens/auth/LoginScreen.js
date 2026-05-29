@@ -1,29 +1,35 @@
 import React, { useState } from 'react';
 import {
-  View, Text, TextInput, TouchableOpacity,
-  StyleSheet, ActivityIndicator, ScrollView,
-  KeyboardAvoidingView, Platform,
+  View, Text, TextInput, StyleSheet, ScrollView,
+  KeyboardAvoidingView, Platform, StatusBar,
 } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
+import { Ionicons } from '@expo/vector-icons';
 import { useApp } from '../../context/AppContext';
+import { colors, spacing, radius, typography } from '../../theme/colors';
+import Button from '../../components/Button';
+import PressableScale from '../../components/PressableScale';
+import { hapticError } from '../../utils/haptics';
 
 export default function LoginScreen({ navigation }) {
   const { login } = useApp();
-  const [email, setEmail]       = useState('');
+  const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [loading, setLoading]   = useState(false);
-  const [error, setError]       = useState('');
+  const [showPwd, setShowPwd] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
 
   const handleLogin = async (overrideEmail, overridePassword) => {
-    const e = (overrideEmail  ?? email).trim();
+    const e = (overrideEmail ?? email).trim();
     const p = (overridePassword ?? password).trim();
-    if (!e || !p) { setError('Veuillez remplir tous les champs.'); return; }
+    if (!e || !p) { setError('Veuillez remplir tous les champs.'); hapticError(); return; }
     setLoading(true);
     setError('');
     try {
       await login(e, p);
-      // navigation gérée par AppContext via user state
     } catch (err) {
       setError(err.message || 'Identifiants incorrects');
+      hapticError();
     } finally {
       setLoading(false);
     }
@@ -31,120 +37,162 @@ export default function LoginScreen({ navigation }) {
 
   const quickLogin = (role) => {
     const creds = {
-      client:    { email: 'client@demo.com',    password: 'demo123' },
+      client: { email: 'client@demo.com', password: 'demo123' },
       annonceur: { email: 'annonceur@demo.com', password: 'demo123' },
     }[role];
     handleLogin(creds.email, creds.password);
   };
 
   return (
-    <KeyboardAvoidingView
-      style={{ flex: 1 }}
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-    >
-      <ScrollView contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled">
-        <View style={styles.header}>
-          <Text style={styles.logo}>📍</Text>
-          <Text style={styles.title}>EventSpace</Text>
-          <Text style={styles.subtitle}>Trouvez et louez le lieu parfait</Text>
-        </View>
-
-        <View style={styles.form}>
-          <Text style={styles.label}>Adresse email</Text>
-          <TextInput
-            style={styles.input}
-            placeholder="email@exemple.com"
-            value={email}
-            onChangeText={setEmail}
-            keyboardType="email-address"
-            autoCapitalize="none"
-            autoCorrect={false}
-          />
-
-          <Text style={styles.label}>Mot de passe</Text>
-          <TextInput
-            style={styles.input}
-            placeholder="••••••••"
-            value={password}
-            onChangeText={setPassword}
-            secureTextEntry
-          />
-
-          {!!error && <Text style={styles.error}>{error}</Text>}
-
-          <TouchableOpacity
-            style={[styles.btn, loading && styles.btnDisabled]}
-            onPress={() => handleLogin()}
-            disabled={loading}
+    <View style={styles.root}>
+      <StatusBar barStyle="light-content" />
+      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+        <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
+          <LinearGradient
+            colors={['#7C3AED', '#6D28D9', '#5B21B6']}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={styles.hero}
           >
-            {loading
-              ? <ActivityIndicator color="#fff" />
-              : <Text style={styles.btnText}>Se connecter</Text>
-            }
-          </TouchableOpacity>
-        </View>
+            <View style={styles.logoBadge}>
+              <Ionicons name="location" size={30} color="#fff" />
+            </View>
+            <Text style={styles.brand}>EventSpace</Text>
+            <Text style={styles.tagline}>Trouvez et louez le lieu parfait</Text>
+          </LinearGradient>
 
-        <View style={styles.demoSection}>
-          <Text style={styles.demoTitle}>— Connexion rapide (démo) —</Text>
-          <View style={styles.demoRow}>
-            <TouchableOpacity
-              style={[styles.demoBtn, styles.demoBtnClient]}
-              onPress={() => quickLogin('client')}
-              disabled={loading}
-            >
-              <Text style={styles.demoBtnText}>👤 Client</Text>
-              <Text style={styles.demoBtnSub}>client@demo.com</Text>
-            </TouchableOpacity>
+          <View style={styles.card}>
+            <Text style={styles.welcome}>Bon retour 👋</Text>
+            <Text style={styles.welcomeSub}>Connectez-vous pour continuer</Text>
 
-            <TouchableOpacity
-              style={[styles.demoBtn, styles.demoBtnAnnonceur]}
-              onPress={() => quickLogin('annonceur')}
-              disabled={loading}
-            >
-              <Text style={styles.demoBtnText}>🏠 Annonceur</Text>
-              <Text style={styles.demoBtnSub}>annonceur@demo.com</Text>
-            </TouchableOpacity>
+            <Text style={styles.label}>Adresse email</Text>
+            <View style={styles.inputWrap}>
+              <Ionicons name="mail-outline" size={18} color={colors.mid} />
+              <TextInput
+                style={styles.input}
+                placeholder="email@exemple.com"
+                placeholderTextColor={colors.light}
+                value={email}
+                onChangeText={setEmail}
+                keyboardType="email-address"
+                autoCapitalize="none"
+                autoCorrect={false}
+              />
+            </View>
+
+            <Text style={styles.label}>Mot de passe</Text>
+            <View style={styles.inputWrap}>
+              <Ionicons name="lock-closed-outline" size={18} color={colors.mid} />
+              <TextInput
+                style={styles.input}
+                placeholder="••••••••"
+                placeholderTextColor={colors.light}
+                value={password}
+                onChangeText={setPassword}
+                secureTextEntry={!showPwd}
+              />
+              <PressableScale haptic="selection" onPress={() => setShowPwd(s => !s)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                <Ionicons name={showPwd ? 'eye-off-outline' : 'eye-outline'} size={18} color={colors.mid} />
+              </PressableScale>
+            </View>
+
+            {!!error && (
+              <View style={styles.errorRow}>
+                <Ionicons name="alert-circle" size={15} color={colors.error} />
+                <Text style={styles.error}>{error}</Text>
+              </View>
+            )}
+
+            <Button
+              title="Se connecter"
+              onPress={() => handleLogin()}
+              loading={loading}
+              size="lg"
+              style={{ marginTop: spacing.lg }}
+            />
           </View>
-          <Text style={styles.demoHint}>Mot de passe des deux comptes : demo123</Text>
-        </View>
 
-        <TouchableOpacity
-          style={styles.registerLink}
-          onPress={() => navigation.navigate('Register')}
-        >
-          <Text style={styles.registerText}>
-            Pas encore de compte ?{' '}
-            <Text style={styles.registerTextBold}>Créer un compte</Text>
-          </Text>
-        </TouchableOpacity>
-      </ScrollView>
-    </KeyboardAvoidingView>
+          <View style={styles.demoSection}>
+            <View style={styles.divider}>
+              <View style={styles.line} />
+              <Text style={styles.demoTitle}>Connexion rapide (démo)</Text>
+              <View style={styles.line} />
+            </View>
+            <View style={styles.demoRow}>
+              <PressableScale style={[styles.demoBtn, styles.demoBtnClient]} onPress={() => quickLogin('client')} disabled={loading}>
+                <Ionicons name="person-outline" size={20} color={colors.primary} />
+                <Text style={styles.demoBtnText}>Client</Text>
+                <Text style={styles.demoBtnSub}>client@demo.com</Text>
+              </PressableScale>
+
+              <PressableScale style={[styles.demoBtn, styles.demoBtnAnnonceur]} onPress={() => quickLogin('annonceur')} disabled={loading}>
+                <Ionicons name="business-outline" size={20} color={colors.success} />
+                <Text style={styles.demoBtnText}>Annonceur</Text>
+                <Text style={styles.demoBtnSub}>annonceur@demo.com</Text>
+              </PressableScale>
+            </View>
+            <Text style={styles.demoHint}>Mot de passe des deux comptes : demo123</Text>
+          </View>
+
+          <PressableScale style={styles.registerLink} haptic="selection" onPress={() => navigation.navigate('Register')}>
+            <Text style={styles.registerText}>
+              Pas encore de compte ? <Text style={styles.registerTextBold}>Créer un compte</Text>
+            </Text>
+          </PressableScale>
+        </ScrollView>
+      </KeyboardAvoidingView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flexGrow: 1, justifyContent: 'center', paddingHorizontal: 24, paddingVertical: 40, backgroundColor: '#fff' },
-  header: { alignItems: 'center', marginBottom: 36 },
-  logo: { fontSize: 48, marginBottom: 8 },
-  title: { fontSize: 28, fontWeight: '700', color: '#1a1a2e', letterSpacing: -0.5 },
-  subtitle: { fontSize: 14, color: '#888', marginTop: 4 },
-  form: { marginBottom: 28 },
-  label: { fontSize: 13, fontWeight: '600', color: '#444', marginBottom: 6, marginTop: 14 },
-  input: { borderWidth: 1.5, borderColor: '#e0e0e0', borderRadius: 10, paddingHorizontal: 14, paddingVertical: 12, fontSize: 15, color: '#1a1a2e', backgroundColor: '#fafafa' },
-  error: { color: '#e53935', fontSize: 13, marginTop: 10, textAlign: 'center' },
-  btn: { backgroundColor: '#6C63FF', borderRadius: 12, paddingVertical: 15, alignItems: 'center', marginTop: 22, shadowColor: '#6C63FF', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 8, elevation: 4 },
-  btnDisabled: { opacity: 0.6 },
-  btnText: { color: '#fff', fontSize: 16, fontWeight: '700' },
-  demoSection: { marginBottom: 24 },
-  demoTitle: { textAlign: 'center', color: '#aaa', fontSize: 12, marginBottom: 12, fontWeight: '500' },
-  demoRow: { flexDirection: 'row', gap: 10 },
-  demoBtn: { flex: 1, borderRadius: 10, paddingVertical: 12, paddingHorizontal: 10, alignItems: 'center', borderWidth: 1.5 },
-  demoBtnClient: { borderColor: '#6C63FF', backgroundColor: '#f3f1ff' },
-  demoBtnAnnonceur: { borderColor: '#00b894', backgroundColor: '#f0faf7' },
-  demoBtnText: { fontSize: 14, fontWeight: '700', color: '#1a1a2e' },
-  demoBtnSub: { fontSize: 11, color: '#888', marginTop: 2 },
-  demoHint: { textAlign: 'center', fontSize: 11, color: '#bbb', marginTop: 8 },
-  registerLink: { alignItems: 'center', paddingVertical: 8 },
-  registerText: { fontSize: 14, color: '#888' },
-  registerTextBold: { color: '#6C63FF', fontWeight: '700' },
+  root: { flex: 1, backgroundColor: colors.bg },
+  scroll: { flexGrow: 1, paddingBottom: 32 },
+  hero: {
+    alignItems: 'center', paddingTop: 80, paddingBottom: 48,
+    borderBottomLeftRadius: 32, borderBottomRightRadius: 32,
+  },
+  logoBadge: {
+    width: 64, height: 64, borderRadius: 20,
+    backgroundColor: 'rgba(255,255,255,0.18)',
+    alignItems: 'center', justifyContent: 'center', marginBottom: 14,
+  },
+  brand: { fontSize: typography.display, fontWeight: '900', color: '#fff', letterSpacing: -0.5 },
+  tagline: { fontSize: typography.body, color: 'rgba(255,255,255,0.85)', marginTop: 6 },
+  card: {
+    backgroundColor: colors.surface,
+    marginHorizontal: spacing.lg, marginTop: -24,
+    borderRadius: radius.xl, padding: spacing.xl,
+    borderWidth: 1, borderColor: colors.borderLight,
+    shadowColor: colors.primary, shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.10, shadowRadius: 24, elevation: 6,
+  },
+  welcome: { fontSize: typography.h1, fontWeight: '900', color: colors.dark, letterSpacing: -0.5 },
+  welcomeSub: { fontSize: typography.small, color: colors.mid, marginTop: 3, marginBottom: spacing.lg },
+  label: { fontSize: typography.small, fontWeight: '700', color: colors.dark, marginBottom: 7, marginTop: spacing.md },
+  inputWrap: {
+    flexDirection: 'row', alignItems: 'center', gap: spacing.sm,
+    borderWidth: 1.5, borderColor: colors.border, borderRadius: radius.md,
+    paddingHorizontal: spacing.md, backgroundColor: colors.surfaceSecondary,
+  },
+  input: { flex: 1, paddingVertical: 13, fontSize: typography.body, color: colors.dark },
+  errorRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: spacing.md, justifyContent: 'center' },
+  error: { color: colors.error, fontSize: typography.small, fontWeight: '600' },
+  demoSection: { marginTop: spacing.xl, paddingHorizontal: spacing.lg },
+  divider: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, marginBottom: spacing.md },
+  line: { flex: 1, height: 1, backgroundColor: colors.border },
+  demoTitle: { color: colors.mid, fontSize: typography.tiny, fontWeight: '600' },
+  demoRow: { flexDirection: 'row', gap: spacing.md },
+  demoBtn: {
+    flex: 1, borderRadius: radius.lg, paddingVertical: spacing.lg, paddingHorizontal: spacing.md,
+    alignItems: 'center', borderWidth: 1.5, gap: 4, backgroundColor: colors.surface,
+  },
+  demoBtnClient: { borderColor: colors.primary },
+  demoBtnAnnonceur: { borderColor: colors.success },
+  demoBtnText: { fontSize: typography.body, fontWeight: '800', color: colors.dark, marginTop: 4 },
+  demoBtnSub: { fontSize: typography.tiny, color: colors.mid },
+  demoHint: { textAlign: 'center', fontSize: typography.tiny, color: colors.light, marginTop: spacing.md },
+  registerLink: { alignItems: 'center', paddingVertical: spacing.lg, marginTop: spacing.sm },
+  registerText: { fontSize: typography.small, color: colors.mid },
+  registerTextBold: { color: colors.primary, fontWeight: '800' },
 });

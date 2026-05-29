@@ -5,6 +5,7 @@ import {
   ActivityIndicator, KeyboardAvoidingView, Platform,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
 import { useApp } from '../../context/AppContext';
@@ -13,6 +14,7 @@ import { VENUES } from '../../data/venues';
 import { aiSearchVenues } from '../../utils/aiSearch';
 import VenueCard from '../../components/VenueCard';
 import { HomeScreenSkeleton } from '../../components/SkeletonLoader';
+import { hapticSelection } from '../../utils/haptics';
 import { colors, spacing, typography, radius } from '../../theme/colors';
 
 const CATEGORIES = [
@@ -123,18 +125,29 @@ export default function HomeScreen({ navigation }) {
     : `${filtered.length} lieu${filtered.length > 1 ? 'x' : ''} disponible${filtered.length > 1 ? 's' : ''}`;
 
   return (
-    <View style={[styles.container, { paddingTop: insets.top }]}>
-      <StatusBar barStyle="dark-content" backgroundColor={colors.bg} />
+    <View style={styles.container}>
+      <StatusBar barStyle="light-content" backgroundColor="#5B21B6" />
 
-      <View style={styles.header}>
-        <View>
-          <Text style={styles.greeting}>Bonjour{firstName ? `, ${firstName}` : ''} 👋</Text>
-          <Text style={styles.logo}>Event<Text style={styles.logoAccent}>Space</Text></Text>
+      <LinearGradient
+        colors={['#7C3AED', '#6D28D9', '#5B21B6']}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+        style={[styles.header, { paddingTop: insets.top + 14 }]}
+      >
+        <View style={styles.headerRow}>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.greeting}>Bonjour{firstName ? `, ${firstName}` : ''} 👋</Text>
+            <Text style={styles.logo}>Event<Text style={styles.logoAccent}>Space</Text></Text>
+          </View>
+          <TouchableOpacity
+            style={styles.iconBtn}
+            onPress={() => { hapticSelection(); navigation.navigate('MapSearch'); }}
+            activeOpacity={0.8}
+          >
+            <Ionicons name="map-outline" size={20} color="#fff" />
+          </TouchableOpacity>
         </View>
-        <TouchableOpacity style={styles.iconBtn} onPress={() => navigation.navigate('MapSearch')}>
-          <Text style={styles.iconBtnEmoji}>🗺️</Text>
-        </TouchableOpacity>
-      </View>
+      </LinearGradient>
 
       <TouchableOpacity
         style={[styles.aiBtn, aiResults && styles.aiBtnActive]}
@@ -350,20 +363,20 @@ const C = colors;
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: C.bg },
   header: {
-    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
-    paddingHorizontal: spacing.lg, paddingTop: spacing.md, paddingBottom: spacing.sm,
+    paddingHorizontal: spacing.lg, paddingBottom: spacing.xl,
+    borderBottomLeftRadius: 28, borderBottomRightRadius: 28,
   },
-  greeting: { fontSize: typography.small, color: C.mid, fontWeight: '500' },
-  logo: { fontSize: 26, fontWeight: '900', color: C.dark, letterSpacing: -0.5 },
-  logoAccent: { color: C.primary },
+  headerRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  greeting: { fontSize: typography.small, color: 'rgba(255,255,255,0.85)', fontWeight: '600' },
+  logo: { fontSize: 28, fontWeight: '900', color: '#fff', letterSpacing: -0.5, marginTop: 2 },
+  logoAccent: { color: '#FBBF24' },
   iconBtn: {
-    width: 38, height: 38, borderRadius: 11,
-    backgroundColor: C.primaryLight || '#EEF2FF',
+    width: 42, height: 42, borderRadius: 14,
+    backgroundColor: 'rgba(255,255,255,0.18)',
     alignItems: 'center', justifyContent: 'center',
   },
-  iconBtnEmoji: { fontSize: 18 },
   aiBtn: {
-    marginHorizontal: spacing.lg, marginBottom: spacing.sm,
+    marginHorizontal: spacing.lg, marginBottom: spacing.sm, marginTop: spacing.md,
     flexDirection: 'row', alignItems: 'center', gap: 8,
     backgroundColor: C.white, borderRadius: 14,
     paddingHorizontal: spacing.md, paddingVertical: 11,
