@@ -1,12 +1,14 @@
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useState, useMemo } from 'react';
 import {
   View, Text, FlatList, StyleSheet, TouchableOpacity,
-  Alert, StatusBar, RefreshControl,
+  Alert, StatusBar, RefreshControl, Modal, TextInput,
 } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { Store } from '../../utils/store';
+import { refundPayment } from '../../services/stripeService';
+import { useApp } from '../../context/AppContext';
 import { colors, spacing, typography, radius, shadow } from '../../theme/colors';
 
 const STATUS_MAP = {
@@ -22,29 +24,89 @@ const TABS = [
   { key: 'cancelled', label: 'Annulées',  icon: 'close-circle-outline' },
 ];
 
+function isPastStay(dateStr) {
+  if (!dateStr) return false;
+  const d = new Date(dateStr);
+  d.setHours(23, 59, 59, 999);
+  return d < new Date();
+}
+
 export default function ReservationsScreen({ navigation }) {
+  const { user } = useApp();
   const [reservations, setReservations] = useState([]);
-  const [user, setUser] = useState(null);
   const [tab, setTab] = useState('all');
   const [refreshing, setRefreshing] = useState(false);
+  const [reviewTarget, setReviewTarget] = useState(null);
+  const [reviewRating, setReviewRating] = useState(5);
+  const [reviewComment, setReviewComment] = useState('');
+  const [submittingReview, setSubmittingReview] = useState(false);
   const insets = useSafeAreaInsets();
 
-  const load = async () => {
-    const u = await Store.getCurrentUser();
-    setUser(u);
-    if (!u) return;
-    const all = (await Store.getReservations()) || [];
-    const mine = u.role === 'annonceur'
-      ? all.filter(r => r.ownerId === u.id)
-      : all.filter(r => r.userId === u.id);
-    setReservations(mine.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)));
-  };
+  const load = useCallback(async () => {
+    if (!user?.id) return [];
+    const mine = user.role === 'annonceur'
+      ? await Store.getReservationsByOwner(user.id)
+      : await Store.getReservationsByUser(user.id);
+    const sorted = mine.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+    setReservations(sorted);
+    return sorted;
+  }, [user?.id, user?.role]);
 
-  useFocusEffect(useCallback(() => { load(); }, []));
+  const promptReviewIfNeeded = useCallback(async (list) => {
+    if (!user?.id || user.role === 'annonceur') return;
+    const candidate = (list || []).find(r =>
+      r.status === 'confirmed' && isPastStay(r.date)
+    );
+    if (!candidate?.venueId) return;
+    const existing = await Store.getUserReviewForVenue(user.id, candidate.venueId);
+    if (!existing) setReviewTarget(candidate);
+  }, [user?.id, user?.role]);
+
+  useFocusEffect(useCallback(() => {
+    load().then(list => promptReviewIfNeeded(list));
+  }, [load, promptReviewIfNeeded]));
 
   const onRefresh = async () => { setRefreshing(true); await load(); setRefreshing(false); };
 
-  const filtered = tab === 'all' ? reservations : reservations.filter(r => r.status === tab);
+  const filtered = useMemo(
+    () => (tab === 'all' ? reservations : reservations.filter(r => r.status === tab)),
+    [reservations, tab]
+  );
+
+  const handleClientCancel = (item) => {
+    const isConfirmed = item.status === 'confirmed';
+    Alert.alert(
+      isConfirmed ? 'Annuler cette réservation ?' : 'Annuler la demande ?',
+      isConfirmed
+        ? 'Le remboursement sera traité selon la politique EventSpace (3 à 5 jours ouvrables).'
+        : 'Votre demande sera annulée. Si un paiement était autorisé, il sera libéré.',
+      [
+        { text: 'Non', style: 'cancel' },
+        {
+          text: 'Oui, annuler',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              if (item.paymentIntentId) {
+                const refund = await refundPayment(item.paymentIntentId);
+                if (!refund.success) {
+                  Alert.alert('Erreur', refund.error || 'Impossible de rembourser.');
+                  return;
+                }
+              }
+              await Store.cancelReservation(item.id, { refundPaymentIntent: !!item.paymentIntentId });
+              setReservations(r => r.map(x =>
+                x.id === item.id ? { ...x, status: 'cancelled', paymentStatus: 'refunded' } : x
+              ));
+              Alert.alert('Annulée', 'Votre réservation a été annulée.');
+            } catch (e) {
+              Alert.alert('Erreur', e.message);
+            }
+          },
+        },
+      ]
+    );
+  };
 
   const updateStatus = (id, status) => {
     const label = status === 'confirmed' ? 'Confirmer' : 'Annuler';
@@ -61,6 +123,28 @@ export default function ReservationsScreen({ navigation }) {
     );
   };
 
+  const submitReview = async () => {
+    if (!reviewTarget || !user?.id) return;
+    setSubmittingReview(true);
+    try {
+      await Store.addReview({
+        venueId: reviewTarget.venueId,
+        userId: user.id,
+        userName: user.name || user.email || 'Client',
+        rating: reviewRating,
+        comment: reviewComment.trim(),
+      });
+      setReviewTarget(null);
+      setReviewComment('');
+      setReviewRating(5);
+      Alert.alert('Merci !', 'Votre avis a été publié.');
+    } catch (e) {
+      Alert.alert('Erreur', e.message);
+    } finally {
+      setSubmittingReview(false);
+    }
+  };
+
   const renderEmpty = () => (
     <View style={styles.empty}>
       <Ionicons name="calendar-outline" size={64} color={colors.border || '#E2E8F0'} />
@@ -71,10 +155,10 @@ export default function ReservationsScreen({ navigation }) {
           : `Aucune réservation « ${TABS.find(t => t.key === tab)?.label} »`
         }
       </Text>
-      {tab === 'all' && (
+      {tab === 'all' && user?.role !== 'annonceur' && (
         <TouchableOpacity
           style={styles.emptyBtn}
-          onPress={() => navigation.navigate('HomeTab')}
+          onPress={() => navigation.navigate('Accueil')}
         >
           <Ionicons name="search-outline" size={16} color="#fff" />
           <Text style={styles.emptyBtnTxt}>Explorer les espaces</Text>
@@ -86,6 +170,8 @@ export default function ReservationsScreen({ navigation }) {
   const renderItem = ({ item }) => {
     const s = STATUS_MAP[item.status] || STATUS_MAP.pending;
     const isAnnonceur = user?.role === 'annonceur';
+    const canReview = !isAnnonceur && item.status === 'confirmed' && isPastStay(item.date);
+
     return (
       <View style={styles.card}>
         <View style={styles.cardHeader}>
@@ -136,11 +222,19 @@ export default function ReservationsScreen({ navigation }) {
           </View>
         )}
 
-        {!isAnnonceur && item.status === 'pending' && (
+        {!isAnnonceur && (item.status === 'pending' || item.status === 'confirmed') && (
           <View style={styles.actions}>
-            <TouchableOpacity style={styles.btnCancel} onPress={() => updateStatus(item.id, 'cancelled')}>
+            {canReview && (
+              <TouchableOpacity style={styles.btnReview} onPress={() => setReviewTarget(item)}>
+                <Ionicons name="star-outline" size={14} color={colors.primary} />
+                <Text style={styles.btnReviewTxt}>Laisser un avis</Text>
+              </TouchableOpacity>
+            )}
+            <TouchableOpacity style={styles.btnCancel} onPress={() => handleClientCancel(item)}>
               <Ionicons name="close" size={14} color="#DC2626" />
-              <Text style={styles.btnCancelTxt}>Annuler la demande</Text>
+              <Text style={styles.btnCancelTxt}>
+                {item.status === 'confirmed' ? 'Annuler' : 'Annuler la demande'}
+              </Text>
             </TouchableOpacity>
           </View>
         )}
@@ -182,6 +276,45 @@ export default function ReservationsScreen({ navigation }) {
         }
         showsVerticalScrollIndicator={false}
       />
+
+      <Modal visible={!!reviewTarget} transparent animationType="slide" onRequestClose={() => setReviewTarget(null)}>
+        <View style={styles.reviewOverlay}>
+          <View style={styles.reviewSheet}>
+            <Text style={styles.reviewTitle}>Comment s'est passé votre séjour ?</Text>
+            <Text style={styles.reviewSub}>{reviewTarget?.venueName}</Text>
+            <View style={styles.starsRow}>
+              {[1, 2, 3, 4, 5].map(n => (
+                <TouchableOpacity key={n} onPress={() => setReviewRating(n)}>
+                  <Ionicons
+                    name={n <= reviewRating ? 'star' : 'star-outline'}
+                    size={32}
+                    color="#F59E0B"
+                  />
+                </TouchableOpacity>
+              ))}
+            </View>
+            <TextInput
+              style={styles.reviewInput}
+              placeholder="Partagez votre expérience (optionnel)"
+              placeholderTextColor={colors.muted}
+              value={reviewComment}
+              onChangeText={setReviewComment}
+              multiline
+              numberOfLines={3}
+            />
+            <TouchableOpacity
+              style={[styles.reviewSubmit, submittingReview && { opacity: 0.6 }]}
+              onPress={submitReview}
+              disabled={submittingReview}
+            >
+              <Text style={styles.reviewSubmitTxt}>Publier mon avis</Text>
+            </TouchableOpacity>
+            <TouchableOpacity onPress={() => setReviewTarget(null)}>
+              <Text style={styles.reviewSkip}>Plus tard</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -230,9 +363,20 @@ const styles = StyleSheet.create({
   btnConfirmTxt: { fontSize: 13, fontWeight: '700', color: '#fff' },
   btnCancel: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4, borderWidth: 1.5, borderColor: '#DC2626', borderRadius: radius.md, paddingVertical: 9 },
   btnCancelTxt: { fontSize: 13, fontWeight: '700', color: '#DC2626' },
+  btnReview: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4, borderWidth: 1.5, borderColor: colors.primary, borderRadius: radius.md, paddingVertical: 9 },
+  btnReviewTxt: { fontSize: 13, fontWeight: '700', color: colors.primary },
   empty: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: spacing.xl },
   emptyTitle: { fontSize: typography.lg, fontWeight: '700', color: colors.text, marginTop: spacing.md, marginBottom: spacing.xs },
   emptySubtitle: { fontSize: typography.sm, color: colors.muted, textAlign: 'center', maxWidth: 260, lineHeight: 20 },
   emptyBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: colors.primary, borderRadius: radius.md, paddingHorizontal: spacing.lg, paddingVertical: 12, marginTop: spacing.lg },
   emptyBtnTxt: { fontSize: typography.sm, fontWeight: '700', color: '#fff' },
+  reviewOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.45)', justifyContent: 'flex-end' },
+  reviewSheet: { backgroundColor: colors.white || '#fff', borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: spacing.lg, paddingBottom: 40, gap: 12 },
+  reviewTitle: { fontSize: 20, fontWeight: '800', color: colors.text },
+  reviewSub: { fontSize: 14, color: colors.muted },
+  starsRow: { flexDirection: 'row', justifyContent: 'center', gap: 8, paddingVertical: 8 },
+  reviewInput: { borderWidth: 1.5, borderColor: colors.border || '#E2E8F0', borderRadius: 12, padding: 12, minHeight: 80, textAlignVertical: 'top', color: colors.text },
+  reviewSubmit: { backgroundColor: colors.primary, borderRadius: 12, paddingVertical: 14, alignItems: 'center' },
+  reviewSubmitTxt: { color: '#fff', fontWeight: '700', fontSize: 15 },
+  reviewSkip: { textAlign: 'center', color: colors.muted, fontWeight: '600', paddingTop: 4 },
 });

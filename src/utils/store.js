@@ -1,32 +1,56 @@
 /**
  * Store — toutes les opérations de données passent par Supabase.
- * venue_id / owner_id / user_id : envoyés comme NULL si ce ne sont pas des UUIDs valides.
- * (La table reservations a venue_id en bigint ou uuid selon les instances —
- *  on laisse NULL pour les réservations sur des venues de démo locales.)
+ * L'état utilisateur réactif est géré par AppContext (pas de cache module global).
  */
 import { supabase } from '../services/supabase';
+import { VENUES_CACHE_TTL_MS } from '../constants/app';
 
-let _currentUser = null;
+let _venuesCache = { data: null, fetchedAt: 0 };
 
-// Retourne true UNIQUEMENT si la valeur est un UUID v4 valide
 function isUUID(v) {
   if (!v || typeof v !== 'string') return false;
   return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(v);
+}
+
+async function getSessionUserId() {
+  const { data: { session } } = await supabase.auth.getSession();
+  return session?.user?.id ?? null;
+}
+
+async function fetchUserProfile(userId) {
+  const { data } = await supabase.from('users').select('*').eq('id', userId).maybeSingle();
+  if (data) return data;
+  const { data: { session } } = await supabase.auth.getSession();
+  const u = session?.user;
+  if (!u) return null;
+  return {
+    id: u.id,
+    email: u.email,
+    role: u.user_metadata?.role || 'client',
+    name: u.user_metadata?.name,
+  };
 }
 
 export const Store = {
 
   // ─── AUTH ───────────────────────────────────────────────────────────
   async getCurrentUser() {
-    const { data: { session } } = await supabase.auth.getSession();
-    if (!session?.user) { _currentUser = null; return null; }
-    if (_currentUser && _currentUser.id === session.user.id) return _currentUser;
-    const { data } = await supabase.from('users').select('*').eq('id', session.user.id).maybeSingle();
-    _currentUser = data || { id: session.user.id, email: session.user.email, role: 'client' };
-    return _currentUser;
+    const userId = await getSessionUserId();
+    if (!userId) return null;
+    return fetchUserProfile(userId);
   },
 
-  async setCurrentUser(user) { _currentUser = user; },
+  onAuthStateChange(callback) {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
+      if (!session?.user) {
+        callback(null);
+        return;
+      }
+      const profile = await fetchUserProfile(session.user.id);
+      callback(profile);
+    });
+    return () => subscription.unsubscribe();
+  },
 
   async login(email, password) {
     const { data, error } = await supabase.auth.signInWithPassword({
@@ -34,9 +58,7 @@ export const Store = {
       password: (password || '').trim(),
     });
     if (error || !data?.user) throw new Error(error?.message || 'Email ou mot de passe incorrect');
-    const { data: profile } = await supabase.from('users').select('*').eq('id', data.user.id).maybeSingle();
-    _currentUser = profile || { id: data.user.id, email: data.user.email, role: data.user.user_metadata?.role || 'client', name: data.user.user_metadata?.name };
-    return _currentUser;
+    return fetchUserProfile(data.user.id);
   },
 
   async register(userData) {
@@ -47,24 +69,52 @@ export const Store = {
       options: { data: { name: userData.name, role: userData.role || 'client' } },
     });
     if (error || !data?.user) throw new Error(error?.message || "Erreur lors de l'inscription");
-    const profile = { id: data.user.id, email: emailNorm, name: userData.name, role: userData.role || 'client', phone: userData.phone || null };
+    const profile = {
+      id: data.user.id,
+      email: emailNorm,
+      name: userData.name,
+      role: userData.role || 'client',
+      phone: userData.phone || null,
+    };
     const { error: profileError } = await supabase.from('users').upsert(profile, { onConflict: 'id' });
     if (profileError) console.warn('[Store.register] profil insert warning:', profileError.message);
-    _currentUser = profile;
-    return _currentUser;
+    return profile;
   },
 
   async logout() {
+    _venuesCache = { data: null, fetchedAt: 0 };
     await supabase.auth.signOut();
-    _currentUser = null;
+  },
+
+  invalidateVenuesCache() {
+    _venuesCache = { data: null, fetchedAt: 0 };
   },
 
   // ─── VENUES ─────────────────────────────────────────────────────
-  async getVenues() {
+  async getVenues({ forceRefresh = false } = {}) {
+    const now = Date.now();
+    if (!forceRefresh && _venuesCache.data && now - _venuesCache.fetchedAt < VENUES_CACHE_TTL_MS) {
+      return _venuesCache.data;
+    }
+
     const { data, error } = await supabase
       .from('venues')
       .select('*')
       .eq('published', true)
+      .order('created_at', { ascending: false });
+    if (error) throw new Error(error.message);
+
+    const venues = (data || []).map(normalizeVenue);
+    _venuesCache = { data: venues, fetchedAt: now };
+    return venues;
+  },
+
+  async getVenuesByOwner(ownerId) {
+    if (!isUUID(ownerId)) return [];
+    const { data, error } = await supabase
+      .from('venues')
+      .select('*')
+      .eq('owner_id', ownerId)
       .order('created_at', { ascending: false });
     if (error) throw new Error(error.message);
     return (data || []).map(normalizeVenue);
@@ -76,34 +126,47 @@ export const Store = {
     return normalizeVenue(data);
   },
 
-  async addVenue(venue) {
+  async addVenue(venue, ownerId) {
+    const resolvedOwnerId = isUUID(ownerId) ? ownerId : await getSessionUserId();
     const row = denormalizeVenue(venue);
     delete row.id;
     const { data, error } = await supabase
       .from('venues')
-      .insert({ ...row, owner_id: _currentUser?.id, published: true, rating: 0, review_count: 0 })
-      .select().single();
+      .insert({
+        ...row,
+        owner_id: resolvedOwnerId,
+        published: true,
+        rating: 0,
+        review_count: 0,
+      })
+      .select()
+      .single();
     if (error) throw new Error(error.message);
+    Store.invalidateVenuesCache();
     return normalizeVenue(data);
   },
 
   async updateVenue(id, changes) {
     const { error } = await supabase.from('venues').update(denormalizeVenue(changes)).eq('id', id);
     if (error) throw new Error(error.message);
+    Store.invalidateVenuesCache();
   },
 
   async deleteVenue(id) {
     const { error } = await supabase.from('venues').delete().eq('id', id);
     if (error) throw new Error(error.message);
+    Store.invalidateVenuesCache();
   },
 
   async saveVenues(venues) {
     for (const v of venues) await supabase.from('venues').upsert(denormalizeVenue(v));
+    Store.invalidateVenuesCache();
   },
 
   async updateVenueCover(venueId, coverUrl) {
     const { error } = await supabase.from('venues').update({ cover_url: coverUrl, img: coverUrl }).eq('id', venueId);
     if (error) throw new Error(error.message);
+    Store.invalidateVenuesCache();
   },
 
   async addVenueGalleryPhoto(venueId, photoUrl) {
@@ -111,6 +174,16 @@ export const Store = {
     const updated = [...(data?.gallery_urls || []), photoUrl];
     const { error } = await supabase.from('venues').update({ gallery_urls: updated, gallery: updated }).eq('id', venueId);
     if (error) throw new Error(error.message);
+    Store.invalidateVenuesCache();
+    return updated;
+  },
+
+  async removeVenueGalleryPhoto(venueId, photoUrl) {
+    const { data } = await supabase.from('venues').select('gallery_urls').eq('id', venueId).single();
+    const updated = (data?.gallery_urls || []).filter(url => url !== photoUrl);
+    const { error } = await supabase.from('venues').update({ gallery_urls: updated, gallery: updated }).eq('id', venueId);
+    if (error) throw new Error(error.message);
+    Store.invalidateVenuesCache();
     return updated;
   },
 
@@ -124,45 +197,52 @@ export const Store = {
     return (data || []).map(normalizeReservation);
   },
 
-  /**
-   * addReservation
-   *
-   * BUG FIX : on respecte maintenant payment_status et paymentIntentId
-   * tels que passés par l'appelant (PaymentScreen).
-   * - payment_status = 'authorized' quand le paiement est autorisé (capture manuelle)
-   * - payment_intent_id = l'ID Stripe du PaymentIntent
-   *
-   * L'ancien code écrasait toujours payment_status par 'unpaid'
-   * et ignorait complètement paymentIntentId.
-   */
+  async getReservationsByUser(userId) {
+    if (!isUUID(userId)) return [];
+    const { data, error } = await supabase
+      .from('reservations')
+      .select('*')
+      .eq('user_id', userId)
+      .order('created_at', { ascending: false });
+    if (error) throw new Error(error.message);
+    return (data || []).map(normalizeReservation);
+  },
+
+  async getReservationsByOwner(ownerId) {
+    if (!isUUID(ownerId)) return [];
+    const { data, error } = await supabase
+      .from('reservations')
+      .select('*')
+      .eq('owner_id', ownerId)
+      .order('created_at', { ascending: false });
+    if (error) throw new Error(error.message);
+    return (data || []).map(normalizeReservation);
+  },
+
   async addReservation(res) {
     const venueId = isUUID(res.venueId) ? res.venueId : null;
     const ownerId = isUUID(res.ownerId) ? res.ownerId : null;
-    const userId  = isUUID(res.userId)  ? res.userId
-                  : isUUID(_currentUser?.id) ? _currentUser.id : null;
+    const sessionUserId = await getSessionUserId();
+    const userId = isUUID(res.userId) ? res.userId
+      : isUUID(sessionUserId) ? sessionUserId : null;
 
     const row = {
-      venue_id:           venueId,
-      user_id:            userId,
-      owner_id:           ownerId,
-      venue_name:         res.venueName         || '',
-      user_name:          res.userName          || '',
-      date:               res.date              || null,
-      start_time:         res.start             || null,
-      end_time:           res.end               || null,
-      guests:             res.guests            || null,
-      event_type:         res.eventType         || null,
-      message:            res.notes || res.message || null,
-      total:              res.total             || 0,
-      status:             'pending',
-      // FIX: respecter le payment_status fourni par l'appelant (ex: 'authorized')
-      // Fallback sur 'unpaid' seulement si rien n'est passé
-      payment_status:     res.payment_status    || res.paymentStatus || 'unpaid',
-      // FIX: sauvegarder le paymentIntentId Stripe
-      payment_intent_id:  res.paymentIntentId   || res.payment_intent_id || null,
+      venue_id: venueId,
+      user_id: userId,
+      owner_id: ownerId,
+      venue_name: res.venueName || '',
+      user_name: res.userName || '',
+      date: res.date || null,
+      start_time: res.start || null,
+      end_time: res.end || null,
+      guests: res.guests || null,
+      event_type: res.eventType || null,
+      message: res.notes || res.message || null,
+      total: res.total || 0,
+      status: 'pending',
+      payment_status: res.payment_status || res.paymentStatus || 'unpaid',
+      payment_intent_id: res.paymentIntentId || res.payment_intent_id || null,
     };
-
-    console.log('[Store.addReservation] row à insérer :', JSON.stringify(row));
 
     const { data, error } = await supabase
       .from('reservations')
@@ -170,23 +250,26 @@ export const Store = {
       .select()
       .single();
 
-    if (error) {
-      console.error('[Store.addReservation] Supabase error:', error.message, error.details, error.hint);
-      throw new Error(error.message);
-    }
+    if (error) throw new Error(error.message);
     return normalizeReservation(data);
   },
 
   async updateReservation(id, changes) {
     const row = {};
-    if (changes.status !== undefined)            row.status             = changes.status;
-    if (changes.payment_status !== undefined)    row.payment_status     = changes.payment_status;
-    if (changes.payment_intent_id !== undefined) row.payment_intent_id  = changes.payment_intent_id;
-    if (changes.paymentIntentId !== undefined)   row.payment_intent_id  = changes.paymentIntentId;
-    if (changes.commission_amount !== undefined) row.commission_amount  = changes.commission_amount;
-    if (changes.net_owner !== undefined)         row.net_owner          = changes.net_owner;
+    if (changes.status !== undefined) row.status = changes.status;
+    if (changes.payment_status !== undefined) row.payment_status = changes.payment_status;
+    if (changes.payment_intent_id !== undefined) row.payment_intent_id = changes.payment_intent_id;
+    if (changes.paymentIntentId !== undefined) row.payment_intent_id = changes.paymentIntentId;
+    if (changes.commission_amount !== undefined) row.commission_amount = changes.commission_amount;
+    if (changes.net_owner !== undefined) row.net_owner = changes.net_owner;
     const { error } = await supabase.from('reservations').update(row).eq('id', id);
     if (error) throw new Error(error.message);
+  },
+
+  async cancelReservation(id, { refundPaymentIntent = false } = {}) {
+    const updates = { status: 'cancelled' };
+    if (refundPaymentIntent) updates.payment_status = 'refunded';
+    await Store.updateReservation(id, updates);
   },
 
   // ─── MESSAGES / CONVERSATIONS ───────────────────────────────────────────
@@ -197,7 +280,8 @@ export const Store = {
     const { data, error } = await supabase
       .from('conversations')
       .insert({ id: convId, user_id: userId, owner_id: ownerId, venue_id: venueId, venue_name: venueName })
-      .select().single();
+      .select()
+      .single();
     if (error) throw new Error(error.message);
     return data;
   },
@@ -225,7 +309,8 @@ export const Store = {
     const { data, error } = await supabase
       .from('messages')
       .insert({ conversation_id: convId, sender_id: msg.senderId, text: msg.text })
-      .select().single();
+      .select()
+      .single();
     if (error) throw new Error(error.message);
     return { ...data, senderId: data.sender_id };
   },
@@ -238,25 +323,37 @@ export const Store = {
     if (error) return [];
     return (data || []).map(r => ({
       ...r,
-      venueId:  r.venue_id,
-      userId:   r.user_id,
+      venueId: r.venue_id,
+      userId: r.user_id,
       userName: r.user_name,
-      author:   r.user_name || 'Anonyme',
-      text:     r.comment   || '',
+      author: r.user_name || 'Anonyme',
+      text: r.comment || '',
     }));
+  },
+
+  async getUserReviewForVenue(userId, venueId) {
+    if (!isUUID(userId) || !isUUID(venueId)) return null;
+    const { data } = await supabase
+      .from('reviews')
+      .select('*')
+      .eq('user_id', userId)
+      .eq('venue_id', venueId)
+      .maybeSingle();
+    return data;
   },
 
   async addReview(review) {
     const { data, error } = await supabase
       .from('reviews')
       .insert({
-        venue_id:  review.venueId,
-        user_id:   review.userId,
+        venue_id: review.venueId,
+        user_id: review.userId,
         user_name: review.userName,
-        rating:    review.rating,
-        comment:   review.comment,
+        rating: review.rating,
+        comment: review.comment,
       })
-      .select().single();
+      .select()
+      .single();
     if (error) throw new Error(error.message);
     return data;
   },
@@ -269,21 +366,26 @@ export const Store = {
 
   async toggleFavorite(userId, venueId) {
     const { data: existing } = await supabase
-      .from('favorites').select('id')
-      .eq('user_id', userId).eq('venue_id', venueId).maybeSingle();
+      .from('favorites')
+      .select('id')
+      .eq('user_id', userId)
+      .eq('venue_id', venueId)
+      .maybeSingle();
     if (existing) {
       await supabase.from('favorites').delete().eq('user_id', userId).eq('venue_id', venueId);
       return false;
-    } else {
-      await supabase.from('favorites').insert({ user_id: userId, venue_id: venueId });
-      return true;
     }
+    await supabase.from('favorites').insert({ user_id: userId, venue_id: venueId });
+    return true;
   },
 
   async isFavorite(userId, venueId) {
     const { data } = await supabase
-      .from('favorites').select('id')
-      .eq('user_id', userId).eq('venue_id', venueId).maybeSingle();
+      .from('favorites')
+      .select('id')
+      .eq('user_id', userId)
+      .eq('venue_id', venueId)
+      .maybeSingle();
     return !!data;
   },
 
@@ -292,7 +394,9 @@ export const Store = {
   },
 };
 
-// ─── Normaliseurs ───────────────────────────────────────────────────────────────────────────────────────
+// Exporté pour les tests unitaires
+export { isUUID, normalizeVenue, normalizeReservation };
+
 function normalizeVenue(v) {
   return {
     id: v.id, ownerId: v.owner_id, name: v.name, type: v.type,
@@ -306,21 +410,21 @@ function normalizeVenue(v) {
 
 function denormalizeVenue(v) {
   const row = {};
-  if (v.id !== undefined)           row.id = v.id;
-  if (v.ownerId !== undefined)      row.owner_id = v.ownerId;
-  if (v.name !== undefined)         row.name = v.name;
-  if (v.type !== undefined)         row.type = v.type;
-  if (v.city !== undefined)         row.city = v.city;
-  if (v.address !== undefined)      row.address = v.address;
-  if (v.price !== undefined)        row.price = v.price;
-  if (v.capacity !== undefined)     row.capacity = v.capacity;
-  if (v.description !== undefined)  row.description = v.description;
-  if (v.img !== undefined)          row.img = v.img;
-  if (v.cover_url !== undefined)    row.cover_url = v.cover_url;
-  if (v.gallery !== undefined)      row.gallery = v.gallery;
+  if (v.id !== undefined) row.id = v.id;
+  if (v.ownerId !== undefined) row.owner_id = v.ownerId;
+  if (v.name !== undefined) row.name = v.name;
+  if (v.type !== undefined) row.type = v.type;
+  if (v.city !== undefined) row.city = v.city;
+  if (v.address !== undefined) row.address = v.address;
+  if (v.price !== undefined) row.price = v.price;
+  if (v.capacity !== undefined) row.capacity = v.capacity;
+  if (v.description !== undefined) row.description = v.description;
+  if (v.img !== undefined) row.img = v.img;
+  if (v.cover_url !== undefined) row.cover_url = v.cover_url;
+  if (v.gallery !== undefined) row.gallery = v.gallery;
   if (v.gallery_urls !== undefined) row.gallery_urls = v.gallery_urls;
-  if (v.tags !== undefined)         row.tags = v.tags;
-  if (v.published !== undefined)    row.published = v.published;
+  if (v.tags !== undefined) row.tags = v.tags;
+  if (v.published !== undefined) row.published = v.published;
   return row;
 }
 

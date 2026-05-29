@@ -6,6 +6,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useApp } from '../../context/AppContext';
+import { COMMISSION_RATE } from '../../constants/app';
 import { colors, spacing, typography, radius, shadow } from '../../theme/colors';
 
 const HOURS = ['08:00','09:00','10:00','11:00','12:00','13:00','14:00','15:00','16:00','17:00','18:00','19:00','20:00','21:00','22:00','23:00'];
@@ -21,11 +22,10 @@ const EVENTS = [
 ];
 
 const STEPS = ['Date & Horaires', 'Détails', 'Récapitulatif'];
-const COMMISSION_RATE = 0.15; // 15% commission EventSpace
 
 export default function BookingScreen({ route, navigation }) {
   const { venue } = route.params || {};
-  const { user, addReservation } = useApp();
+  const { user, addReservation, COMMISSION_RATE } = useApp();
   const insets = useSafeAreaInsets();
   const [step, setStep] = useState(0);
   const [date, setDate] = useState('');

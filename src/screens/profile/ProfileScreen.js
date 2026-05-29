@@ -12,7 +12,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useApp } from '../../context/AppContext';
-import { supabase } from '../../lib/supabase';
+import { supabase } from '../../services/supabase';
 import { colors, spacing, typography } from '../../theme/colors';
 
 export default function ProfileScreen({ navigation }) {

@@ -23,19 +23,18 @@ export default function AnnonceurDashboard({ navigation }) {
   const [processingId, setProcessingId] = useState(null);
 
   const load = useCallback(async () => {
+    if (!user?.id) return;
     try {
-      const allVenues = await Store.getVenues();
-      const myVenues = allVenues.filter(v => v.ownerId === user?.id);
+      const [myVenues, myRes] = await Promise.all([
+        Store.getVenuesByOwner(user.id),
+        Store.getReservationsByOwner(user.id),
+      ]);
       setVenues(myVenues);
-      const allRes = await Store.getReservations();
-      const myRes = allRes.filter(r =>
-        myVenues.some(v => v.id === r.venueId) || r.ownerId === user?.id
-      );
       setReservations(myRes);
     } catch (e) {
       console.error('[Dashboard]', e);
     }
-  }, [user]);
+  }, [user?.id]);
 
   useFocusEffect(useCallback(() => { load(); }, [load]));
 
@@ -52,7 +51,7 @@ export default function AnnonceurDashboard({ navigation }) {
     );
   };
 
-  const commission = COMMISSION_RATE ?? 0.15;
+  const commission = COMMISSION_RATE;
 
   const totalRevenu = reservations
     .filter(r => r.status === 'confirmed')

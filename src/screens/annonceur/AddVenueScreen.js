@@ -12,12 +12,14 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { COLORS } from '../../theme/colors';
 import { Store } from '../../utils/store';
+import { useApp } from '../../context/AppContext';
 
 const TYPES = ['Loft', 'Salle', 'Studio', 'Rooftop', 'Domaine', 'Bureau', 'Autre'];
 const CATEGORIES = ['Soirée', 'Mariage', 'Professionnel', 'Anniversaire'];
 const AMENITIES_LIST = ['WiFi', 'Parking', 'Cuisine', 'Sono', 'Climatisation', 'Terrasse', 'Vidéoprojecteur', 'Catering'];
 
 export default function AddVenueScreen({ navigation }) {
+  const { user } = useApp();
   const [name, setName]               = useState('');
   const [city, setCity]               = useState('');
   const [address, setAddress]         = useState('');
@@ -50,7 +52,7 @@ export default function AddVenueScreen({ navigation }) {
         description: description.trim(),
         amenities,
         published:   true,
-      });
+      }, user?.id);
       Alert.alert(
         '🎉 Lieu publié !',
         `"${name}" est maintenant visible sur EventSpace !`,

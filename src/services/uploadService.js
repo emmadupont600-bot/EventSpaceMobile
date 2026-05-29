@@ -8,7 +8,7 @@
  * Install: npx expo install expo-image-picker
  */
 
-import { supabase } from '../lib/supabase';
+import { supabase } from './supabase';
 
 let ImagePicker = null;
 try { ImagePicker = require('expo-image-picker'); } catch { }

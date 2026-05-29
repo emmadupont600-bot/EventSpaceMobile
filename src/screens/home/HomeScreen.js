@@ -8,6 +8,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
 import { useApp } from '../../context/AppContext';
+import { Store } from '../../utils/store';
 import { VENUES } from '../../data/venues';
 import { aiSearchVenues } from '../../utils/aiSearch';
 import VenueCard from '../../components/VenueCard';
@@ -25,13 +26,14 @@ const CATEGORIES = [
   { label: 'Plein air', value: 'Jardin',             emoji: '🌿' },
 ];
 
-// Toutes les villes disponibles extraites des VENUES
-const CITIES = ['Toutes', ...new Set((VENUES || []).map(v => v.city).filter(Boolean).sort())];
+// Villes extraites des lieux chargés (Supabase ou démo)
+const buildCities = (list) => ['Toutes', ...new Set((list || []).map(v => v.city).filter(Boolean).sort())];
 
 export default function HomeScreen({ navigation }) {
   const { user, favorites, toggleFavorite } = useApp();
   const [search, setSearch] = useState('');
   const [cat, setCat] = useState(null);
+  const [venues, setVenues] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [filterOpen, setFilterOpen] = useState(false);
@@ -44,17 +46,29 @@ export default function HomeScreen({ navigation }) {
   const [aiResults, setAiResults] = useState(null);
   const insets = useSafeAreaInsets();
 
+  const loadVenues = useCallback(async (forceRefresh = false) => {
+    try {
+      const data = await Store.getVenues({ forceRefresh });
+      const list = data.length > 0 ? data : (VENUES || []).filter(v => v.published !== false);
+      setVenues(list);
+    } catch {
+      setVenues((VENUES || []).filter(v => v.published !== false));
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  }, []);
+
   useFocusEffect(useCallback(() => {
-    const t = setTimeout(() => setLoading(false), 400);
-    return () => clearTimeout(t);
-  }, []));
+    loadVenues(false);
+  }, [loadVenues]));
 
   const onRefresh = () => {
     setRefreshing(true);
-    setTimeout(() => setRefreshing(false), 600);
+    loadVenues(true);
   };
 
-  const venues = useMemo(() => (VENUES || []).filter(v => v.published !== false), []);
+  const CITIES = useMemo(() => buildCities(venues), [venues]);
 
   const filtered = useMemo(() => {
     if (aiResults) return aiResults.results;

@@ -11,7 +11,8 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useStripe, CardField } from '@stripe/stripe-react-native';
-import { createPaymentIntent, updateReservationPaymentStatus } from '../../utils/stripeService';
+import { createPaymentIntent, updateReservationPaymentStatus } from '../../services/stripeService';
+import { COMMISSION_RATE } from '../../constants/app';
 import { colors, spacing, radius } from '../../theme/colors';
 
 export default function PaymentScreen({ route, navigation }) {
@@ -26,7 +27,7 @@ export default function PaymentScreen({ route, navigation }) {
   const [initError, setInitError]       = useState(null);
 
   const total      = reservation?.total ?? 0;
-  const commission = Math.round(total * 0.15);
+  const commission = Math.round(total * COMMISSION_RATE);
   const netOwner   = total - commission;
 
   // Crée le PaymentIntent dès l'ouverture

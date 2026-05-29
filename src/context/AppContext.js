@@ -1,37 +1,66 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { Store } from '../utils/store';
 import { initNotifications } from '../utils/notifications';
+import { COMMISSION_RATE } from '../constants/app';
 
 const AppContext = createContext(null);
 
-export const COMMISSION_RATE = 0.12;
+export { COMMISSION_RATE };
 
 export function AppProvider({ children }) {
-  const [user, setUser]           = useState(null);
-  const [loading, setLoading]     = useState(true);
+  const [user, setUser] = useState(null);
+  const [loading, setLoading] = useState(true);
   const [favorites, setFavorites] = useState([]);
 
+  const syncFavorites = useCallback((userId) => {
+    if (!userId) {
+      setFavorites([]);
+      return;
+    }
+    Store.getFavorites(userId)
+      .then(favs => setFavorites(Array.isArray(favs) ? favs : []))
+      .catch(() => setFavorites([]));
+  }, []);
+
   useEffect(() => {
-    Store.getCurrentUser().then(u => {
+    let mounted = true;
+
+    Store.getCurrentUser()
+      .then(u => {
+        if (!mounted) return;
+        setUser(u);
+        if (u?.id) {
+          initNotifications(u.id).catch(() => {});
+          syncFavorites(u.id);
+        }
+      })
+      .catch(() => {})
+      .finally(() => { if (mounted) setLoading(false); });
+
+    const unsubscribe = Store.onAuthStateChange(u => {
+      if (!mounted) return;
       setUser(u);
       if (u?.id) {
         initNotifications(u.id).catch(() => {});
-        Store.getFavorites(u.id).then(favs => {
-          setFavorites(Array.isArray(favs) ? favs : []);
-        }).catch(() => setFavorites([]));
+        syncFavorites(u.id);
+      } else {
+        setFavorites([]);
       }
-    }).catch(() => {}).finally(() => setLoading(false));
-  }, []);
+    });
+
+    return () => {
+      mounted = false;
+      unsubscribe();
+    };
+  }, [syncFavorites]);
 
   const login = useCallback(async (email, password) => {
     const u = await Store.login(email, password);
     setUser(u);
     initNotifications(u.id).catch(() => {});
-    Store.getFavorites(u.id).then(favs => {
-      setFavorites(Array.isArray(favs) ? favs : []);
-    }).catch(() => setFavorites([]));
+    syncFavorites(u.id);
     return u;
-  }, []);
+  }, [syncFavorites]);
 
   const register = useCallback(async (data) => {
     const u = await Store.register(data);
@@ -47,17 +76,14 @@ export function AppProvider({ children }) {
     setFavorites([]);
   }, []);
 
-  // Optimistic update + vraie persistance Supabase
   const toggleFavorite = useCallback(async (venueId) => {
     const isCurrentlyFav = favorites.includes(venueId);
-    // Mise à jour optimiste immédiate
     setFavorites(prev =>
       isCurrentlyFav ? prev.filter(id => id !== venueId) : [...prev, venueId]
     );
     try {
       if (user?.id) await Store.toggleFavorite(user.id, venueId);
     } catch {
-      // Rollback en cas d'erreur
       setFavorites(prev =>
         isCurrentlyFav ? [...prev, venueId] : prev.filter(id => id !== venueId)
       );
@@ -67,6 +93,7 @@ export function AppProvider({ children }) {
   const addReservation = useCallback(async (reservationData) => {
     return await Store.addReservation({
       ...reservationData,
+      userId: user?.id,
       userName: user?.name || user?.email || '',
     });
   }, [user]);
