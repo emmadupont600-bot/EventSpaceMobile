@@ -180,7 +180,7 @@ export const Store = {
 
   async removeVenueGalleryPhoto(venueId, photoUrl) {
     const { data } = await supabase.from('venues').select('gallery_urls').eq('id', venueId).single();
-    const updated = (data?.gallery_urls || []).filter(url => url !== photoUrl);
+    const updated = parseGallery(data?.gallery_urls).filter(url => url !== photoUrl);
     const { error } = await supabase.from('venues').update({ gallery_urls: updated, gallery: updated }).eq('id', venueId);
     if (error) throw new Error(error.message);
     Store.invalidateVenuesCache();
