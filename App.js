@@ -47,9 +47,7 @@ function RootNavigator() {
     );
   }
 
-  if (!user) return <AuthNavigator />;
-
-  if (showOnboarding) {
+  if (user && showOnboarding) {
     return (
       <OnboardingScreen onComplete={async () => {
         await markOnboardingComplete(user.id);
@@ -59,8 +57,14 @@ function RootNavigator() {
   }
 
   return (
-    <NavigationContainer ref={navigationRef} linking={linking}>
-      {user.role === 'annonceur' ? <AnnonceurNavigator /> : <ClientNavigator />}
+    <NavigationContainer ref={navigationRef} linking={user ? linking : undefined}>
+      {!user ? (
+        <AuthNavigator />
+      ) : user.role === 'annonceur' ? (
+        <AnnonceurNavigator />
+      ) : (
+        <ClientNavigator />
+      )}
     </NavigationContainer>
   );
 }

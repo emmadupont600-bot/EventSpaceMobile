@@ -103,8 +103,8 @@ export function useNotificationListener(onNotification, onResponse) {
       onResponse && onResponse(r);
     });
     return () => {
-      Notifications.removeNotificationSubscription(notifListener.current);
-      Notifications.removeNotificationSubscription(responseListener.current);
+      notifListener.current?.remove();
+      responseListener.current?.remove();
     };
   }, []);
 }
