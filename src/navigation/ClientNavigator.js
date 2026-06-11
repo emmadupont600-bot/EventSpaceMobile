@@ -1,9 +1,17 @@
+/**
+ * ClientNavigator — tab bar "Luxury Minimal" 2026 :
+ * hauteur 64px + safe area, fond blur (BlurView), icône active accent
+ * avec label, icônes inactives muted sans label, onglet central légèrement
+ * surélevé, border top 0.5px semi-transparente, pas d'ombres dures.
+ */
 import React from 'react';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createStackNavigator } from '@react-navigation/stack';
 import { View, Platform, Text, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { colors } from '../theme/colors';
+import { BlurView } from 'expo-blur';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useTheme } from '../context/ThemeContext';
 import { hapticSelection } from '../utils/haptics';
 
 import HomeScreen from '../screens/home/HomeScreen';
@@ -46,12 +54,17 @@ function ChatStack() {
 const TABS = [
   { name: 'Accueil',       on: 'home',       off: 'home-outline',       label: 'Accueil' },
   { name: 'Favoris',       on: 'heart',      off: 'heart-outline',      label: 'Favoris' },
-  { name: 'Reservations',  on: 'calendar',   off: 'calendar-outline',   label: 'R\u00e9sas' },
-  { name: 'Messages',      on: 'chatbubble', off: 'chatbubble-outline',  label: 'Messages' },
+  { name: 'Reservations',  on: 'calendar',   off: 'calendar-outline',   label: 'Résas', center: true },
+  { name: 'Messages',      on: 'chatbubble', off: 'chatbubble-outline', label: 'Messages' },
   { name: 'Profil',        on: 'person',     off: 'person-outline',     label: 'Profil' },
 ];
 
+const TAB_BAR_HEIGHT = 64;
+
 export default function ClientNavigator() {
+  const { semantic, isDark } = useTheme();
+  const insets = useSafeAreaInsets();
+
   return (
     <Tab.Navigator
       screenListeners={{ tabPress: () => hapticSelection() }}
@@ -59,29 +72,34 @@ export default function ClientNavigator() {
         const tab = TABS.find(t => t.name === route.name) || TABS[0];
         return {
           headerShown: false,
-          tabBarShowLabel: true,
-          tabBarActiveTintColor: colors.primary,
-          tabBarInactiveTintColor: '#AAAAB5',
+          tabBarActiveTintColor: semantic.primary,
+          tabBarInactiveTintColor: semantic.textFaint,
           tabBarStyle: {
-            backgroundColor: '#FFFFFF',
-            borderTopWidth: 0,
-            height: Platform.OS === 'ios' ? 88 : 68,
-            paddingBottom: Platform.OS === 'ios' ? 28 : 10,
-            paddingTop: 8,
-            shadowColor: '#000',
-            shadowOffset: { width: 0, height: -3 },
-            shadowOpacity: 0.07,
-            shadowRadius: 12,
-            elevation: 16,
+            position: 'absolute',
+            backgroundColor: Platform.OS === 'ios' ? 'transparent' : semantic.bg,
+            borderTopWidth: StyleSheet.hairlineWidth,
+            borderTopColor: isDark ? 'rgba(255,255,255,0.12)' : 'rgba(27,23,19,0.10)',
+            height: TAB_BAR_HEIGHT + insets.bottom,
+            paddingBottom: insets.bottom,
+            paddingTop: 6,
+            elevation: 0,
+            shadowOpacity: 0,
           },
-          tabBarLabel: ({ color }) => (
-            <Text style={{ fontSize: 10, fontWeight: '600', color, marginTop: 1 }}>
-              {tab.label}
-            </Text>
-          ),
+          tabBarBackground: () =>
+            Platform.OS === 'ios' ? (
+              <BlurView
+                intensity={42}
+                tint={isDark ? 'dark' : 'light'}
+                style={StyleSheet.absoluteFill}
+              />
+            ) : null,
+          tabBarLabel: ({ focused, color }) =>
+            focused ? (
+              <Text style={[styles.label, { color }]}>{tab.label}</Text>
+            ) : null,
           tabBarIcon: ({ color, focused }) => (
-            <View style={focused ? styles.activeWrap : styles.inactiveWrap}>
-              <Ionicons name={focused ? tab.on : tab.off} size={22} color={color} />
+            <View style={[styles.iconWrap, tab.center && styles.iconWrapCenter]}>
+              <Ionicons name={focused ? tab.on : tab.off} size={23} color={color} />
             </View>
           ),
         };
@@ -97,9 +115,11 @@ export default function ClientNavigator() {
 }
 
 const styles = StyleSheet.create({
-  inactiveWrap: { width: 40, height: 28, alignItems: 'center', justifyContent: 'center' },
-  activeWrap: {
-    width: 48, height: 28, alignItems: 'center', justifyContent: 'center',
-    backgroundColor: colors.primaryLight || '#EEF2FF', borderRadius: 14,
+  iconWrap: {
+    minWidth: 44, height: 28,
+    alignItems: 'center', justifyContent: 'center',
   },
+  // Onglet central légèrement surélevé (pas de FAB)
+  iconWrapCenter: { transform: [{ translateY: -3 }] },
+  label: { fontSize: 12, fontWeight: '600', marginTop: 1 },
 });

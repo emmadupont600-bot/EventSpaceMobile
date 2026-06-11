@@ -1,5 +1,5 @@
 import React, { useRef, useState, useEffect } from 'react';
-import { View, Image, Text, StyleSheet, StatusBar } from 'react-native';
+import { View, Image, Text, StyleSheet, StatusBar, Platform } from 'react-native';
 import { NavigationContainer } from '@react-navigation/native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
@@ -92,7 +92,10 @@ export default function App() {
 const styles = StyleSheet.create({
   splash: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 12 },
   logo: { width: 96, height: 96, borderRadius: 24, marginBottom: 8 },
-  brand: { fontSize: 32, fontWeight: '900', letterSpacing: -0.5 },
+  brand: {
+    fontFamily: Platform.select({ ios: 'Georgia', android: 'serif' }),
+    fontSize: 32, letterSpacing: -0.5,
+  },
   brandAccent: {},
   tagline: { fontSize: 14, fontWeight: '500' },
 });

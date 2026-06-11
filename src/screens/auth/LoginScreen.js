@@ -1,15 +1,23 @@
+/**
+ * LoginScreen — auth "Luxury Minimal" 2026.
+ * Image de fond venue floutée + overlay, logo centré blanc,
+ * inputs glass morphism (fond semi-transparent, border blanche 20%),
+ * bouton principal blanc avec texte foncé, séparateur "ou continuer avec",
+ * lien switch Login/Register avec underline subtil.
+ */
 import React, { useState } from 'react';
 import {
-  View, Text, TextInput, StyleSheet, ScrollView,
-  KeyboardAvoidingView, Platform, StatusBar,
+  View, Text, TextInput, StyleSheet, ScrollView, Image,
+  KeyboardAvoidingView, Platform, StatusBar, TouchableOpacity,
+  ActivityIndicator,
 } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { useApp } from '../../context/AppContext';
-import { colors, spacing, radius, typography } from '../../theme/colors';
-import Button from '../../components/Button';
+import { spacing, radius } from '../../theme/tokens';
 import PressableScale from '../../components/PressableScale';
 import { hapticError } from '../../utils/haptics';
+
+const BG_IMAGE = 'https://images.unsplash.com/photo-1519167758481-83f550bb49b3?w=1200&q=70';
 
 export default function LoginScreen({ navigation }) {
   const { login } = useApp();
@@ -46,32 +54,32 @@ export default function LoginScreen({ navigation }) {
   return (
     <View style={styles.root}>
       <StatusBar barStyle="light-content" />
+
+      {/* Fond : venue floutée + overlay sombre */}
+      <Image source={{ uri: BG_IMAGE }} style={StyleSheet.absoluteFill} blurRadius={14} />
+      <View style={styles.overlay} />
+
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
         <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
-          <LinearGradient
-            colors={['#7C3AED', '#6D28D9', '#5B21B6']}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 1 }}
-            style={styles.hero}
-          >
+
+          {/* Logo centré */}
+          <View style={styles.logoSection}>
             <View style={styles.logoBadge}>
-              <Ionicons name="location" size={30} color="#fff" />
+              <Ionicons name="location" size={28} color="#FFFFFF" />
             </View>
             <Text style={styles.brand}>EventSpace</Text>
-            <Text style={styles.tagline}>Trouvez et louez le lieu parfait</Text>
-          </LinearGradient>
+            <Text style={styles.tagline}>Des lieux d'exception pour vos événements</Text>
+          </View>
 
-          <View style={styles.card}>
-            <Text style={styles.welcome}>Bon retour 👋</Text>
-            <Text style={styles.welcomeSub}>Connectez-vous pour continuer</Text>
-
+          {/* Formulaire glass */}
+          <View style={styles.form}>
             <Text style={styles.label}>Adresse email</Text>
             <View style={styles.inputWrap}>
-              <Ionicons name="mail-outline" size={18} color={colors.mid} />
+              <Ionicons name="mail-outline" size={18} color="rgba(255,255,255,0.7)" />
               <TextInput
                 style={styles.input}
                 placeholder="email@exemple.com"
-                placeholderTextColor={colors.light}
+                placeholderTextColor="rgba(255,255,255,0.45)"
                 value={email}
                 onChangeText={setEmail}
                 keyboardType="email-address"
@@ -82,58 +90,64 @@ export default function LoginScreen({ navigation }) {
 
             <Text style={styles.label}>Mot de passe</Text>
             <View style={styles.inputWrap}>
-              <Ionicons name="lock-closed-outline" size={18} color={colors.mid} />
+              <Ionicons name="lock-closed-outline" size={18} color="rgba(255,255,255,0.7)" />
               <TextInput
                 style={styles.input}
                 placeholder="••••••••"
-                placeholderTextColor={colors.light}
+                placeholderTextColor="rgba(255,255,255,0.45)"
                 value={password}
                 onChangeText={setPassword}
                 secureTextEntry={!showPwd}
               />
-              <PressableScale haptic="selection" onPress={() => setShowPwd(s => !s)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-                <Ionicons name={showPwd ? 'eye-off-outline' : 'eye-outline'} size={18} color={colors.mid} />
-              </PressableScale>
+              <TouchableOpacity
+                onPress={() => setShowPwd(v => !v)}
+                hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+              >
+                <Ionicons name={showPwd ? 'eye-off-outline' : 'eye-outline'} size={18} color="rgba(255,255,255,0.7)" />
+              </TouchableOpacity>
             </View>
 
             {!!error && (
               <View style={styles.errorRow}>
-                <Ionicons name="alert-circle" size={15} color={colors.error} />
+                <Ionicons name="alert-circle" size={15} color="#FFB4A4" />
                 <Text style={styles.error}>{error}</Text>
               </View>
             )}
 
-            <Button
-              title="Se connecter"
+            {/* Bouton principal : blanc uni, texte foncé */}
+            <PressableScale
+              style={[styles.primaryBtn, loading && { opacity: 0.7 }]}
               onPress={() => handleLogin()}
-              loading={loading}
-              size="lg"
-              style={{ marginTop: spacing.lg }}
-            />
+              disabled={loading}
+              haptic="light"
+              accessibilityLabel="Se connecter"
+            >
+              {loading
+                ? <ActivityIndicator color="#1B1713" />
+                : <Text style={styles.primaryBtnTxt}>Se connecter</Text>}
+            </PressableScale>
           </View>
 
-          <View style={styles.demoSection}>
-            <View style={styles.divider}>
-              <View style={styles.line} />
-              <Text style={styles.demoTitle}>Connexion rapide (démo)</Text>
-              <View style={styles.line} />
-            </View>
-            <View style={styles.demoRow}>
-              <PressableScale style={[styles.demoBtn, styles.demoBtnClient]} onPress={() => quickLogin('client')} disabled={loading}>
-                <Ionicons name="person-outline" size={20} color={colors.primary} />
-                <Text style={styles.demoBtnText}>Client</Text>
-                <Text style={styles.demoBtnSub}>client@demo.com</Text>
-              </PressableScale>
-
-              <PressableScale style={[styles.demoBtn, styles.demoBtnAnnonceur]} onPress={() => quickLogin('annonceur')} disabled={loading}>
-                <Ionicons name="business-outline" size={20} color={colors.success} />
-                <Text style={styles.demoBtnText}>Annonceur</Text>
-                <Text style={styles.demoBtnSub}>annonceur@demo.com</Text>
-              </PressableScale>
-            </View>
-            <Text style={styles.demoHint}>Mot de passe des deux comptes : demo123</Text>
+          {/* Séparateur */}
+          <View style={styles.divider}>
+            <View style={styles.line} />
+            <Text style={styles.dividerTxt}>ou continuer avec</Text>
+            <View style={styles.line} />
           </View>
 
+          {/* Comptes démo */}
+          <View style={styles.demoRow}>
+            <PressableScale style={styles.demoBtn} onPress={() => quickLogin('client')} disabled={loading}>
+              <Ionicons name="person-outline" size={18} color="#FFFFFF" />
+              <Text style={styles.demoBtnText}>Démo client</Text>
+            </PressableScale>
+            <PressableScale style={styles.demoBtn} onPress={() => quickLogin('annonceur')} disabled={loading}>
+              <Ionicons name="business-outline" size={18} color="#FFFFFF" />
+              <Text style={styles.demoBtnText}>Démo annonceur</Text>
+            </PressableScale>
+          </View>
+
+          {/* Switch Register */}
           <PressableScale style={styles.registerLink} haptic="selection" onPress={() => navigation.navigate('Register')}>
             <Text style={styles.registerText}>
               Pas encore de compte ? <Text style={styles.registerTextBold}>Créer un compte</Text>
@@ -145,54 +159,59 @@ export default function LoginScreen({ navigation }) {
   );
 }
 
+const GLASS_BG = 'rgba(255,255,255,0.10)';
+const GLASS_BORDER = 'rgba(255,255,255,0.20)';
+
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: colors.bg },
-  scroll: { flexGrow: 1, paddingBottom: 32 },
-  hero: {
-    alignItems: 'center', paddingTop: 80, paddingBottom: 48,
-    borderBottomLeftRadius: 32, borderBottomRightRadius: 32,
-  },
+  root: { flex: 1, backgroundColor: '#141210' },
+  overlay: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(20,18,16,0.55)' },
+  scroll: { flexGrow: 1, paddingHorizontal: spacing.xl, paddingBottom: 40, justifyContent: 'center' },
+  logoSection: { alignItems: 'center', marginTop: 64, marginBottom: spacing.xxl },
   logoBadge: {
     width: 64, height: 64, borderRadius: 20,
-    backgroundColor: 'rgba(255,255,255,0.18)',
-    alignItems: 'center', justifyContent: 'center', marginBottom: 14,
+    backgroundColor: GLASS_BG,
+    borderWidth: 1, borderColor: GLASS_BORDER,
+    alignItems: 'center', justifyContent: 'center', marginBottom: spacing.md,
   },
-  brand: { fontSize: typography.display, fontWeight: '900', color: '#fff', letterSpacing: -0.5 },
-  tagline: { fontSize: typography.body, color: 'rgba(255,255,255,0.85)', marginTop: 6 },
-  card: {
-    backgroundColor: colors.surface,
-    marginHorizontal: spacing.lg, marginTop: -24,
-    borderRadius: radius.xl, padding: spacing.xl,
-    borderWidth: 1, borderColor: colors.borderLight,
-    shadowColor: colors.primary, shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.10, shadowRadius: 24, elevation: 6,
+  brand: {
+    fontFamily: Platform.select({ ios: 'Georgia', android: 'serif' }),
+    fontSize: 34, color: '#FFFFFF', letterSpacing: -0.5,
   },
-  welcome: { fontSize: typography.h1, fontWeight: '900', color: colors.dark, letterSpacing: -0.5 },
-  welcomeSub: { fontSize: typography.small, color: colors.mid, marginTop: 3, marginBottom: spacing.lg },
-  label: { fontSize: typography.small, fontWeight: '700', color: colors.dark, marginBottom: 7, marginTop: spacing.md },
+  tagline: { fontSize: 14, color: 'rgba(255,255,255,0.75)', marginTop: 6 },
+  form: { width: '100%' },
+  label: {
+    fontSize: 12, fontWeight: '600', color: 'rgba(255,255,255,0.8)',
+    letterSpacing: 0.6, textTransform: 'uppercase',
+    marginBottom: 8, marginTop: spacing.md,
+  },
   inputWrap: {
     flexDirection: 'row', alignItems: 'center', gap: spacing.sm,
-    borderWidth: 1.5, borderColor: colors.border, borderRadius: radius.md,
-    paddingHorizontal: spacing.md, backgroundColor: colors.surfaceSecondary,
+    backgroundColor: GLASS_BG,
+    borderWidth: 1, borderColor: GLASS_BORDER,
+    borderRadius: radius.md, paddingHorizontal: spacing.md, height: 52,
   },
-  input: { flex: 1, paddingVertical: 13, fontSize: typography.body, color: colors.dark },
+  input: { flex: 1, fontSize: 15, color: '#FFFFFF' },
   errorRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: spacing.md, justifyContent: 'center' },
-  error: { color: colors.error, fontSize: typography.small, fontWeight: '600' },
-  demoSection: { marginTop: spacing.xl, paddingHorizontal: spacing.lg },
-  divider: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, marginBottom: spacing.md },
-  line: { flex: 1, height: 1, backgroundColor: colors.border },
-  demoTitle: { color: colors.mid, fontSize: typography.tiny, fontWeight: '600' },
+  error: { color: '#FFB4A4', fontSize: 13, fontWeight: '600' },
+  primaryBtn: {
+    backgroundColor: '#FFFFFF', borderRadius: radius.md, height: 56,
+    alignItems: 'center', justifyContent: 'center', marginTop: spacing.xl,
+  },
+  primaryBtnTxt: { fontSize: 16, fontWeight: '700', color: '#1B1713' },
+  divider: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, marginVertical: spacing.xl },
+  line: { flex: 1, height: 1, backgroundColor: 'rgba(255,255,255,0.18)' },
+  dividerTxt: { color: 'rgba(255,255,255,0.6)', fontSize: 12, fontWeight: '500' },
   demoRow: { flexDirection: 'row', gap: spacing.md },
   demoBtn: {
-    flex: 1, borderRadius: radius.lg, paddingVertical: spacing.lg, paddingHorizontal: spacing.md,
-    alignItems: 'center', borderWidth: 1.5, gap: 4, backgroundColor: colors.surface,
+    flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
+    height: 48, borderRadius: radius.md,
+    backgroundColor: GLASS_BG, borderWidth: 1, borderColor: GLASS_BORDER,
   },
-  demoBtnClient: { borderColor: colors.primary },
-  demoBtnAnnonceur: { borderColor: colors.success },
-  demoBtnText: { fontSize: typography.body, fontWeight: '800', color: colors.dark, marginTop: 4 },
-  demoBtnSub: { fontSize: typography.tiny, color: colors.mid },
-  demoHint: { textAlign: 'center', fontSize: typography.tiny, color: colors.light, marginTop: spacing.md },
-  registerLink: { alignItems: 'center', paddingVertical: spacing.lg, marginTop: spacing.sm },
-  registerText: { fontSize: typography.small, color: colors.mid },
-  registerTextBold: { color: colors.primary, fontWeight: '800' },
+  demoBtnText: { fontSize: 13, fontWeight: '600', color: '#FFFFFF' },
+  registerLink: { alignItems: 'center', paddingVertical: spacing.lg, marginTop: spacing.md, minHeight: 44 },
+  registerText: { fontSize: 14, color: 'rgba(255,255,255,0.75)' },
+  registerTextBold: {
+    color: '#FFFFFF', fontWeight: '700',
+    textDecorationLine: 'underline', textDecorationColor: 'rgba(255,255,255,0.4)',
+  },
 });

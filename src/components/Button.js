@@ -1,15 +1,13 @@
+/**
+ * Button — bouton "Luxury Minimal" : couleur d'accent unie (jamais de gradient),
+ * state pressed opacité 0.85, loading avec ActivityIndicator inline,
+ * tap target minimum 44pt.
+ */
 import React from 'react';
 import { Text, StyleSheet, ActivityIndicator, View } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
-import { colors, radius, typography, shadow } from '../theme/colors';
+import { useTheme } from '../context/ThemeContext';
 import PressableScale from './PressableScale';
-
-const GRADIENTS = {
-  primary: ['#7C3AED', '#6D28D9', '#5B21B6'],
-  secondary: ['#F59E0B', '#D97706', '#B45309'],
-  danger: ['#F87171', '#DC2626', '#B91C1C'],
-};
 
 export default function Button({
   title,
@@ -21,70 +19,61 @@ export default function Button({
   icon,
   size = 'md',
 }) {
-  const isFilled = variant === 'primary' || variant === 'secondary' || variant === 'danger';
+  const { semantic } = useTheme();
   const inactive = disabled || loading;
-  const pad = size === 'lg' ? { paddingVertical: 17 } : size === 'sm' ? { paddingVertical: 10, paddingHorizontal: 16 } : null;
+  const isFilled = variant === 'primary' || variant === 'secondary' || variant === 'danger';
 
-  const content = loading
-    ? <ActivityIndicator color={isFilled ? '#fff' : colors.primary} />
-    : (
-      <View style={styles.inner}>
-        {icon ? <Ionicons name={icon} size={18} color={isFilled ? '#fff' : colors.primary} /> : null}
-        <Text style={[styles.text, styles['text_' + variant]]}>{title}</Text>
-      </View>
-    );
+  const bg = {
+    primary: semantic.primary,
+    secondary: semantic.secondary,
+    danger: semantic.error,
+    outline: 'transparent',
+    ghost: semantic.primarySoft,
+  }[variant] || semantic.primary;
 
-  if (isFilled) {
-    return (
-      <PressableScale
-        onPress={onPress}
-        disabled={inactive}
-        haptic="light"
-        style={[styles.shadowWrap, variant === 'primary' && shadow.md, inactive && styles.disabled, style]}
-        accessibilityLabel={title}
-      >
-        <LinearGradient
-          colors={GRADIENTS[variant]}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
-          style={[styles.btn, pad]}
-        >
-          {content}
-        </LinearGradient>
-      </PressableScale>
-    );
-  }
+  const fg = isFilled ? semantic.primaryForeground : semantic.primary;
+
+  const sizeStyle =
+    size === 'lg' ? { height: 56, borderRadius: 14 }
+    : size === 'sm' ? { height: 44, paddingHorizontal: 16, borderRadius: 12 }
+    : { height: 50, borderRadius: 14 };
 
   return (
     <PressableScale
       onPress={onPress}
       disabled={inactive}
       haptic="light"
-      style={[styles.btn, pad, styles[variant], inactive && styles.disabled, style]}
+      scaleTo={0.98}
       accessibilityLabel={title}
+      style={[
+        styles.btn,
+        sizeStyle,
+        { backgroundColor: bg },
+        variant === 'outline' && { borderWidth: 1, borderColor: semantic.primary },
+        inactive && styles.disabled,
+        style,
+      ]}
     >
-      {content}
+      {loading ? (
+        <ActivityIndicator color={fg} />
+      ) : (
+        <View style={styles.inner}>
+          {icon ? <Ionicons name={icon} size={18} color={fg} /> : null}
+          <Text style={[styles.text, { color: fg }]}>{title}</Text>
+        </View>
+      )}
     </PressableScale>
   );
 }
 
 const styles = StyleSheet.create({
-  shadowWrap: { borderRadius: radius.lg },
   btn: {
-    borderRadius: radius.lg,
-    paddingVertical: 15,
     paddingHorizontal: 20,
     alignItems: 'center',
     justifyContent: 'center',
+    minHeight: 44,
   },
   inner: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  outline: { backgroundColor: 'transparent', borderWidth: 1.5, borderColor: colors.primary },
-  ghost: { backgroundColor: colors.primaryLight },
   disabled: { opacity: 0.5 },
-  text: { fontSize: typography.body, fontWeight: '700', letterSpacing: 0.2 },
-  text_primary: { color: '#fff' },
-  text_secondary: { color: '#fff' },
-  text_outline: { color: colors.primary },
-  text_ghost: { color: colors.primary },
-  text_danger: { color: '#fff' },
+  text: { fontSize: 15, fontWeight: '700', letterSpacing: 0.2 },
 });
