@@ -7,6 +7,7 @@
 import React from 'react';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createStackNavigator } from '@react-navigation/stack';
+import { getFocusedRouteNameFromRoute } from '@react-navigation/native';
 import { View, Platform, Text, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { BlurView } from 'expo-blur';
@@ -61,6 +62,16 @@ const TABS = [
 
 const TAB_BAR_HEIGHT = 64;
 
+// Sous-écrans avec CTA sticky en bas : on masque la tab bar (absolute/blur)
+const HIDDEN_TAB_ROUTES = new Set([
+  'VenueDetail', 'Booking', 'Payment', 'BookingConfirmation', 'MapSearch', 'ChatRoom',
+]);
+
+function shouldHideTabBar(route) {
+  const focused = getFocusedRouteNameFromRoute(route);
+  return focused ? HIDDEN_TAB_ROUTES.has(focused) : false;
+}
+
 export default function ClientNavigator() {
   const { semantic, isDark } = useTheme();
   const insets = useSafeAreaInsets();
@@ -75,6 +86,7 @@ export default function ClientNavigator() {
           tabBarActiveTintColor: semantic.primary,
           tabBarInactiveTintColor: semantic.textFaint,
           tabBarStyle: {
+            display: shouldHideTabBar(route) ? 'none' : 'flex',
             position: 'absolute',
             backgroundColor: Platform.OS === 'ios' ? 'transparent' : semantic.bg,
             borderTopWidth: StyleSheet.hairlineWidth,

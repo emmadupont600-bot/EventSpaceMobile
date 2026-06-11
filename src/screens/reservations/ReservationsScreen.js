@@ -340,7 +340,8 @@ const styles = StyleSheet.create({
   tabActive: { borderBottomColor: colors.primary },
   tabTxt: { fontSize: 12, fontWeight: '500', color: colors.muted, textAlign: 'center' },
   tabTxtActive: { color: colors.primary, fontWeight: '700' },
-  list: { padding: spacing.sm, gap: spacing.sm, paddingBottom: spacing.xl },
+  // paddingBottom large : la tab bar est en position absolute (blur)
+  list: { padding: spacing.sm, gap: spacing.sm, paddingBottom: 120 },
   card: {
     backgroundColor: colors.white || '#fff',
     borderRadius: radius.lg || 14, padding: spacing.md, ...shadow?.sm,
