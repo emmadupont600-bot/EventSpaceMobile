@@ -1,8 +1,15 @@
+/**
+ * SkeletonLoader — shimmer beige chaud reproduisant exactement
+ * la forme des cards (image 4:3 + corps), fade vers le contenu géré
+ * par les écrans (200ms).
+ */
 import React, { useEffect, useRef } from 'react';
 import { Animated, StyleSheet, View } from 'react-native';
-import { colors, radius } from '../theme/colors';
+import { useTheme } from '../context/ThemeContext';
+import { spacing } from '../theme/tokens';
 
-export function SkeletonBox({ width, height, borderRadius = 8, style }) {
+export function SkeletonBox({ width, height, borderRadius = 8, style, aspectRatio }) {
+  const { isDark } = useTheme();
   const anim = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
@@ -14,26 +21,24 @@ export function SkeletonBox({ width, height, borderRadius = 8, style }) {
     ).start();
   }, []);
 
-  const opacity = anim.interpolate({ inputRange: [0, 1], outputRange: [0.4, 0.85] });
+  const opacity = anim.interpolate({ inputRange: [0, 1], outputRange: [0.45, 0.9] });
+  const shimmer = isDark ? '#2C2722' : '#EDE6DA';
 
   return (
     <Animated.View
-      style={[{ width, height, borderRadius, backgroundColor: colors.surfaceSecondary, opacity }, style]}
+      style={[{ width, height, aspectRatio, borderRadius, backgroundColor: shimmer, opacity }, style]}
     />
   );
 }
 
 export function VenueCardSkeleton() {
+  const { semantic } = useTheme();
   return (
-    <View style={styles.card}>
-      <SkeletonBox width="100%" height={180} borderRadius={16} />
-      <View style={{ padding: 12, gap: 8 }}>
-        <SkeletonBox width="70%" height={18} />
-        <SkeletonBox width="50%" height={14} />
-        <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
-          <SkeletonBox width={80} height={14} />
-          <SkeletonBox width={60} height={14} />
-        </View>
+    <View style={[styles.card, { backgroundColor: semantic.surface }]}>
+      <SkeletonBox width="100%" aspectRatio={4 / 3} borderRadius={0} />
+      <View style={{ paddingHorizontal: 12, paddingVertical: 10, flexDirection: 'row', justifyContent: 'space-between' }}>
+        <SkeletonBox width={90} height={14} />
+        <SkeletonBox width={70} height={14} />
       </View>
     </View>
   );
@@ -41,7 +46,14 @@ export function VenueCardSkeleton() {
 
 export function HomeScreenSkeleton() {
   return (
-    <View style={{ paddingHorizontal: 16, paddingTop: 8 }}>
+    <View style={{ paddingHorizontal: spacing.lg, paddingTop: spacing.sm }}>
+      <SkeletonBox width={180} height={28} borderRadius={8} style={{ marginBottom: 16 }} />
+      <SkeletonBox width="100%" height={48} borderRadius={999} style={{ marginBottom: 16 }} />
+      <View style={{ flexDirection: 'row', gap: 8, marginBottom: 20 }}>
+        {[72, 90, 84].map((w, i) => (
+          <SkeletonBox key={i} width={w} height={36} borderRadius={999} />
+        ))}
+      </View>
       {[1, 2, 3].map(i => (
         <VenueCardSkeleton key={i} />
       ))}
@@ -50,8 +62,9 @@ export function HomeScreenSkeleton() {
 }
 
 export function ChatItemSkeleton() {
+  const { semantic } = useTheme();
   return (
-    <View style={styles.chatItem}>
+    <View style={[styles.chatItem, { borderBottomColor: semantic.borderSubtle }]}>
       <SkeletonBox width={48} height={48} borderRadius={24} />
       <View style={{ flex: 1, gap: 8, marginLeft: 12 }}>
         <SkeletonBox width="60%" height={14} />
@@ -74,22 +87,14 @@ export function ProfileSkeleton() {
 
 const styles = StyleSheet.create({
   card: {
-    backgroundColor: colors.white,
-    borderRadius: radius.xl,
+    borderRadius: 16,
     overflow: 'hidden',
     marginBottom: 16,
-    borderWidth: 1,
-    borderColor: colors.borderLight,
-    shadowColor: colors.primary,
-    shadowOpacity: 0.06,
-    shadowRadius: 8,
-    elevation: 3,
   },
   chatItem: {
     flexDirection: 'row',
     alignItems: 'center',
     padding: 16,
     borderBottomWidth: 1,
-    borderBottomColor: colors.borderLight,
   },
 });

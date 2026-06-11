@@ -1,123 +1,241 @@
-import React from 'react';
-import { View, Text, Image, StyleSheet, Pressable } from 'react-native';
+/**
+ * VenueCard — carte lieu "Luxury Minimal" 2026.
+ * Image hero 4:3 avec fade-in au chargement + overlay gradient
+ * (nom & prix lisibles dans l'image), badge catégorie pill semi-transparent,
+ * badge or "Premium" pour les lieux les mieux notés, cœur favoris sur fond
+ * flou avec animation scale, coins 16px, ombre douce ton-sur-ton.
+ */
+import React, { useMemo, useRef } from 'react';
+import { View, Text, StyleSheet, Pressable, Platform, Animated as RNAnimated } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
-import { colors, spacing, radius, shadow, typography } from '../theme/colors';
+import { BlurView } from 'expo-blur';
+import Animated, {
+  useSharedValue,
+  useAnimatedStyle,
+  withSequence,
+  withSpring,
+} from 'react-native-reanimated';
+import { useTheme } from '../context/ThemeContext';
+import { shadow, spacing, animation } from '../theme/tokens';
 import PressableScale from './PressableScale';
-import { hapticSelection } from '../utils/haptics';
+import { hapticLight, hapticWarning } from '../utils/haptics';
 
-export default function VenueCard({ venue, onPress, onFav, isFav }) {
-  const handleFav = () => {
-    hapticSelection();
-    onFav && onFav();
+const CARD_RADIUS = 16;
+const PREMIUM_THRESHOLD = 4.8;
+
+/** Image avec fade-in doux au chargement (placeholder beige chaud derrière) */
+function FadeInImage({ uri, style }) {
+  const opacity = useRef(new RNAnimated.Value(0)).current;
+  return (
+    <RNAnimated.Image
+      source={{ uri }}
+      style={[style, { opacity }]}
+      onLoad={() => {
+        RNAnimated.timing(opacity, {
+          toValue: 1, duration: animation.base, useNativeDriver: true,
+        }).start();
+      }}
+    />
+  );
+}
+
+function FavButton({ isFav, onToggle }) {
+  const scale = useSharedValue(1);
+
+  const animatedStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: scale.value }],
+  }));
+
+  const handlePress = () => {
+    scale.value = withSequence(
+      withSpring(1.3, { damping: 12, stiffness: 380, mass: 0.5 }),
+      withSpring(1, { damping: 14, stiffness: 320, mass: 0.5 })
+    );
+    if (isFav) hapticWarning();
+    else hapticLight();
+    onToggle && onToggle();
   };
 
+  const heart = (
+    <Animated.View style={animatedStyle}>
+      <Ionicons name={isFav ? 'heart' : 'heart-outline'} size={20} color={isFav ? '#E8654F' : '#FFFFFF'} />
+    </Animated.View>
+  );
+
   return (
-    <PressableScale style={styles.card} onPress={onPress} scaleTo={0.975} haptic="none">
-      <View style={styles.imgWrap}>
+    <Pressable
+      onPress={handlePress}
+      hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+      accessibilityRole="button"
+      accessibilityLabel={isFav ? 'Retirer des favoris' : 'Ajouter aux favoris'}
+      style={styles.favWrap}
+    >
+      {Platform.OS === 'ios' ? (
+        <BlurView intensity={28} tint="dark" style={styles.favInner}>{heart}</BlurView>
+      ) : (
+        <View style={[styles.favInner, styles.favInnerAndroid]}>{heart}</View>
+      )}
+    </Pressable>
+  );
+}
+
+export default function VenueCard({ venue, onPress, onFav, isFav, width }) {
+  const { semantic, isDark } = useTheme();
+  const s = useMemo(() => themedStyles(semantic, isDark), [semantic, isDark]);
+
+  return (
+    <PressableScale
+      style={[s.card, width ? { width } : null]}
+      onPress={onPress}
+      scaleTo={0.98}
+      haptic="none"
+    >
+      <View style={[styles.imgWrap, s.imgPlaceholder]}>
         {venue?.img ? (
-          <Image source={{ uri: venue.img }} style={styles.img} />
+          <FadeInImage uri={venue.img} style={styles.img} />
         ) : (
-          <View style={[styles.img, styles.imgFallback]}>
-            <Ionicons name="image-outline" size={32} color={colors.light} />
+          <View style={[styles.img, s.imgFallback]}>
+            <Ionicons name="image-outline" size={32} color={semantic.textFaint} />
           </View>
         )}
 
         <LinearGradient
-          colors={['rgba(28,25,23,0)', 'rgba(28,25,23,0.55)']}
-          style={styles.imgOverlay}
+          colors={['rgba(20,18,16,0)', 'rgba(20,18,16,0.25)', 'rgba(20,18,16,0.78)']}
+          locations={[0.45, 0.65, 1]}
+          style={StyleSheet.absoluteFill}
           pointerEvents="none"
         />
 
-        <View style={styles.badge}>
-          <Text style={styles.badgeText} numberOfLines={1}>{venue?.type || ''}</Text>
+        <View style={styles.badgeColumn}>
+          {venue?.type ? (
+            <View style={styles.typeBadge}>
+              <Text style={styles.typeBadgeText} numberOfLines={1}>{venue.type}</Text>
+            </View>
+          ) : null}
+          {(venue?.rating || 0) >= PREMIUM_THRESHOLD ? (
+            <View style={[styles.premiumBadge, { backgroundColor: semantic.gold }]}>
+              <Ionicons name="star" size={10} color="#FFFFFF" />
+              <Text style={styles.premiumBadgeText}>Premium</Text>
+            </View>
+          ) : null}
         </View>
 
-        <Pressable
-          style={styles.favBtn}
-          onPress={handleFav}
-          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-          accessibilityRole="button"
-          accessibilityLabel={isFav ? 'Retirer des favoris' : 'Ajouter aux favoris'}
-        >
-          <Ionicons
-            name={isFav ? 'heart' : 'heart-outline'}
-            size={18}
-            color={isFav ? '#FB7185' : '#fff'}
-          />
-        </Pressable>
+        <FavButton isFav={isFav} onToggle={onFav} />
 
-        {venue?.rating ? (
-          <View style={styles.ratingPill}>
-            <Ionicons name="star" size={11} color="#FBBF24" />
-            <Text style={styles.ratingPillText}>
-              {venue.rating}
-              {venue?.reviewCount ? <Text style={styles.ratingCount}> ({venue.reviewCount})</Text> : null}
-            </Text>
+        <View style={styles.overlayBottom} pointerEvents="none">
+          <View style={{ flex: 1, marginRight: spacing.sm }}>
+            <Text style={styles.overlayName} numberOfLines={1}>{venue?.name || ''}</Text>
+            <View style={styles.overlayMetaRow}>
+              <Ionicons name="location-outline" size={12} color="rgba(255,255,255,0.85)" />
+              <Text style={styles.overlayMeta} numberOfLines={1}>
+                {venue?.city || ''}{venue?.capacity ? `  ·  ${venue.capacity} pers.` : ''}
+              </Text>
+            </View>
           </View>
-        ) : null}
+          <Text style={styles.overlayPrice}>
+            {venue?.price ?? ''}
+            <Text style={styles.overlayPriceUnit}> €/h</Text>
+          </Text>
+        </View>
       </View>
 
-      <View style={styles.body}>
-        <Text style={styles.name} numberOfLines={1}>{venue?.name || ''}</Text>
-        <View style={styles.row}>
-          <Ionicons name="location-outline" size={13} color={colors.mid} />
-          <Text style={styles.meta} numberOfLines={1}>{venue?.city || ''}</Text>
-          <View style={styles.dot} />
-          <Ionicons name="people-outline" size={13} color={colors.mid} />
-          <Text style={styles.meta}>{venue?.capacity || ''} pers.</Text>
-        </View>
-        <View style={styles.footer}>
-          <Text style={styles.price}>
-            {venue?.price || ''} <Text style={styles.perH}>€ / h</Text>
-          </Text>
+      <View style={s.body}>
+        <View style={styles.bodyRow}>
+          {venue?.rating ? (
+            <View style={styles.ratingRow}>
+              <Ionicons name="star" size={13} color={semantic.gold} />
+              <Text style={[styles.ratingText, { color: semantic.text }]}>
+                {venue.rating}
+                {venue?.reviewCount ? (
+                  <Text style={{ color: semantic.textMuted, fontWeight: '400' }}> ({venue.reviewCount})</Text>
+                ) : null}
+              </Text>
+            </View>
+          ) : (
+            <Text style={[styles.ratingText, { color: semantic.textMuted, fontWeight: '400' }]}>Nouveau</Text>
+          )}
+          <View style={styles.ctaRow}>
+            <Text style={[styles.ctaText, { color: semantic.primary }]}>Découvrir</Text>
+            <Ionicons name="arrow-forward" size={13} color={semantic.primary} />
+          </View>
         </View>
       </View>
     </PressableScale>
   );
 }
 
+function themedStyles(c, isDark) {
+  return StyleSheet.create({
+    card: {
+      backgroundColor: c.surface,
+      borderRadius: CARD_RADIUS,
+      marginBottom: spacing.lg,
+      overflow: 'hidden',
+      ...(isDark ? shadow.xs : shadow.md),
+    },
+    imgPlaceholder: { backgroundColor: isDark ? '#2C2722' : '#EDE6DA' },
+    imgFallback: {
+      backgroundColor: c.bg,
+      justifyContent: 'center',
+      alignItems: 'center',
+    },
+    body: {
+      paddingHorizontal: spacing.md,
+      paddingVertical: spacing.sm + 2,
+    },
+  });
+}
+
 const styles = StyleSheet.create({
-  card: {
-    backgroundColor: colors.white,
-    borderRadius: radius.xl,
-    marginBottom: spacing.lg,
-    overflow: 'hidden',
-    borderWidth: 1,
-    borderColor: colors.borderLight,
-    ...shadow.md,
-  },
-  imgWrap: { position: 'relative' },
-  img: { width: '100%', height: 200, resizeMode: 'cover' },
-  imgFallback: { backgroundColor: colors.surfaceSecondary, justifyContent: 'center', alignItems: 'center' },
-  imgOverlay: { position: 'absolute', left: 0, right: 0, bottom: 0, height: 80 },
-  badge: {
+  imgWrap: { position: 'relative', width: '100%', aspectRatio: 4 / 3 },
+  img: { width: '100%', height: '100%', resizeMode: 'cover' },
+  badgeColumn: {
     position: 'absolute', top: 12, left: 12,
-    backgroundColor: 'rgba(255,255,255,0.92)',
-    borderRadius: radius.full, paddingHorizontal: 11, paddingVertical: 5,
-    maxWidth: '60%',
+    alignItems: 'flex-start', gap: 6, maxWidth: '60%',
   },
-  badgeText: { fontSize: typography.tiny, color: colors.primary, fontWeight: '800', letterSpacing: 0.3 },
-  favBtn: {
+  typeBadge: {
+    backgroundColor: 'rgba(20,18,16,0.45)',
+    borderRadius: 999,
+    paddingHorizontal: 12, paddingVertical: 6,
+  },
+  typeBadgeText: {
+    fontSize: 12, color: '#FFFFFF', fontWeight: '600', letterSpacing: 0.4,
+  },
+  premiumBadge: {
+    flexDirection: 'row', alignItems: 'center', gap: 4,
+    borderRadius: 999, paddingHorizontal: 10, paddingVertical: 4,
+  },
+  premiumBadgeText: {
+    fontSize: 11, color: '#FFFFFF', fontWeight: '700', letterSpacing: 0.5,
+    textTransform: 'uppercase',
+  },
+  favWrap: {
     position: 'absolute', top: 10, right: 10,
-    width: 36, height: 36, borderRadius: 18,
-    backgroundColor: 'rgba(28,25,23,0.32)',
-    justifyContent: 'center', alignItems: 'center',
+    width: 44, height: 44,
+    alignItems: 'center', justifyContent: 'center',
   },
-  ratingPill: {
-    position: 'absolute', bottom: 12, right: 12,
-    flexDirection: 'row', alignItems: 'center', gap: 3,
-    backgroundColor: 'rgba(255,255,255,0.95)',
-    borderRadius: radius.full, paddingHorizontal: 9, paddingVertical: 4,
+  favInner: {
+    width: 38, height: 38, borderRadius: 19,
+    overflow: 'hidden',
+    alignItems: 'center', justifyContent: 'center',
   },
-  ratingPillText: { fontSize: typography.tiny, fontWeight: '800', color: colors.dark },
-  ratingCount: { fontWeight: '500', color: colors.mid },
-  body: { padding: spacing.md, gap: 7 },
-  name: { fontSize: typography.h3, fontWeight: '800', color: colors.dark, letterSpacing: -0.3 },
-  row: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  dot: { width: 3, height: 3, borderRadius: 1.5, backgroundColor: colors.light, marginHorizontal: 4 },
-  meta: { fontSize: typography.small, color: colors.mid, fontWeight: '500' },
-  footer: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline', marginTop: 2 },
-  price: { fontSize: typography.h2, fontWeight: '900', color: colors.dark, letterSpacing: -0.5 },
-  perH: { fontSize: typography.small, fontWeight: '500', color: colors.mid },
+  favInnerAndroid: { backgroundColor: 'rgba(20,18,16,0.45)' },
+  overlayBottom: {
+    position: 'absolute', left: 0, right: 0, bottom: 0,
+    flexDirection: 'row', alignItems: 'flex-end',
+    paddingHorizontal: spacing.md, paddingBottom: spacing.md,
+  },
+  overlayName: {
+    fontSize: 18, color: '#FFFFFF', fontWeight: '700', letterSpacing: -0.2,
+  },
+  overlayMetaRow: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 3 },
+  overlayMeta: { fontSize: 12, color: 'rgba(255,255,255,0.85)', fontWeight: '500' },
+  overlayPrice: { fontSize: 19, color: '#FFFFFF', fontWeight: '800', letterSpacing: -0.3 },
+  overlayPriceUnit: { fontSize: 12, fontWeight: '500', color: 'rgba(255,255,255,0.85)' },
+  bodyRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  ratingRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  ratingText: { fontSize: 13, fontWeight: '700' },
+  ctaRow: { flexDirection: 'row', alignItems: 'center', gap: 4, minHeight: 24 },
+  ctaText: { fontSize: 13, fontWeight: '600' },
 });

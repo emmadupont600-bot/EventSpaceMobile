@@ -3,13 +3,16 @@
  */
 import { createClient } from '@supabase/supabase-js';
 import 'react-native-url-polyfill/auto';
+import { SUPABASE_URL, SUPABASE_ANON_KEY } from '../config/env';
 
-const SUPABASE_URL      = 'https://lmmadyvzbzeafriyeseg.supabase.co';
-const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImxtbWFkeXZ6YnplYWZyaXllc2VnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzc3MzUwNDMsImV4cCI6MjA5MzMxMTA0M30.tZeGgUBkkRJqG1e3CejbODxlH-m7oLFrkSfCNIqBCgg';
+export const isSupabaseConfigured = Boolean(SUPABASE_URL && SUPABASE_ANON_KEY);
 
-export const isSupabaseConfigured = true;
-
-export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+// Valeurs de repli inertes pour éviter un crash au démarrage si .env absent
+// (l'app affiche alors les warnings de src/config/env.js).
+export const supabase = createClient(
+  SUPABASE_URL || 'https://placeholder.supabase.co',
+  SUPABASE_ANON_KEY || 'public-anon-key-missing'
+);
 
 /**
  * Helper générique : exécute une requête Supabase.

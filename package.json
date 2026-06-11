@@ -9,7 +9,7 @@
     "web": "expo start --web",
     "test": "jest",
     "typecheck": "tsc --noEmit",
-    "sync:main": "git fetch origin && git reset --hard origin/main && rm -rf node_modules && npm install --legacy-peer-deps"
+    "sync:main": "git fetch origin && git reset --hard origin/main && npm ci --legacy-peer-deps"
   },
   "dependencies": {
     "@expo/vector-icons": "^15.0.3",
@@ -21,6 +21,7 @@
     "@supabase/supabase-js": "^2.43.4",
     "expo": "~54.0.35",
     "expo-asset": "~12.0.0",
+    "expo-blur": "~15.0.8",
     "expo-constants": "~18.0.13",
     "expo-device": "~8.0.10",
     "expo-font": "~14.0.12",
@@ -47,10 +48,14 @@
   },
   "jest": {
     "testMatch": [
-      "**/__tests__/**/*.test.js"
+      "**/__tests__/**/*.test.[jt]s"
     ],
     "transform": {
-      "^.+\\.jsx?$": "babel-jest"
+      "^.+\\.[jt]sx?$": "babel-jest"
+    },
+    "moduleNameMapper": {
+      "^expo-constants$": "<rootDir>/jest/mocks/expo-constants.js",
+      "^expo/virtual/env$": "<rootDir>/jest/mocks/expo-virtual-env.js"
     }
   },
   "private": true

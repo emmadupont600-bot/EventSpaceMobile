@@ -8,13 +8,16 @@ npx expo install expo-notifications expo-device expo-image-picker
 
 ## 2. Variables d'environnement
 
-Crée un fichier `.env` à la racine :
+Copie `.env.example` vers `.env` (gitignoré) à la racine et renseigne tes clés :
 
 ```env
-EXPO_PUBLIC_SUPABASE_URL=https://lmmadyvzbzeafriyeseg.supabase.co
+EXPO_PUBLIC_SUPABASE_URL=https://<ton-projet>.supabase.co
 EXPO_PUBLIC_SUPABASE_ANON_KEY=<ta_clé_anon>
-EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY=pk_test_51TSkDI1...
+EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY=pk_test_...
 ```
+
+Les clés sont injectées via `app.config.js` → `expo.extra` et lues par
+`src/config/env.js` (expo-constants). Aucune clé ne doit être commitée.
 
 ## 3. Secrets Supabase Edge Functions
 

@@ -252,7 +252,8 @@ const mStyles = StyleSheet.create({
 const C = colors;
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: C.bg },
-  content: { paddingHorizontal: spacing.lg, paddingBottom: 60 },
+  // paddingBottom large : la tab bar est en position absolute (blur)
+  content: { paddingHorizontal: spacing.lg, paddingBottom: 120 },
   avatarSection: { alignItems: 'center', paddingTop: spacing.xl, paddingBottom: spacing.lg, gap: 8 },
   avatar: {
     width: 88, height: 88, borderRadius: 44,

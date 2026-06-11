@@ -2,11 +2,13 @@
 
 ## 1. Variables d'environnement
 
-### App mobile (src/utils/stripeService.js)
-Remplace la valeur de `STRIPE_PUBLISHABLE_KEY` par ta vraie clé publique test :
+### App mobile (.env)
+Copie `.env.example` vers `.env` (gitignoré) et renseigne ta clé publique test :
 ```
-pk_test_51XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
+EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY=pk_test_51XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
 ```
+La clé est injectée via `app.config.js` → `expo.extra` et lue par
+`src/config/env.js` (expo-constants). Aucune clé ne doit être commitée.
 
 ### Edge Function Supabase
 Dans le Dashboard Supabase → Settings → Edge Functions → Secrets, ajoute :
