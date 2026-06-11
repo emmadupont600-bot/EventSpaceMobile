@@ -1,11 +1,12 @@
 /**
  * VenueCard — carte lieu "Luxury Minimal" 2026.
- * Image hero 4:3 + overlay gradient (nom & prix lisibles dans l'image),
- * badge catégorie pill semi-transparent, cœur favoris sur fond flou,
- * coins 16px, ombre douce ton-sur-ton, aucune bordure colorée.
+ * Image hero 4:3 avec fade-in au chargement + overlay gradient
+ * (nom & prix lisibles dans l'image), badge catégorie pill semi-transparent,
+ * badge or "Premium" pour les lieux les mieux notés, cœur favoris sur fond
+ * flou avec animation scale, coins 16px, ombre douce ton-sur-ton.
  */
-import React, { useMemo } from 'react';
-import { View, Text, Image, StyleSheet, Pressable, Platform } from 'react-native';
+import React, { useMemo, useRef } from 'react';
+import { View, Text, StyleSheet, Pressable, Platform, Animated as RNAnimated } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { BlurView } from 'expo-blur';
@@ -16,11 +17,28 @@ import Animated, {
   withSpring,
 } from 'react-native-reanimated';
 import { useTheme } from '../context/ThemeContext';
-import { shadow, spacing } from '../theme/tokens';
+import { shadow, spacing, animation } from '../theme/tokens';
 import PressableScale from './PressableScale';
 import { hapticLight, hapticWarning } from '../utils/haptics';
 
 const CARD_RADIUS = 16;
+const PREMIUM_THRESHOLD = 4.8;
+
+/** Image avec fade-in doux au chargement (placeholder beige chaud derrière) */
+function FadeInImage({ uri, style }) {
+  const opacity = useRef(new RNAnimated.Value(0)).current;
+  return (
+    <RNAnimated.Image
+      source={{ uri }}
+      style={[style, { opacity }]}
+      onLoad={() => {
+        RNAnimated.timing(opacity, {
+          toValue: 1, duration: animation.base, useNativeDriver: true,
+        }).start();
+      }}
+    />
+  );
+}
 
 function FavButton({ isFav, onToggle }) {
   const scale = useSharedValue(1);
@@ -73,9 +91,9 @@ export default function VenueCard({ venue, onPress, onFav, isFav, width }) {
       scaleTo={0.98}
       haptic="none"
     >
-      <View style={styles.imgWrap}>
+      <View style={[styles.imgWrap, s.imgPlaceholder]}>
         {venue?.img ? (
-          <Image source={{ uri: venue.img }} style={styles.img} />
+          <FadeInImage uri={venue.img} style={styles.img} />
         ) : (
           <View style={[styles.img, s.imgFallback]}>
             <Ionicons name="image-outline" size={32} color={semantic.textFaint} />
@@ -89,11 +107,19 @@ export default function VenueCard({ venue, onPress, onFav, isFav, width }) {
           pointerEvents="none"
         />
 
-        {venue?.type ? (
-          <View style={styles.typeBadge}>
-            <Text style={styles.typeBadgeText} numberOfLines={1}>{venue.type}</Text>
-          </View>
-        ) : null}
+        <View style={styles.badgeColumn}>
+          {venue?.type ? (
+            <View style={styles.typeBadge}>
+              <Text style={styles.typeBadgeText} numberOfLines={1}>{venue.type}</Text>
+            </View>
+          ) : null}
+          {(venue?.rating || 0) >= PREMIUM_THRESHOLD ? (
+            <View style={[styles.premiumBadge, { backgroundColor: semantic.gold }]}>
+              <Ionicons name="star" size={10} color="#FFFFFF" />
+              <Text style={styles.premiumBadgeText}>Premium</Text>
+            </View>
+          ) : null}
+        </View>
 
         <FavButton isFav={isFav} onToggle={onFav} />
 
@@ -148,6 +174,7 @@ function themedStyles(c, isDark) {
       overflow: 'hidden',
       ...(isDark ? shadow.xs : shadow.md),
     },
+    imgPlaceholder: { backgroundColor: isDark ? '#2C2722' : '#EDE6DA' },
     imgFallback: {
       backgroundColor: c.bg,
       justifyContent: 'center',
@@ -163,15 +190,25 @@ function themedStyles(c, isDark) {
 const styles = StyleSheet.create({
   imgWrap: { position: 'relative', width: '100%', aspectRatio: 4 / 3 },
   img: { width: '100%', height: '100%', resizeMode: 'cover' },
-  typeBadge: {
+  badgeColumn: {
     position: 'absolute', top: 12, left: 12,
+    alignItems: 'flex-start', gap: 6, maxWidth: '60%',
+  },
+  typeBadge: {
     backgroundColor: 'rgba(20,18,16,0.45)',
     borderRadius: 999,
     paddingHorizontal: 12, paddingVertical: 6,
-    maxWidth: '55%',
   },
   typeBadgeText: {
     fontSize: 12, color: '#FFFFFF', fontWeight: '600', letterSpacing: 0.4,
+  },
+  premiumBadge: {
+    flexDirection: 'row', alignItems: 'center', gap: 4,
+    borderRadius: 999, paddingHorizontal: 10, paddingVertical: 4,
+  },
+  premiumBadgeText: {
+    fontSize: 11, color: '#FFFFFF', fontWeight: '700', letterSpacing: 0.5,
+    textTransform: 'uppercase',
   },
   favWrap: {
     position: 'absolute', top: 10, right: 10,

@@ -168,8 +168,28 @@ export default function VenueDetailScreen({ route, navigation }) {
         scrollEventThrottle={16}
         contentContainerStyle={{ paddingBottom: 140 }}
       >
-        {/* Hero galerie 16:9 */}
-        <View style={{ position: 'relative' }}>
+        {/* Hero galerie 16:9 avec parallax (zoom au pull-down, glisse au scroll) */}
+        <Animated.View
+          style={{
+            position: 'relative',
+            transform: [
+              {
+                translateY: scrollY.interpolate({
+                  inputRange: [-HERO_HEIGHT, 0, HERO_HEIGHT],
+                  outputRange: [-HERO_HEIGHT / 2, 0, HERO_HEIGHT * 0.45],
+                  extrapolate: 'clamp',
+                }),
+              },
+              {
+                scale: scrollY.interpolate({
+                  inputRange: [-HERO_HEIGHT, 0],
+                  outputRange: [1.6, 1],
+                  extrapolateRight: 'clamp',
+                }),
+              },
+            ],
+          }}
+        >
           <ScrollView
             horizontal
             pagingEnabled
@@ -189,9 +209,10 @@ export default function VenueDetailScreen({ route, navigation }) {
               ))}
             </View>
           )}
-        </View>
+        </Animated.View>
 
-        <View style={{ padding: spacing.lg }}>
+        {/* Feuille de contenu arrondie qui recouvre le hero (effet sheet) */}
+        <View style={s.contentSheet}>
           {/* Titre + note */}
           <View style={styles.topRow}>
             {venue.type ? (
@@ -321,6 +342,14 @@ const styles = StyleSheet.create({
 function themedStyles(c, isDark) {
   return StyleSheet.create({
     container: { flex: 1, backgroundColor: c.bg },
+    contentSheet: {
+      padding: spacing.lg,
+      backgroundColor: c.bg,
+      borderTopLeftRadius: 24,
+      borderTopRightRadius: 24,
+      marginTop: -20,
+      paddingTop: spacing.xl,
+    },
     loaderWrap: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: spacing.md, backgroundColor: c.bg, padding: spacing.lg },
     loaderText: { color: c.textMuted, fontSize: 15, textAlign: 'center' },
     retryBtn: { marginTop: spacing.sm, backgroundColor: c.primarySoft, paddingHorizontal: spacing.lg, height: 44, borderRadius: radius.full, alignItems: 'center', justifyContent: 'center' },

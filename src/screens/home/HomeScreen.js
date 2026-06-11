@@ -12,6 +12,7 @@ import {
   ActivityIndicator, KeyboardAvoidingView, Platform, Animated,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import Reanimated, { FadeInDown, FadeInRight } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
 import { useApp } from '../../context/AppContext';
@@ -263,14 +264,16 @@ export default function HomeScreen({ navigation }) {
             snapToInterval={FEATURED_CARD_WIDTH + spacing.md}
             decelerationRate="fast"
             contentContainerStyle={{ paddingHorizontal: spacing.lg, gap: spacing.md }}
-            renderItem={({ item }) => (
-              <VenueCard
-                venue={item}
-                width={FEATURED_CARD_WIDTH}
-                isFav={favorites.includes(item.id)}
-                onPress={() => navigation.navigate('VenueDetail', { venue: item, venueId: item.id })}
-                onFav={() => toggleFavorite(item.id)}
-              />
+            renderItem={({ item, index }) => (
+              <Reanimated.View entering={FadeInRight.delay(Math.min(index, 5) * 80).springify().damping(18)}>
+                <VenueCard
+                  venue={item}
+                  width={FEATURED_CARD_WIDTH}
+                  isFav={favorites.includes(item.id)}
+                  onPress={() => navigation.navigate('VenueDetail', { venue: item, venueId: item.id })}
+                  onFav={() => toggleFavorite(item.id)}
+                />
+              </Reanimated.View>
             )}
           />
         </View>
@@ -293,15 +296,18 @@ export default function HomeScreen({ navigation }) {
           <FlatList
             data={filtered}
             keyExtractor={v => String(v.id)}
-            renderItem={({ item }) => (
-              <View style={{ paddingHorizontal: spacing.lg }}>
+            renderItem={({ item, index }) => (
+              <Reanimated.View
+                entering={FadeInDown.delay(Math.min(index, 6) * 70).springify().damping(18)}
+                style={{ paddingHorizontal: spacing.lg }}
+              >
                 <VenueCard
                   venue={item}
                   isFav={favorites.includes(item.id)}
                   onPress={() => navigation.navigate('VenueDetail', { venue: item, venueId: item.id })}
                   onFav={() => toggleFavorite(item.id)}
                 />
-              </View>
+              </Reanimated.View>
             )}
             contentContainerStyle={{ paddingBottom: 120 }}
             showsVerticalScrollIndicator={false}
