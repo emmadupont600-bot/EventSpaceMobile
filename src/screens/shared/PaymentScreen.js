@@ -18,13 +18,14 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useApp } from '../../context/AppContext';
 import { Store } from '../../utils/store';
 import { processPayment, computePricing } from '../../services/stripeService';
+import { COMMISSION_RATE } from '../../constants/app';
 import { colors, spacing, typography } from '../../theme/colors';
 
 const C = colors;
 
 export default function PaymentScreen({ route, navigation }) {
   const { reservation, venue } = route.params;
-  const { user, COMMISSION_RATE } = useApp();
+  const { user } = useApp();
   const insets = useSafeAreaInsets();
   const [loading, setLoading] = useState(false);
   const [paid, setPaid] = useState(false);

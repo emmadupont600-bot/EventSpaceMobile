@@ -9,13 +9,14 @@ import { useFocusEffect } from '@react-navigation/native';
 import { useApp } from '../../context/AppContext';
 import { Store } from '../../utils/store';
 import { capturePayment, refundPayment } from '../../services/stripeService';
+import { COMMISSION_RATE } from '../../constants/app';
 import SimpleBarChart from '../../components/SimpleBarChart';
 import { colors, spacing, typography } from '../../theme/colors';
 
 const C = colors;
 
 export default function AnnonceurDashboard({ navigation }) {
-  const { user, COMMISSION_RATE, updateReservationStatus, logout } = useApp();
+  const { user, updateReservationStatus, logout } = useApp();
   const insets = useSafeAreaInsets();
   const [venues, setVenues] = useState([]);
   const [reservations, setReservations] = useState([]);

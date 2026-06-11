@@ -1,11 +1,8 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { Store } from '../utils/store';
 import { initNotifications } from '../utils/notifications';
-import { COMMISSION_RATE } from '../constants/app';
 
 const AppContext = createContext(null);
-
-export { COMMISSION_RATE };
 
 export function AppProvider({ children }) {
   const [user, setUser] = useState(null);
@@ -112,7 +109,6 @@ export function AppProvider({ children }) {
       login,
       register,
       logout,
-      COMMISSION_RATE,
       addReservation,
       updateReservationStatus,
     }}>

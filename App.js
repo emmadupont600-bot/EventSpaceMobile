@@ -6,9 +6,7 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { StripeProvider } from '@stripe/stripe-react-native';
 import { AppProvider, useApp } from './src/context/AppContext';
 import { ThemeProvider, useTheme } from './src/context/ThemeContext';
-import AuthNavigator from './src/navigation/AuthNavigator';
-import ClientNavigator from './src/navigation/ClientNavigator';
-import AnnonceurNavigator from './src/navigation/AnnonceurNavigator';
+import getNavigatorForRole from './src/navigation/getNavigatorForRole';
 import OnboardingScreen, { shouldShowOnboarding, markOnboardingComplete } from './src/screens/onboarding/OnboardingScreen';
 import { STRIPE_PUBLISHABLE_KEY } from './src/constants/app';
 import { linking, navigateFromNotification } from './src/navigation/linking';
@@ -56,15 +54,11 @@ function RootNavigator() {
     );
   }
 
+  const Navigator = getNavigatorForRole(user);
+
   return (
     <NavigationContainer ref={navigationRef} linking={user ? linking : undefined}>
-      {!user ? (
-        <AuthNavigator />
-      ) : user.role === 'annonceur' ? (
-        <AnnonceurNavigator />
-      ) : (
-        <ClientNavigator />
-      )}
+      <Navigator />
     </NavigationContainer>
   );
 }

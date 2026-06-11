@@ -26,7 +26,7 @@ const STEPS = ['Date & Horaires', 'Détails', 'Récapitulatif'];
 
 export default function BookingScreen({ route, navigation }) {
   const { venue } = route.params || {};
-  const { user, addReservation, COMMISSION_RATE } = useApp();
+  const { user, addReservation } = useApp();
   const insets = useSafeAreaInsets();
   const [step, setStep] = useState(0);
   const [date, setDate] = useState('');
@@ -269,7 +269,7 @@ export default function BookingScreen({ route, navigation }) {
                 <View style={styles.commissionInfo}>
                   <Ionicons name="information-circle-outline" size={14} color="#6C63FF" />
                   <Text style={styles.commissionInfoTxt}>
-                    Commission plateforme de 15% ({commission.toLocaleString('fr-FR')} €) déduite du versement à l'annonceur.
+                    Commission plateforme de {Math.round(COMMISSION_RATE * 100)}% ({commission.toLocaleString('fr-FR')} €) déduite du versement à l'annonceur.
                   </Text>
                 </View>
               </View>
